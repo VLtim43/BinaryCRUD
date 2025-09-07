@@ -15,6 +15,9 @@
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
-    <TextBox HorizontalAlignment="Center" VerticalAlignment="Center" Width="300" Height="30"/>
+    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Vertical" Spacing="10">
+        <TextBox Text="{Binding Text}" Width="300" Height="30"/>
+        <Button Content="Save to Binary File" Command="{Binding SaveCommand}" Width="300" Height="35"/>
+    </StackPanel>
 
 </Window>
