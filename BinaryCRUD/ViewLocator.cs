@@ -1,9 +1,9 @@
 using System;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
-using BinaryCrudApp.ViewModels;
+using BinaryCRUD.ViewModels;
 
-namespace BinaryCrudApp;
+namespace BinaryCRUD;
 
 public class ViewLocator : IDataTemplate
 {

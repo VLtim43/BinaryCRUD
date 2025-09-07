@@ -4,10 +4,10 @@ using Avalonia.Data.Core;
 using Avalonia.Data.Core.Plugins;
 using System.Linq;
 using Avalonia.Markup.Xaml;
-using BinaryCrudApp.ViewModels;
-using BinaryCrudApp.Views;
+using BinaryCRUD.ViewModels;
+using BinaryCRUD.Views;
 
-namespace BinaryCrudApp;
+namespace BinaryCRUD;
 
 public partial class App : Application
 {

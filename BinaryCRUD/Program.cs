@@ -1,7 +1,7 @@
 ﻿using Avalonia;
 using System;
 
-namespace BinaryCrudApp;
+namespace BinaryCRUD;
 
 sealed class Program
 {

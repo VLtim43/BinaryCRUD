@@ -1,4 +1,4 @@
-﻿namespace BinaryCrudApp.ViewModels;
+﻿namespace BinaryCRUD.ViewModels;
 
 public partial class MainWindowViewModel : ViewModelBase
 {
