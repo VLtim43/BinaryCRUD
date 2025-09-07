@@ -13,6 +13,7 @@ public class FileOrderDAO : IOrderDAO, IDisposable
     private readonly string _filePath;
     private readonly SemaphoreSlim _fileLock = new(1, 1);
 
+    // create the folder and path
     public FileOrderDAO()
     {
         if (!Directory.Exists(DataDirectory))
@@ -26,33 +27,24 @@ public class FileOrderDAO : IOrderDAO, IDisposable
         await _fileLock.WaitAsync();
         try
         {
-            var header = await ReadOrCreateHeaderAsync();
+            if (!File.Exists(_filePath))
+            {
+                await CreateNewFileWithHeaderAsync();
+            }
+
+            // Read current header
+            var header = await ReadHeaderAsync();
             var previousCount = header.Count;
             header.Count++;
             header.LastUpdated = DateTime.UtcNow;
 
-            Console.WriteLine($"[DAO] Updating header: {previousCount} -> {header.Count} orders");
+            Console.WriteLine($"[DAO] Updating header: {previousCount} > {header.Count} orders");
 
-            using var stream = new FileStream(_filePath, FileMode.Create, FileAccess.Write);
+            await UpdateHeaderAsync(header);
 
-            // Write header
-            await WriteHeaderAsync(stream, header);
+            await AppendOrderToFileAsync(content);
 
-            // Copy existing orders if file existed
-            if (File.Exists(_filePath + ".tmp"))
-            {
-                using var tempStream = new FileStream(
-                    _filePath + ".tmp",
-                    FileMode.Open,
-                    FileAccess.Read
-                );
-                tempStream.Seek(GetHeaderSize(), SeekOrigin.Begin);
-                await tempStream.CopyToAsync(stream);
-            }
-
-            // Append new order
-            await WriteOrderAsync(stream, content);
-            Console.WriteLine($"[DAO] Order saved to: {_filePath}");
+            Console.WriteLine($"[DAO] Order appended to: {_filePath}");
         }
         finally
         {
@@ -60,19 +52,34 @@ public class FileOrderDAO : IOrderDAO, IDisposable
         }
     }
 
-    private async Task<OrderHeader> ReadOrCreateHeaderAsync()
+    private async Task CreateNewFileWithHeaderAsync()
     {
-        if (!File.Exists(_filePath))
-            return new OrderHeader { Count = 0 };
-
-        // Create temp copy for reading existing data
-        File.Copy(_filePath, _filePath + ".tmp", true);
-
-        using var stream = new FileStream(_filePath + ".tmp", FileMode.Open, FileAccess.Read);
-        return await ReadHeaderAsync(stream);
+        var header = new OrderHeader { Count = 0 };
+        using var stream = new FileStream(_filePath, FileMode.Create, FileAccess.Write);
+        await WriteHeaderAsync(stream, header);
     }
 
-    private async Task<OrderHeader> ReadHeaderAsync(Stream stream)
+    private async Task<OrderHeader> ReadHeaderAsync()
+    {
+        using var stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
+        return await ReadHeaderFromStreamAsync(stream);
+    }
+
+    private async Task UpdateHeaderAsync(OrderHeader header)
+    {
+        using var stream = new FileStream(_filePath, FileMode.Open, FileAccess.ReadWrite);
+        stream.Seek(0, SeekOrigin.Begin); // Go to beginning
+        await WriteHeaderAsync(stream, header);
+    }
+
+    private async Task AppendOrderToFileAsync(string content)
+    {
+        using var stream = new FileStream(_filePath, FileMode.Open, FileAccess.Write);
+        stream.Seek(0, SeekOrigin.End); // Go to end of file
+        await WriteOrderAsync(stream, content);
+    }
+
+    private async Task<OrderHeader> ReadHeaderFromStreamAsync(Stream stream)
     {
         var buffer = new byte[GetHeaderSize()];
         await stream.ReadExactlyAsync(buffer);
