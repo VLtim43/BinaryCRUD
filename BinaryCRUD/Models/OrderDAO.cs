@@ -5,9 +5,8 @@ namespace BinaryCRUD.Models;
 
 public class OrderDAO : FileBinaryDAO<Order>, IOrderDAO
 {
-    public OrderDAO() : base("orders.bin")
-    {
-    }
+    public OrderDAO()
+        : base("orders.bin") { }
 
     public async Task AddOrderAsync(string content)
     {

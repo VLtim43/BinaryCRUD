@@ -6,7 +6,8 @@ using System.Threading.Tasks;
 
 namespace BinaryCRUD.Models;
 
-public abstract class FileBinaryDAO<T> : IFileDAO<T>, IDisposable where T : ISerializable
+public abstract class FileBinaryDAO<T> : IFileDAO<T>, IDisposable
+    where T : ISerializable
 {
     private const string DataDirectory = "Data";
     protected readonly string _filePath;
@@ -36,11 +37,13 @@ public abstract class FileBinaryDAO<T> : IFileDAO<T>, IDisposable where T : ISer
             header.Count++;
             header.LastUpdated = DateTime.UtcNow;
 
-            Console.WriteLine($"[{GetType().Name}] Updating header: {previousCount} -> {header.Count} entities");
+            Console.WriteLine(
+                $"[{GetType().Name}] Updating header: {previousCount} -> {header.Count} entities"
+            );
 
             await UpdateHeaderAsync(header);
             await AppendEntityToFileAsync(entity);
-            
+
             Console.WriteLine($"[{GetType().Name}] Entity appended to: {_filePath}");
         }
         finally
@@ -122,20 +125,22 @@ public abstract class FileBinaryDAO<T> : IFileDAO<T>, IDisposable where T : ISer
             }
 
             using var stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
-            
+
             // Read header
             var header = await ReadHeaderFromStreamAsync(stream);
-            Console.WriteLine($"[{GetType().Name}] Reading {header.Count} entities from: {_filePath}");
-            
+            Console.WriteLine(
+                $"[{GetType().Name}] Reading {header.Count} entities from: {_filePath}"
+            );
+
             var entities = new List<T>();
-            
+
             // Read each entity
             for (int i = 0; i < header.Count; i++)
             {
                 var entity = await ReadEntityFromStreamAsync(stream);
                 entities.Add(entity);
             }
-            
+
             return entities;
         }
         finally
@@ -150,11 +155,11 @@ public abstract class FileBinaryDAO<T> : IFileDAO<T>, IDisposable where T : ISer
         var lengthBuffer = new byte[sizeof(int)];
         await stream.ReadExactlyAsync(lengthBuffer);
         var entityLength = BitConverter.ToInt32(lengthBuffer, 0);
-        
+
         // Read entity data
         var entityBuffer = new byte[entityLength];
         await stream.ReadExactlyAsync(entityBuffer);
-        
+
         // Deserialize entity
         var entity = (T)Activator.CreateInstance(typeof(T))!;
         entity.FromBytes(entityBuffer);
