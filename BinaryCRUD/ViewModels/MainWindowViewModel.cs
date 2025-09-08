@@ -146,8 +146,9 @@ public partial class MainWindowViewModel : ViewModelBase
                     for (int i = 0; i < orders.Count; i++)
                     {
                         var order = orders[i];
+                        var status = order.IsTombstone ? "[DELETED]" : "[ACTIVE]";
                         System.Console.WriteLine(
-                            $"[ORDER {i + 1}] Content: '{order.Content}', Created: {order.CreatedAt:yyyy-MM-dd HH:mm:ss}"
+                            $"[ORDER {i + 1}] ID: {order.Id}, Status: {status}, Content: '{order.Content}', Created: {order.CreatedAt:yyyy-MM-dd HH:mm:ss}"
                         );
                     }
                     
@@ -167,8 +168,9 @@ public partial class MainWindowViewModel : ViewModelBase
                     for (int i = 0; i < users.Count; i++)
                     {
                         var user = users[i];
+                        var status = user.IsTombstone ? "[DELETED]" : "[ACTIVE]";
                         System.Console.WriteLine(
-                            $"[USER {i + 1}] Content: '{user.Content}', Created: {user.CreatedAt:yyyy-MM-dd HH:mm:ss}"
+                            $"[USER {i + 1}] ID: {user.Id}, Status: {status}, Content: '{user.Content}', Created: {user.CreatedAt:yyyy-MM-dd HH:mm:ss}"
                         );
                     }
                     
@@ -188,8 +190,9 @@ public partial class MainWindowViewModel : ViewModelBase
                     for (int i = 0; i < items.Count; i++)
                     {
                         var item = items[i];
+                        var status = item.IsTombstone ? "[DELETED]" : "[ACTIVE]";
                         System.Console.WriteLine(
-                            $"[ITEM {i + 1}] Name: '{item.Content}', Price: ${item.Price:F2}, Created: {item.CreatedAt:yyyy-MM-dd HH:mm:ss}"
+                            $"[ITEM {i + 1}] ID: {item.Id}, Status: {status}, Name: '{item.Content}', Price: ${item.Price:F2}, Created: {item.CreatedAt:yyyy-MM-dd HH:mm:ss}"
                         );
                     }
                     
