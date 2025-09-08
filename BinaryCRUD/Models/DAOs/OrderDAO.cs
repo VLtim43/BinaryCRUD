@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace BinaryCRUD.Models;
 
-public class OrderDAO : FileBinaryDAO<Order>, IOrderDAO
+public class OrderDAO : FileBinaryDAO<Order>
 {
     public OrderDAO()
         : base("orders.bin") { }

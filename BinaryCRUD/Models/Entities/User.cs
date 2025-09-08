@@ -3,7 +3,7 @@ using System.Text;
 
 namespace BinaryCRUD.Models;
 
-public class Order : ISerializable
+public class User : InterfaceSerializable
 {
     public string Content { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

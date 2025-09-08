@@ -1,6 +1,6 @@
 namespace BinaryCRUD.Models;
 
-public interface ISerializable
+public interface InterfaceSerializable
 {
     byte[] ToBytes();
     void FromBytes(byte[] data);

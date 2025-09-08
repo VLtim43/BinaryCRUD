@@ -6,8 +6,8 @@ using System.Threading.Tasks;
 
 namespace BinaryCRUD.Models;
 
-public abstract class FileBinaryDAO<T> : IFileDAO<T>, IDisposable
-    where T : ISerializable
+public abstract class FileBinaryDAO<T> : InterfaceFileDAO<T>, IDisposable
+    where T : InterfaceSerializable
 {
     private const string DataDirectory = "Data";
     protected readonly string _filePath;
