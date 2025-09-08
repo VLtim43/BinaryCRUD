@@ -1,12 +1,12 @@
-﻿using Avalonia;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using BinaryCRUD.Models;
 using BinaryCRUD.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace BinaryCRUD.ViewModels;
 
@@ -14,7 +14,7 @@ public enum InputMode
 {
     Orders,
     Users,
-    Items
+    Items,
 }
 
 public partial class MainWindowViewModel : ViewModelBase
@@ -30,39 +30,39 @@ public partial class MainWindowViewModel : ViewModelBase
         _userDAO = userDAO;
         _itemDAO = itemDAO;
         ToastService = new ToastService();
-        
+
         AvailableModes = Enum.GetValues<InputMode>().ToList();
         SelectedMode = InputMode.Orders;
     }
 
     [ObservableProperty]
     private string text = string.Empty;
-    
+
     [ObservableProperty]
     private InputMode selectedMode = InputMode.Orders;
-    
+
     [ObservableProperty]
     private string saveButtonText = "Save Order";
-    
+
     [ObservableProperty]
     private string readButtonText = "Read Orders";
-    
+
     [ObservableProperty]
     private string inputPlaceholder = "Enter order details...";
-    
+
     [ObservableProperty]
     private decimal priceInput = 0.0m;
-    
+
     [ObservableProperty]
     private bool isPriceVisible = false;
-    
+
     public List<InputMode> AvailableModes { get; }
-    
+
     partial void OnSelectedModeChanged(InputMode value)
     {
         UpdateUILabels();
     }
-    
+
     private void UpdateUILabels()
     {
         switch (SelectedMode)
@@ -93,7 +93,9 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (string.IsNullOrEmpty(Text))
         {
-            System.Console.WriteLine($"[WARNING] Cannot save empty {SelectedMode.ToString().ToLower().TrimEnd('s')}");
+            System.Console.WriteLine(
+                $"[WARNING] Cannot save empty {SelectedMode.ToString().ToLower().TrimEnd('s')}"
+            );
             return;
         }
 
@@ -112,9 +114,13 @@ public partial class MainWindowViewModel : ViewModelBase
                     ToastService.ShowSuccess($"User '{Text}' created successfully");
                     break;
                 case InputMode.Items:
-                    System.Console.WriteLine($"[INFO] Creating item: '{Text}' with price: ${PriceInput}");
+                    System.Console.WriteLine(
+                        $"[INFO] Creating item: '{Text}' with price: ${PriceInput}"
+                    );
                     await _itemDAO.AddItemAsync(Text, PriceInput);
-                    ToastService.ShowSuccess($"Item '{Text}' (${PriceInput:F2}) created successfully");
+                    ToastService.ShowSuccess(
+                        $"Item '{Text}' (${PriceInput:F2}) created successfully"
+                    );
                     break;
             }
             Text = string.Empty;
@@ -122,7 +128,9 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         catch (System.Exception ex)
         {
-            System.Console.WriteLine($"[ERROR] Failed to create {SelectedMode.ToString().ToLower().TrimEnd('s')}: {ex.Message}");
+            System.Console.WriteLine(
+                $"[ERROR] Failed to create {SelectedMode.ToString().ToLower().TrimEnd('s')}: {ex.Message}"
+            );
         }
     }
 
@@ -136,73 +144,75 @@ public partial class MainWindowViewModel : ViewModelBase
                 case InputMode.Orders:
                     System.Console.WriteLine("[INFO] Reading orders from file...");
                     var orders = await _orderDAO.GetAllOrdersAsync();
-                    
+
                     if (orders.Count == 0)
                     {
                         System.Console.WriteLine("[INFO] No orders found");
                         return;
                     }
-                    
+
                     for (int i = 0; i < orders.Count; i++)
                     {
                         var order = orders[i];
-                        var status = order.IsTombstone ? "[DELETED]" : "[ACTIVE]";
+                        var status = order.IsTombstone ? "DELETED" : "ACTIVE";
                         System.Console.WriteLine(
-                            $"[ORDER {i + 1}] ID: {order.Id}, Status: {status}, Content: '{order.Content}', Created: {order.CreatedAt:yyyy-MM-dd HH:mm:ss}"
+                            $"[ID: {order.Id}][{status}] - [Content: '{order.Content}'] - [Created: {order.CreatedAt:yyyy-MM-dd HH:mm:ss}]"
                         );
                     }
-                    
+
                     System.Console.WriteLine($"[INFO] Found {orders.Count} orders total");
                     break;
-                    
+
                 case InputMode.Users:
                     System.Console.WriteLine("[INFO] Reading users from file...");
                     var users = await _userDAO.GetAllUsersAsync();
-                    
+
                     if (users.Count == 0)
                     {
                         System.Console.WriteLine("[INFO] No users found");
                         return;
                     }
-                    
+
                     for (int i = 0; i < users.Count; i++)
                     {
                         var user = users[i];
-                        var status = user.IsTombstone ? "[DELETED]" : "[ACTIVE]";
+                        var status = user.IsTombstone ? "DELETED" : "ACTIVE";
                         System.Console.WriteLine(
-                            $"[USER {i + 1}] ID: {user.Id}, Status: {status}, Content: '{user.Content}', Created: {user.CreatedAt:yyyy-MM-dd HH:mm:ss}"
+                            $"[ID: {user.Id}][{status}] - [Content: '{user.Content}'] - [Created: {user.CreatedAt:yyyy-MM-dd HH:mm:ss}]"
                         );
                     }
-                    
+
                     System.Console.WriteLine($"[INFO] Found {users.Count} users total");
                     break;
-                    
+
                 case InputMode.Items:
                     System.Console.WriteLine("[INFO] Reading items from file...");
                     var items = await _itemDAO.GetAllItemsAsync();
-                    
+
                     if (items.Count == 0)
                     {
                         System.Console.WriteLine("[INFO] No items found");
                         return;
                     }
-                    
+
                     for (int i = 0; i < items.Count; i++)
                     {
                         var item = items[i];
-                        var status = item.IsTombstone ? "[DELETED]" : "[ACTIVE]";
+                        var status = item.IsTombstone ? "DELETED" : "ACTIVE";
                         System.Console.WriteLine(
-                            $"[ITEM {i + 1}] ID: {item.Id}, Status: {status}, Name: '{item.Content}', Price: ${item.Price:F2}, Created: {item.CreatedAt:yyyy-MM-dd HH:mm:ss}"
+                            $"[ID: {item.Id}][{status}] - [Name: '{item.Content}'] - [Price: ${item.Price:F2}] - [Created: {item.CreatedAt:yyyy-MM-dd HH:mm:ss}]"
                         );
                     }
-                    
+
                     System.Console.WriteLine($"[INFO] Found {items.Count} items total");
                     break;
             }
         }
         catch (System.Exception ex)
         {
-            System.Console.WriteLine($"[ERROR] Failed to read {SelectedMode.ToString().ToLower()}: {ex.Message}");
+            System.Console.WriteLine(
+                $"[ERROR] Failed to read {SelectedMode.ToString().ToLower()}: {ex.Message}"
+            );
         }
     }
 
