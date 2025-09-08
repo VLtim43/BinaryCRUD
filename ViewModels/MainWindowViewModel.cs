@@ -1,6 +1,7 @@
 ﻿using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using BinaryCRUD.Models;
+using BinaryCRUD.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System;
@@ -21,12 +22,14 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly OrderDAO _orderDAO;
     private readonly UserDAO _userDAO;
     private readonly ItemDAO _itemDAO;
+    public ToastService ToastService { get; }
 
     public MainWindowViewModel(OrderDAO orderDAO, UserDAO userDAO, ItemDAO itemDAO)
     {
         _orderDAO = orderDAO;
         _userDAO = userDAO;
         _itemDAO = itemDAO;
+        ToastService = new ToastService();
         
         AvailableModes = Enum.GetValues<InputMode>().ToList();
         SelectedMode = InputMode.Orders;
@@ -101,17 +104,17 @@ public partial class MainWindowViewModel : ViewModelBase
                 case InputMode.Orders:
                     System.Console.WriteLine($"[INFO] Creating order: '{Text}'");
                     await _orderDAO.AddOrderAsync(Text);
-                    System.Console.WriteLine("[SUCCESS] Order created successfully");
+                    ToastService.ShowSuccess($"Order '{Text}' created successfully");
                     break;
                 case InputMode.Users:
                     System.Console.WriteLine($"[INFO] Creating user: '{Text}'");
                     await _userDAO.AddUserAsync(Text);
-                    System.Console.WriteLine("[SUCCESS] User created successfully");
+                    ToastService.ShowSuccess($"User '{Text}' created successfully");
                     break;
                 case InputMode.Items:
                     System.Console.WriteLine($"[INFO] Creating item: '{Text}' with price: ${PriceInput}");
                     await _itemDAO.AddItemAsync(Text, PriceInput);
-                    System.Console.WriteLine("[SUCCESS] Item created successfully");
+                    ToastService.ShowSuccess($"Item '{Text}' (${PriceInput:F2}) created successfully");
                     break;
             }
             Text = string.Empty;
