@@ -13,21 +13,18 @@ namespace BinaryCRUD.ViewModels;
 public enum InputMode
 {
     Orders,
-    Users,
     Items,
 }
 
 public partial class MainWindowViewModel : ViewModelBase
 {
     private readonly OrderDAO _orderDAO;
-    private readonly UserDAO _userDAO;
     private readonly ItemDAO _itemDAO;
     public ToastService ToastService { get; }
 
-    public MainWindowViewModel(OrderDAO orderDAO, UserDAO userDAO, ItemDAO itemDAO)
+    public MainWindowViewModel(OrderDAO orderDAO, ItemDAO itemDAO)
     {
         _orderDAO = orderDAO;
-        _userDAO = userDAO;
         _itemDAO = itemDAO;
         ToastService = new ToastService();
 
@@ -73,12 +70,6 @@ public partial class MainWindowViewModel : ViewModelBase
                 InputPlaceholder = "Enter order details...";
                 IsPriceVisible = false;
                 break;
-            case InputMode.Users:
-                SaveButtonText = "Save User";
-                ReadButtonText = "Read Users";
-                InputPlaceholder = "Enter user details...";
-                IsPriceVisible = false;
-                break;
             case InputMode.Items:
                 SaveButtonText = "Save Item";
                 ReadButtonText = "Read Items";
@@ -107,11 +98,6 @@ public partial class MainWindowViewModel : ViewModelBase
                     System.Console.WriteLine($"[INFO] Creating order: '{Text}'");
                     await _orderDAO.AddOrderAsync(Text);
                     ToastService.ShowSuccess($"Order '{Text}' created successfully");
-                    break;
-                case InputMode.Users:
-                    System.Console.WriteLine($"[INFO] Creating user: '{Text}'");
-                    await _userDAO.AddUserAsync(Text);
-                    ToastService.ShowSuccess($"User '{Text}' created successfully");
                     break;
                 case InputMode.Items:
                     System.Console.WriteLine(
@@ -161,28 +147,6 @@ public partial class MainWindowViewModel : ViewModelBase
                     }
 
                     System.Console.WriteLine($"[INFO] Found {orders.Count} orders total");
-                    break;
-
-                case InputMode.Users:
-                    System.Console.WriteLine("[INFO] Reading users from file...");
-                    var users = await _userDAO.GetAllUsersAsync();
-
-                    if (users.Count == 0)
-                    {
-                        System.Console.WriteLine("[INFO] No users found");
-                        return;
-                    }
-
-                    for (int i = 0; i < users.Count; i++)
-                    {
-                        var user = users[i];
-                        var status = user.IsTombstone ? "DELETED" : "ACTIVE";
-                        System.Console.WriteLine(
-                            $"[ID: {user.Id}][{status}] - [Content: '{user.Content}'] - [Created: {user.CreatedAt:yyyy-MM-dd HH:mm:ss}]"
-                        );
-                    }
-
-                    System.Console.WriteLine($"[INFO] Found {users.Count} users total");
                     break;
 
                 case InputMode.Items:
