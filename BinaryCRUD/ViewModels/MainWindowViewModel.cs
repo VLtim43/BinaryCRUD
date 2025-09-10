@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -20,6 +21,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         _itemDAO = itemDAO;
         ToastService = new ToastService();
+        _ = LoadItemsAsync();
     }
 
     [ObservableProperty]
@@ -27,6 +29,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private decimal priceInput = 0.0m;
+
+    [ObservableProperty]
+    private ObservableCollection<Item> items = new();
 
 
     [RelayCommand]
@@ -49,6 +54,7 @@ public partial class MainWindowViewModel : ViewModelBase
             );
             Text = string.Empty;
             PriceInput = 0.0m;
+            await LoadItemsAsync();
         }
         catch (System.Exception ex)
         {
@@ -98,14 +104,14 @@ public partial class MainWindowViewModel : ViewModelBase
             if (items.Count == 0)
             {
                 System.Console.WriteLine("[INFO] No items found");
-                ToastService.ShowSuccess("No items found");
                 return;
             }
 
-            // Console output: Show all items
-            for (int i = 0; i < items.Count; i++)
+            // Console output: Show all items in chronological order (oldest first)
+            var orderedItems = items.OrderBy(x => x.Id).ToList();
+            for (int i = 0; i < orderedItems.Count; i++)
             {
-                var item = items[i];
+                var item = orderedItems[i];
                 var status = item.IsTombstone ? "DELETED" : "ACTIVE";
                 System.Console.WriteLine(
                     $"[ID: {item.Id}][{status}] - [Name: '{item.Content}'] - [Price: ${item.Price:F2}]"
@@ -114,21 +120,36 @@ public partial class MainWindowViewModel : ViewModelBase
 
             System.Console.WriteLine($"[INFO] Found {items.Count} items total");
 
-            // Toast: Show first 10 items
-            var first10 = items.Take(10).ToList();
-            var toastItems = string.Join(", ", first10.Select(item => 
-                $"{item.Content}(${item.Price:F2}){(item.IsTombstone ? "❌" : "")}"
-            ));
-            
-            var moreIndicator = items.Count > 10 ? $" +{items.Count - 10} more" : "";
-            ToastService.ShowSuccess($"Items: {toastItems}{moreIndicator}");
         }
         catch (System.Exception ex)
         {
             System.Console.WriteLine(
                 $"[ERROR] Failed to read items: {ex.Message}"
             );
-            ToastService.ShowSuccess("Error reading items");
+        }
+    }
+
+    [RelayCommand]
+    private async System.Threading.Tasks.Task RefreshItemsAsync()
+    {
+        await LoadItemsAsync();
+        ToastService.ShowSuccess("Items list refreshed");
+    }
+
+    private async System.Threading.Tasks.Task LoadItemsAsync()
+    {
+        try
+        {
+            var itemsList = await _itemDAO.GetAllItemsAsync();
+            Items.Clear();
+            foreach (var item in itemsList.OrderBy(x => x.Id))
+            {
+                Items.Add(item);
+            }
+        }
+        catch (System.Exception ex)
+        {
+            System.Console.WriteLine($"[ERROR] Failed to load items: {ex.Message}");
         }
     }
 
