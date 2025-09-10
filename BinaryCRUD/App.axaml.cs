@@ -43,7 +43,6 @@ public partial class App : Application
 
     private void ConfigureServices(IServiceCollection services)
     {
-        services.AddSingleton<OrderDAO>();
         services.AddSingleton<ItemDAO>();
         services.AddTransient<MainWindowViewModel>();
     }

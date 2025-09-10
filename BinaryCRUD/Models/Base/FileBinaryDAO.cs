@@ -40,8 +40,6 @@ public abstract class FileBinaryDAO<T> : InterfaceFileDAO<T>, IDisposable
             // Set entity ID based on new count (sequential ID)
             if (entity is User user)
                 user.Id = header.Count;
-            else if (entity is Order order)
-                order.Id = header.Count;
             else if (entity is Item item)
                 item.Id = header.Count;
 
@@ -72,6 +70,25 @@ public abstract class FileBinaryDAO<T> : InterfaceFileDAO<T>, IDisposable
     {
         using var stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
         return await ReadHeaderFromStreamAsync(stream);
+    }
+
+    public async Task<FileHeader?> GetHeaderAsync()
+    {
+        await _fileLock.WaitAsync();
+        try
+        {
+            if (!File.Exists(_filePath))
+            {
+                Console.WriteLine($"[{GetType().Name}] File does not exist: {_filePath}");
+                return null;
+            }
+
+            return await ReadHeaderAsync();
+        }
+        finally
+        {
+            _fileLock.Release();
+        }
     }
 
     private async Task UpdateHeaderAsync(FileHeader header)

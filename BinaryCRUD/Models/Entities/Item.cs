@@ -8,20 +8,18 @@ public class Item : InterfaceSerializable
     public long Id { get; set; }
     public bool IsTombstone { get; set; } = false;
     public string Content { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public decimal Price { get; set; } = 0.0m;
 
     public byte[] ToBytes()
     {
         var contentBytes = Encoding.UTF8.GetBytes(Content);
-        var createdAtBytes = BitConverter.GetBytes(CreatedAt.Ticks);
         var idBytes = BitConverter.GetBytes(Id);
         var priceBytes = decimal.GetBits(Price);
         var priceByteArray = new byte[16]; // decimal is 16 bytes (4 int32s)
         
         Buffer.BlockCopy(priceBytes, 0, priceByteArray, 0, 16);
 
-        var result = new byte[1 + sizeof(long) + sizeof(int) + contentBytes.Length + sizeof(long) + 16];
+        var result = new byte[1 + sizeof(long) + sizeof(int) + contentBytes.Length + 16];
 
         int offset = 0;
         
@@ -40,10 +38,6 @@ public class Item : InterfaceSerializable
         // Write content
         contentBytes.CopyTo(result, offset);
         offset += contentBytes.Length;
-        
-        // Write timestamp (8 bytes)
-        createdAtBytes.CopyTo(result, offset);
-        offset += sizeof(long);
         
         // Write price (16 bytes)
         priceByteArray.CopyTo(result, offset);
@@ -70,11 +64,6 @@ public class Item : InterfaceSerializable
         // Read content
         Content = Encoding.UTF8.GetString(data, offset, contentLength);
         offset += contentLength;
-        
-        // Read timestamp (8 bytes)
-        var ticks = BitConverter.ToInt64(data, offset);
-        CreatedAt = new DateTime(ticks, DateTimeKind.Utc);
-        offset += sizeof(long);
         
         // Read price (16 bytes)
         var priceBytes = new int[4];

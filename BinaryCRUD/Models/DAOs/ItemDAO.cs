@@ -18,4 +18,9 @@ public class ItemDAO : FileBinaryDAO<Item>
     {
         return await GetAllAsync();
     }
+
+    public async Task<FileHeader?> ReadHeaderAsync()
+    {
+        return await GetHeaderAsync();
+    }
 }

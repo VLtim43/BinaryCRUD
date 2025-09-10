@@ -10,173 +10,125 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace BinaryCRUD.ViewModels;
 
-public enum InputMode
-{
-    Orders,
-    Items,
-}
 
 public partial class MainWindowViewModel : ViewModelBase
 {
-    private readonly OrderDAO _orderDAO;
     private readonly ItemDAO _itemDAO;
     public ToastService ToastService { get; }
 
-    public MainWindowViewModel(OrderDAO orderDAO, ItemDAO itemDAO)
+    public MainWindowViewModel(ItemDAO itemDAO)
     {
-        _orderDAO = orderDAO;
         _itemDAO = itemDAO;
         ToastService = new ToastService();
-
-        AvailableModes = Enum.GetValues<InputMode>().ToList();
-        SelectedMode = InputMode.Orders;
     }
 
     [ObservableProperty]
     private string text = string.Empty;
 
     [ObservableProperty]
-    private InputMode selectedMode = InputMode.Orders;
-
-    [ObservableProperty]
-    private string saveButtonText = "Save Order";
-
-    [ObservableProperty]
-    private string readButtonText = "Read Orders";
-
-    [ObservableProperty]
-    private string inputPlaceholder = "Enter order details...";
-
-    [ObservableProperty]
     private decimal priceInput = 0.0m;
 
-    [ObservableProperty]
-    private bool isPriceVisible = false;
-
-    public List<InputMode> AvailableModes { get; }
-
-    partial void OnSelectedModeChanged(InputMode value)
-    {
-        UpdateUILabels();
-    }
-
-    private void UpdateUILabels()
-    {
-        switch (SelectedMode)
-        {
-            case InputMode.Orders:
-                SaveButtonText = "Save Order";
-                ReadButtonText = "Read Orders";
-                InputPlaceholder = "Enter order details...";
-                IsPriceVisible = false;
-                break;
-            case InputMode.Items:
-                SaveButtonText = "Save Item";
-                ReadButtonText = "Read Items";
-                InputPlaceholder = "Enter item name...";
-                IsPriceVisible = true;
-                break;
-        }
-    }
 
     [RelayCommand]
     private async System.Threading.Tasks.Task SaveAsync()
     {
         if (string.IsNullOrEmpty(Text))
         {
-            System.Console.WriteLine(
-                $"[WARNING] Cannot save empty {SelectedMode.ToString().ToLower().TrimEnd('s')}"
-            );
+            System.Console.WriteLine("[WARNING] Cannot save empty item");
             return;
         }
 
         try
         {
-            switch (SelectedMode)
-            {
-                case InputMode.Orders:
-                    System.Console.WriteLine($"[INFO] Creating order: '{Text}'");
-                    await _orderDAO.AddOrderAsync(Text);
-                    ToastService.ShowSuccess($"Order '{Text}' created successfully");
-                    break;
-                case InputMode.Items:
-                    System.Console.WriteLine(
-                        $"[INFO] Creating item: '{Text}' with price: ${PriceInput}"
-                    );
-                    await _itemDAO.AddItemAsync(Text, PriceInput);
-                    ToastService.ShowSuccess(
-                        $"Item '{Text}' (${PriceInput:F2}) created successfully"
-                    );
-                    break;
-            }
+            System.Console.WriteLine(
+                $"[INFO] Creating item: '{Text}' with price: ${PriceInput}"
+            );
+            await _itemDAO.AddItemAsync(Text, PriceInput);
+            ToastService.ShowSuccess(
+                $"Item '{Text}' (${PriceInput:F2}) created successfully"
+            );
             Text = string.Empty;
-            PriceInput = 0.0m; // Clear input fields after saving
+            PriceInput = 0.0m;
         }
         catch (System.Exception ex)
         {
             System.Console.WriteLine(
-                $"[ERROR] Failed to create {SelectedMode.ToString().ToLower().TrimEnd('s')}: {ex.Message}"
+                $"[ERROR] Failed to create item: {ex.Message}"
             );
         }
     }
 
     [RelayCommand]
-    private async System.Threading.Tasks.Task ReadOrdersAsync()
+    private async System.Threading.Tasks.Task ReadHeaderAsync()
     {
         try
         {
-            switch (SelectedMode)
+            System.Console.WriteLine("[INFO] Reading file header...");
+            var header = await _itemDAO.ReadHeaderAsync();
+
+            if (header == null)
             {
-                case InputMode.Orders:
-                    System.Console.WriteLine("[INFO] Reading orders from file...");
-                    var orders = await _orderDAO.GetAllOrdersAsync();
-
-                    if (orders.Count == 0)
-                    {
-                        System.Console.WriteLine("[INFO] No orders found");
-                        return;
-                    }
-
-                    for (int i = 0; i < orders.Count; i++)
-                    {
-                        var order = orders[i];
-                        var status = order.IsTombstone ? "DELETED" : "ACTIVE";
-                        System.Console.WriteLine(
-                            $"[ID: {order.Id}][{status}] - [Content: '{order.Content}'] - [Created: {order.CreatedAt:yyyy-MM-dd HH:mm:ss}]"
-                        );
-                    }
-
-                    System.Console.WriteLine($"[INFO] Found {orders.Count} orders total");
-                    break;
-
-                case InputMode.Items:
-                    System.Console.WriteLine("[INFO] Reading items from file...");
-                    var items = await _itemDAO.GetAllItemsAsync();
-
-                    if (items.Count == 0)
-                    {
-                        System.Console.WriteLine("[INFO] No items found");
-                        return;
-                    }
-
-                    for (int i = 0; i < items.Count; i++)
-                    {
-                        var item = items[i];
-                        var status = item.IsTombstone ? "DELETED" : "ACTIVE";
-                        System.Console.WriteLine(
-                            $"[ID: {item.Id}][{status}] - [Name: '{item.Content}'] - [Price: ${item.Price:F2}] - [Created: {item.CreatedAt:yyyy-MM-dd HH:mm:ss}]"
-                        );
-                    }
-
-                    System.Console.WriteLine($"[INFO] Found {items.Count} items total");
-                    break;
+                System.Console.WriteLine("[INFO] No file found or file is empty");
+                ToastService.ShowSuccess("No file found");
+                return;
             }
+
+            System.Console.WriteLine($"[HEADER] Count: {header.Count} items");
+            System.Console.WriteLine($"[HEADER] Last Updated: {header.LastUpdated:yyyy-MM-dd HH:mm:ss} UTC");
+            System.Console.WriteLine($"[HEADER] Header Size: 12 bytes");
+            System.Console.WriteLine($"[HEADER] File Path: item.bin");
+
+            ToastService.ShowSuccess($"Header: {header.Count} items, Updated: {header.LastUpdated:HH:mm:ss}");
+        }
+        catch (System.Exception ex)
+        {
+            System.Console.WriteLine($"[ERROR] Failed to read header: {ex.Message}");
+            ToastService.ShowSuccess("Error reading header");
+        }
+    }
+
+    [RelayCommand]
+    private async System.Threading.Tasks.Task ReadItemsAsync()
+    {
+        try
+        {
+            System.Console.WriteLine("[INFO] Reading items from file...");
+            var items = await _itemDAO.GetAllItemsAsync();
+
+            if (items.Count == 0)
+            {
+                System.Console.WriteLine("[INFO] No items found");
+                ToastService.ShowSuccess("No items found");
+                return;
+            }
+
+            // Console output: Show all items
+            for (int i = 0; i < items.Count; i++)
+            {
+                var item = items[i];
+                var status = item.IsTombstone ? "DELETED" : "ACTIVE";
+                System.Console.WriteLine(
+                    $"[ID: {item.Id}][{status}] - [Name: '{item.Content}'] - [Price: ${item.Price:F2}]"
+                );
+            }
+
+            System.Console.WriteLine($"[INFO] Found {items.Count} items total");
+
+            // Toast: Show first 10 items
+            var first10 = items.Take(10).ToList();
+            var toastItems = string.Join(", ", first10.Select(item => 
+                $"{item.Content}(${item.Price:F2}){(item.IsTombstone ? "❌" : "")}"
+            ));
+            
+            var moreIndicator = items.Count > 10 ? $" +{items.Count - 10} more" : "";
+            ToastService.ShowSuccess($"Items: {toastItems}{moreIndicator}");
         }
         catch (System.Exception ex)
         {
             System.Console.WriteLine(
-                $"[ERROR] Failed to read {SelectedMode.ToString().ToLower()}: {ex.Message}"
+                $"[ERROR] Failed to read items: {ex.Message}"
             );
+            ToastService.ShowSuccess("Error reading items");
         }
     }
 

@@ -17,18 +17,15 @@
 
     <Grid>
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Vertical" Spacing="10">
-            <ComboBox ItemsSource="{Binding AvailableModes}" 
-                      SelectedItem="{Binding SelectedMode}" 
-                      Width="300" Height="30"/>
             <TextBox Text="{Binding Text}" 
-                     Watermark="{Binding InputPlaceholder}" 
+                     Watermark="Enter item name..." 
                      Width="300" Height="30"/>
             <TextBox Text="{Binding PriceInput}" 
                      Watermark="Enter price..." 
-                     Width="300" Height="30"
-                     IsVisible="{Binding IsPriceVisible}"/>
-            <Button Content="{Binding SaveButtonText}" Command="{Binding SaveCommand}" Width="300" Height="35"/>
-            <Button Content="{Binding ReadButtonText}" Command="{Binding ReadOrdersCommand}" Width="300" Height="35"/>
+                     Width="300" Height="30"/>
+            <Button Content="Save Item" Command="{Binding SaveCommand}" Width="300" Height="35"/>
+            <Button Content="Read Items" Command="{Binding ReadItemsCommand}" Width="300" Height="35"/>
+            <Button Content="Read Header" Command="{Binding ReadHeaderCommand}" Width="300" Height="35"/>
             <Button Content="Quit" Command="{Binding QuitCommand}" Width="300" Height="35"/>
         </StackPanel>
         
