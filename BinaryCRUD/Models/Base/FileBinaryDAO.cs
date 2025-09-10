@@ -157,7 +157,6 @@ public abstract class FileBinaryDAO<T> : InterfaceFileDAO<T>, IDisposable
 
             var entities = new List<T>();
 
-            // Read each entity
             for (int i = 0; i < header.Count; i++)
             {
                 var entity = await ReadEntityFromStreamAsync(stream);

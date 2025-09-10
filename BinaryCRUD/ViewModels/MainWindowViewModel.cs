@@ -13,7 +13,6 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace BinaryCRUD.ViewModels;
 
-
 public partial class MainWindowViewModel : ViewModelBase
 {
     private readonly ItemDAO _itemDAO;
@@ -35,34 +34,28 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private ObservableCollection<Item> items = new();
 
-
     [RelayCommand]
     private async System.Threading.Tasks.Task SaveAsync()
     {
         if (string.IsNullOrEmpty(Text))
         {
             System.Console.WriteLine("[WARNING] Cannot save empty item");
+            ToastService.ShowWarning("Cannot save empty item");
             return;
         }
 
         try
         {
-            System.Console.WriteLine(
-                $"[INFO] Creating item: '{Text}' with price: ${PriceInput}"
-            );
+            System.Console.WriteLine($"[INFO] Creating item: '{Text}' with price: ${PriceInput}");
             await _itemDAO.AddItemAsync(Text, PriceInput);
-            ToastService.ShowSuccess(
-                $"Item '{Text}' (${PriceInput:F2}) created successfully"
-            );
+            ToastService.ShowSuccess($"Item '{Text}' (${PriceInput:F2}) created successfully");
             Text = string.Empty;
             PriceInput = 0.0m;
             await LoadItemsAsync();
         }
         catch (System.Exception ex)
         {
-            System.Console.WriteLine(
-                $"[ERROR] Failed to create item: {ex.Message}"
-            );
+            System.Console.WriteLine($"[ERROR] Failed to create item: {ex.Message}");
         }
     }
 
@@ -82,11 +75,15 @@ public partial class MainWindowViewModel : ViewModelBase
             }
 
             System.Console.WriteLine($"[HEADER] Count: {header.Count} items");
-            System.Console.WriteLine($"[HEADER] Last Updated: {header.LastUpdated:yyyy-MM-dd HH:mm:ss} UTC");
+            System.Console.WriteLine(
+                $"[HEADER] Last Updated: {header.LastUpdated:yyyy-MM-dd HH:mm:ss} UTC"
+            );
             System.Console.WriteLine($"[HEADER] Header Size: 12 bytes");
             System.Console.WriteLine($"[HEADER] File Path: item.bin");
 
-            ToastService.ShowSuccess($"Header: {header.Count} items, Updated: {header.LastUpdated:HH:mm:ss}");
+            ToastService.ShowSuccess(
+                $"Header: {header.Count} items, Updated: {header.LastUpdated:HH:mm:ss}"
+            );
         }
         catch (System.Exception ex)
         {
@@ -121,13 +118,10 @@ public partial class MainWindowViewModel : ViewModelBase
             }
 
             System.Console.WriteLine($"[INFO] Found {items.Count} items total");
-
         }
         catch (System.Exception ex)
         {
-            System.Console.WriteLine(
-                $"[ERROR] Failed to read items: {ex.Message}"
-            );
+            System.Console.WriteLine($"[ERROR] Failed to read items: {ex.Message}");
         }
     }
 
@@ -144,7 +138,7 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             var result = await ShowConfirmationDialogAsync(
-                "Delete File", 
+                "Delete File",
                 "Are you sure you want to delete the entire item.bin file?\n\nThis will permanently remove all items and cannot be undone."
             );
 
@@ -163,10 +157,12 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-
     private async Task<bool> ShowConfirmationDialogAsync(string title, string message)
     {
-        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        if (
+            Application.Current?.ApplicationLifetime
+            is IClassicDesktopStyleApplicationLifetime desktop
+        )
         {
             var mainWindow = desktop.MainWindow;
             if (mainWindow != null)
@@ -177,14 +173,14 @@ public partial class MainWindowViewModel : ViewModelBase
                 {
                     Content = "Yes",
                     Width = 80,
-                    Height = 35
+                    Height = 35,
                 };
 
                 var noButton = new Button
                 {
                     Content = "No",
                     Width = 80,
-                    Height = 35
+                    Height = 35,
                 };
 
                 var dialog = new Window
@@ -204,21 +200,29 @@ public partial class MainWindowViewModel : ViewModelBase
                             {
                                 Text = message,
                                 TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                                FontSize = 14
+                                FontSize = 14,
                             },
                             new StackPanel
                             {
                                 Orientation = Avalonia.Layout.Orientation.Horizontal,
                                 HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
                                 Spacing = 10,
-                                Children = { yesButton, noButton }
-                            }
-                        }
-                    }
+                                Children = { yesButton, noButton },
+                            },
+                        },
+                    },
                 };
 
-                yesButton.Click += (s, e) => { result = true; dialog.Close(); };
-                noButton.Click += (s, e) => { result = false; dialog.Close(); };
+                yesButton.Click += (s, e) =>
+                {
+                    result = true;
+                    dialog.Close();
+                };
+                noButton.Click += (s, e) =>
+                {
+                    result = false;
+                    dialog.Close();
+                };
 
                 await dialog.ShowDialog(mainWindow);
                 return result == true;

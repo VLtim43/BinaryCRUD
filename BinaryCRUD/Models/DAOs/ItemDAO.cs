@@ -42,7 +42,7 @@ public class ItemDAO : FileBinaryDAO<Item>
 
             var items = await GetAllItemsAsync();
             var itemToDelete = items.FirstOrDefault(i => i.Id == itemId);
-            
+
             if (itemToDelete == null)
             {
                 throw new InvalidOperationException($"Item with ID {itemId} not found");
@@ -66,14 +66,10 @@ public class ItemDAO : FileBinaryDAO<Item>
     private async Task RewriteFileAsync(List<Item> items)
     {
         var tempFilePath = _filePath + ".tmp";
-        
+
         using (var stream = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write))
         {
-            var header = new FileHeader
-            {
-                Count = items.Count,
-                LastUpdated = DateTime.UtcNow
-            };
+            var header = new FileHeader { Count = items.Count, LastUpdated = DateTime.UtcNow };
 
             var headerBuffer = new byte[12];
             BitConverter.GetBytes(header.Count).CopyTo(headerBuffer, 0);

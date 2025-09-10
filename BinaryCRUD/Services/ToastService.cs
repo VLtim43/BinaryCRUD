@@ -26,11 +26,7 @@ public partial class ToastService : ObservableObject
 
     public void ShowSuccess(string message)
     {
-        var toast = new ToastMessage 
-        { 
-            Message = $"✅ {message}",
-            BackgroundColor = "#4CAF50"
-        };
+        var toast = new ToastMessage { Message = $"✅ {message}", BackgroundColor = "#4CAF50" };
         Toasts.Add(toast);
 
         _ = Task.Run(async () =>
@@ -42,11 +38,7 @@ public partial class ToastService : ObservableObject
 
     public void ShowWarning(string message)
     {
-        var toast = new ToastMessage 
-        { 
-            Message = $"⚠️ {message}",
-            BackgroundColor = "#FF9800"
-        };
+        var toast = new ToastMessage { Message = $"⚠️ {message}", BackgroundColor = "#FF9800" };
         Toasts.Add(toast);
 
         _ = Task.Run(async () =>

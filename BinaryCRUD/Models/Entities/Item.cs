@@ -3,6 +3,8 @@ using System.Text;
 
 namespace BinaryCRUD.Models;
 
+// Binary Layout: [IsTombstone:1byte][Id:8bytes][Price:16bytes][ContentLength:4bytes][Content:variable]
+// Total Size: 29 bytes + Content length
 public class Item : InterfaceSerializable
 {
     public long Id { get; set; }
@@ -15,7 +17,7 @@ public class Item : InterfaceSerializable
         var contentBytes = Encoding.UTF8.GetBytes(Content);
         var idBytes = BitConverter.GetBytes(Id);
         var priceBytes = decimal.GetBits(Price);
-        var priceByteArray = new byte[16]; // decimal is 16 bytes (4 int32s)
+        var priceByteArray = new byte[16]; // decimal is 16 bytes
 
         Buffer.BlockCopy(priceBytes, 0, priceByteArray, 0, 16);
 
@@ -31,16 +33,16 @@ public class Item : InterfaceSerializable
         idBytes.CopyTo(result, offset);
         offset += sizeof(long);
 
+        // Write price (16 bytes)
+        priceByteArray.CopyTo(result, offset);
+        offset += 16;
+
         // Write content length (4 bytes)
         BitConverter.GetBytes(contentBytes.Length).CopyTo(result, offset);
         offset += sizeof(int);
 
         // Write content
         contentBytes.CopyTo(result, offset);
-        offset += contentBytes.Length;
-
-        // Write price (16 bytes)
-        priceByteArray.CopyTo(result, offset);
 
         return result;
     }
@@ -57,17 +59,17 @@ public class Item : InterfaceSerializable
         Id = BitConverter.ToInt64(data, offset);
         offset += sizeof(long);
 
+        // Read price (16 bytes)
+        var priceBytes = new int[4];
+        Buffer.BlockCopy(data, offset, priceBytes, 0, 16);
+        Price = new decimal(priceBytes);
+        offset += 16;
+
         // Read content length (4 bytes)
         var contentLength = BitConverter.ToInt32(data, offset);
         offset += sizeof(int);
 
         // Read content
         Content = Encoding.UTF8.GetString(data, offset, contentLength);
-        offset += contentLength;
-
-        // Read price (16 bytes)
-        var priceBytes = new int[4];
-        Buffer.BlockCopy(data, offset, priceBytes, 0, 16);
-        Price = new decimal(priceBytes);
     }
 }
