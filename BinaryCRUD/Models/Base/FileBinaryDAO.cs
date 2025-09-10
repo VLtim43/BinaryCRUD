@@ -38,9 +38,7 @@ public abstract class FileBinaryDAO<T> : InterfaceFileDAO<T>, IDisposable
             header.LastUpdated = DateTime.UtcNow;
 
             // Set entity ID based on new count (sequential ID)
-            if (entity is User user)
-                user.Id = header.Count;
-            else if (entity is Item item)
+            if (entity is Item item)
                 item.Id = header.Count;
 
             Console.WriteLine(
