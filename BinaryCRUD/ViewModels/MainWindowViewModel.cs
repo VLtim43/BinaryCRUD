@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using BinaryCRUD.Models;
 using BinaryCRUD.Services;
@@ -134,6 +136,95 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         await LoadItemsAsync();
         ToastService.ShowSuccess("Items list refreshed");
+    }
+
+    [RelayCommand]
+    private async System.Threading.Tasks.Task DeleteFileAsync()
+    {
+        try
+        {
+            var result = await ShowConfirmationDialogAsync(
+                "Delete File", 
+                "Are you sure you want to delete the entire item.bin file?\n\nThis will permanently remove all items and cannot be undone."
+            );
+
+            if (result)
+            {
+                await _itemDAO.DeleteFileAsync();
+                Items.Clear();
+                ToastService.ShowWarning("File deleted successfully");
+                System.Console.WriteLine("[INFO] item.bin file deleted");
+            }
+        }
+        catch (System.Exception ex)
+        {
+            System.Console.WriteLine($"[ERROR] Failed to delete file: {ex.Message}");
+            ToastService.ShowSuccess($"Error deleting file: {ex.Message}");
+        }
+    }
+
+
+    private async Task<bool> ShowConfirmationDialogAsync(string title, string message)
+    {
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            var mainWindow = desktop.MainWindow;
+            if (mainWindow != null)
+            {
+                bool? result = null;
+
+                var yesButton = new Button
+                {
+                    Content = "Yes",
+                    Width = 80,
+                    Height = 35
+                };
+
+                var noButton = new Button
+                {
+                    Content = "No",
+                    Width = 80,
+                    Height = 35
+                };
+
+                var dialog = new Window
+                {
+                    Title = title,
+                    Width = 400,
+                    Height = 200,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                    CanResize = false,
+                    Content = new StackPanel
+                    {
+                        Margin = new Avalonia.Thickness(20),
+                        Spacing = 15,
+                        Children =
+                        {
+                            new TextBlock
+                            {
+                                Text = message,
+                                TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                                FontSize = 14
+                            },
+                            new StackPanel
+                            {
+                                Orientation = Avalonia.Layout.Orientation.Horizontal,
+                                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+                                Spacing = 10,
+                                Children = { yesButton, noButton }
+                            }
+                        }
+                    }
+                };
+
+                yesButton.Click += (s, e) => { result = true; dialog.Close(); };
+                noButton.Click += (s, e) => { result = false; dialog.Close(); };
+
+                await dialog.ShowDialog(mainWindow);
+                return result == true;
+            }
+        }
+        return false;
     }
 
     private async System.Threading.Tasks.Task LoadItemsAsync()

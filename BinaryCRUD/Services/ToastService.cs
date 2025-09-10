@@ -13,6 +13,9 @@ public partial class ToastMessage : ObservableObject
     [ObservableProperty]
     private bool isVisible = true;
 
+    [ObservableProperty]
+    private string backgroundColor = "#4CAF50";
+
     public DateTime CreatedAt { get; init; } = DateTime.Now;
 }
 
@@ -23,7 +26,27 @@ public partial class ToastService : ObservableObject
 
     public void ShowSuccess(string message)
     {
-        var toast = new ToastMessage { Message = $"✅ {message}" };
+        var toast = new ToastMessage 
+        { 
+            Message = $"✅ {message}",
+            BackgroundColor = "#4CAF50"
+        };
+        Toasts.Add(toast);
+
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(3000);
+            await RemoveToast(toast);
+        });
+    }
+
+    public void ShowWarning(string message)
+    {
+        var toast = new ToastMessage 
+        { 
+            Message = $"⚠️ {message}",
+            BackgroundColor = "#FF9800"
+        };
         Toasts.Add(toast);
 
         _ = Task.Run(async () =>
