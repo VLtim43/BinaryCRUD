@@ -75,14 +75,11 @@ public partial class MainWindowViewModel : ViewModelBase
             }
 
             System.Console.WriteLine($"[HEADER] Count: {header.Count} items");
-            System.Console.WriteLine(
-                $"[HEADER] Last Updated: {header.LastUpdated:yyyy-MM-dd HH:mm:ss} UTC"
-            );
-            System.Console.WriteLine($"[HEADER] Header Size: 12 bytes");
+            System.Console.WriteLine($"[HEADER] Header Size: 4 bytes");
             System.Console.WriteLine($"[HEADER] File Path: item.bin");
 
             ToastService.ShowSuccess(
-                $"Header: {header.Count} items, Updated: {header.LastUpdated:HH:mm:ss}"
+                $"Header: {header.Count} items"
             );
         }
         catch (System.Exception ex)

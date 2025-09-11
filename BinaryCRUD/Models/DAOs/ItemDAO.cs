@@ -16,7 +16,7 @@ public class ItemDAO : FileBinaryDAO<Item>
 
     public async Task AddItemAsync(string content, decimal price)
     {
-        var item = new Item { Content = content, Price = price };
+        var item = new Item { Content = content, Price = (float)price };
         await AddAsync(item);
     }
 
@@ -30,7 +30,7 @@ public class ItemDAO : FileBinaryDAO<Item>
         return await GetHeaderAsync();
     }
 
-    public async Task DeleteItemAsync(long itemId)
+    public async Task DeleteItemAsync(ushort itemId)
     {
         await _fileLock.WaitAsync();
         try
@@ -69,11 +69,10 @@ public class ItemDAO : FileBinaryDAO<Item>
 
         using (var stream = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write))
         {
-            var header = new FileHeader { Count = items.Count, LastUpdated = DateTime.UtcNow };
+            var header = new FileHeader { Count = items.Count };
 
-            var headerBuffer = new byte[12];
+            var headerBuffer = new byte[4];
             BitConverter.GetBytes(header.Count).CopyTo(headerBuffer, 0);
-            BitConverter.GetBytes(header.LastUpdated.Ticks).CopyTo(headerBuffer, 4);
             await stream.WriteAsync(headerBuffer, 0, headerBuffer.Length);
 
             foreach (var item in items)

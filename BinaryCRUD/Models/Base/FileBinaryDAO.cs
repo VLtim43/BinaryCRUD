@@ -35,11 +35,10 @@ public abstract class FileBinaryDAO<T> : InterfaceFileDAO<T>, IDisposable
             var header = await ReadHeaderAsync();
             var previousCount = header.Count;
             header.Count++;
-            header.LastUpdated = DateTime.UtcNow;
 
             // Set entity ID based on new count (sequential ID)
             if (entity is Item item)
-                item.Id = header.Count;
+                item.Id = (ushort)header.Count;
 
             Console.WriteLine(
                 $"[{GetType().Name}] Updating header: {previousCount} -> {header.Count} entities"
@@ -109,12 +108,10 @@ public abstract class FileBinaryDAO<T> : InterfaceFileDAO<T>, IDisposable
         await stream.ReadExactlyAsync(buffer);
 
         var count = BitConverter.ToInt32(buffer, 0);
-        var ticks = BitConverter.ToInt64(buffer, 4);
 
         return new FileHeader
         {
-            Count = count,
-            LastUpdated = new DateTime(ticks, DateTimeKind.Utc),
+            Count = count
         };
     }
 
@@ -122,7 +119,6 @@ public abstract class FileBinaryDAO<T> : InterfaceFileDAO<T>, IDisposable
     {
         var buffer = new byte[GetHeaderSize()];
         BitConverter.GetBytes(header.Count).CopyTo(buffer, 0);
-        BitConverter.GetBytes(header.LastUpdated.Ticks).CopyTo(buffer, 4);
 
         await stream.WriteAsync(buffer, 0, buffer.Length);
     }
@@ -188,7 +184,7 @@ public abstract class FileBinaryDAO<T> : InterfaceFileDAO<T>, IDisposable
         return entity;
     }
 
-    private static int GetHeaderSize() => sizeof(int) + sizeof(long);
+    private static int GetHeaderSize() => sizeof(int);
 
     protected virtual void Dispose(bool disposing)
     {
