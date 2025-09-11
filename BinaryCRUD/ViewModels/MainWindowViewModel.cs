@@ -128,6 +128,23 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async System.Threading.Tasks.Task DeleteItemAsync(ushort itemId)
+    {
+        try
+        {
+            System.Console.WriteLine($"[INFO] Deleting item with ID: {itemId}");
+            await _itemDAO.DeleteItemAsync(itemId);
+            ToastService.ShowSuccess($"Item {itemId} marked as deleted");
+            await LoadItemsAsync();
+        }
+        catch (System.Exception ex)
+        {
+            System.Console.WriteLine($"[ERROR] Failed to delete item: {ex.Message}");
+            ToastService.ShowWarning($"Failed to delete item: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
     private async System.Threading.Tasks.Task DeleteFileAsync()
     {
         try

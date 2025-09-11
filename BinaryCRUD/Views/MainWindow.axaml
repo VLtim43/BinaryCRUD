@@ -54,13 +54,32 @@
                                     Padding="8" 
                                     Margin="0,2"
                                     Focusable="False">
-                                <StackPanel Focusable="False">
-                                    <TextBlock Text="{Binding Content}" FontWeight="Medium" TextWrapping="Wrap"/>
-                                    <TextBlock Text="{Binding Price, StringFormat='${0:F2}'}" FontSize="12" Foreground="Green"/>
-                                    <TextBlock Text="{Binding Id, StringFormat='ID: {0}'}" FontSize="10" Foreground="Gray"/>
-                                    <TextBlock Text="DELETED" FontSize="10" Foreground="Red" FontWeight="Bold" 
-                                              IsVisible="{Binding IsTombstone}"/>
-                                </StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    
+                                    <StackPanel Grid.Column="0" Focusable="False">
+                                        <TextBlock Text="{Binding Content}" FontWeight="Medium" TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding Price, StringFormat='${0:F2}'}" FontSize="12" Foreground="Green"/>
+                                        <TextBlock Text="{Binding Id, StringFormat='ID: {0}'}" FontSize="10" Foreground="Gray"/>
+                                        <TextBlock Text="DELETED" FontSize="10" Foreground="Red" FontWeight="Bold" 
+                                                  IsVisible="{Binding IsTombstone}"/>
+                                    </StackPanel>
+                                    
+                                    <Button Grid.Column="1" 
+                                            Content="×" 
+                                            Width="25" 
+                                            Height="25" 
+                                            Background="Red" 
+                                            Foreground="White" 
+                                            FontWeight="Bold"
+                                            Command="{Binding $parent[Window].DataContext.DeleteItemCommand}"
+                                            CommandParameter="{Binding Id}"
+                                            IsVisible="{Binding !IsTombstone}"
+                                            VerticalAlignment="Top"/>
+                                </Grid>
                             </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
