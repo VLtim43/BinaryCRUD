@@ -41,6 +41,8 @@ public abstract class FileBinaryDAO<T> : InterfaceFileDAO<T>, IDisposable
                 item.Id = (ushort)header.Count;
             else if (entity is Order order)
                 order.Id = (ushort)header.Count;
+            else if (entity is User user)
+                user.Id = (ushort)(header.Count - 1); // Users start from 0: admin=0, next=1, etc.
 
             Console.WriteLine(
                 $"[{GetType().Name}] Updating header: {previousCount} -> {header.Count} entities"

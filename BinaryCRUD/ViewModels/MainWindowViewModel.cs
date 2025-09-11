@@ -21,6 +21,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly OrderDAO _orderDAO;
     public ToastService ToastService { get; }
     public ConsoleService ConsoleService { get; }
+    public AuthenticationService AuthService { get; }
 
     public MainWindowViewModel(ItemDAO itemDAO)
     {
@@ -28,8 +29,28 @@ public partial class MainWindowViewModel : ViewModelBase
         _orderDAO = new OrderDAO();
         ToastService = new ToastService();
         ConsoleService = new ConsoleService();
-        _ = LoadItemsAsync();
-        _ = LoadOrdersAsync();
+        AuthService = new AuthenticationService();
+        AuthService.UserChanged += OnUserChanged;
+        _ = InitializeAsync();
+    }
+
+    private async Task InitializeAsync()
+    {
+        await AuthService.InitializeAsync();
+        await LoadItemsAsync();
+        await LoadOrdersAsync();
+    }
+
+    private void OnUserChanged(object? sender, User? user)
+    {
+        OnPropertyChanged(nameof(CurrentUser));
+        OnPropertyChanged(nameof(IsLoggedIn));
+        OnPropertyChanged(nameof(IsAdmin));
+        OnPropertyChanged(nameof(CanCreateItems));
+        OnPropertyChanged(nameof(CanDeleteItems));
+        OnPropertyChanged(nameof(CanManageInventory));
+        OnPropertyChanged(nameof(CanDeleteFiles));
+        OnPropertyChanged(nameof(LoginButtonText));
     }
 
     [ObservableProperty]
@@ -71,6 +92,40 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private string? orderAdditionalInfo = null;
 
+    // Login properties
+    [ObservableProperty]
+    private string loginUsername = string.Empty;
+
+    [ObservableProperty]
+    private string loginPassword = string.Empty;
+
+    // User management properties
+    [ObservableProperty]
+    private string newUsername = string.Empty;
+
+    [ObservableProperty]
+    private string newPassword = string.Empty;
+
+    [ObservableProperty]
+    private int newUserRoleIndex = 0; // 0 = User, 1 = Admin
+
+    [ObservableProperty]
+    private ObservableCollection<User> users = new();
+
+    // Authentication properties
+    public User? CurrentUser => AuthService.CurrentUser;
+    public bool IsLoggedIn => AuthService.IsLoggedIn;
+    public bool IsAdmin => AuthService.IsAdmin;
+    public string LoginButtonText => IsLoggedIn ? $"Logout ({CurrentUser?.Username})" : "Login";
+    
+    // Permission properties for UI binding
+    public bool CanCreateItems => AuthService.HasPermission("create_items");
+    public bool CanDeleteItems => AuthService.HasPermission("delete_items");
+    public bool CanManageInventory => AuthService.HasPermission("populate_inventory");
+    public bool CanDeleteFiles => AuthService.HasPermission("delete_files");
+    public bool CanCreateOrders => AuthService.HasPermission("create_orders");
+    public bool CanDeleteOrders => AuthService.HasPermission("delete_orders");
+
     public IEnumerable<CartDisplayItem> CartDisplayItems
     {
         get
@@ -84,8 +139,56 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async System.Threading.Tasks.Task LoginAsync()
+    {
+        if (string.IsNullOrWhiteSpace(LoginUsername) || string.IsNullOrWhiteSpace(LoginPassword))
+        {
+            ToastService.ShowWarning("Please enter both username and password");
+            return;
+        }
+
+        var success = await AuthService.LoginAsync(LoginUsername, LoginPassword);
+        
+        if (success)
+        {
+            ToastService.ShowSuccess($"Welcome, {CurrentUser?.Username}!");
+            LoginUsername = string.Empty;
+            LoginPassword = string.Empty;
+            
+            // Load users for admin
+            if (IsAdmin)
+            {
+                await LoadUsersAsync();
+            }
+        }
+        else
+        {
+            ToastService.ShowWarning("Invalid username or password");
+            LoginPassword = string.Empty;
+        }
+    }
+
+    [RelayCommand]
+    private void Logout()
+    {
+        AuthService.Logout();
+        ToastService.ShowSuccess("Logged out successfully");
+        
+        // Clear sensitive data
+        LoginUsername = string.Empty;
+        LoginPassword = string.Empty;
+        Users.Clear();
+    }
+
+    [RelayCommand]
     private async System.Threading.Tasks.Task SaveAsync()
     {
+        if (!AuthService.HasPermission("create_items"))
+        {
+            ToastService.ShowWarning("You don't have permission to create items");
+            return;
+        }
+
         if (string.IsNullOrEmpty(Text))
         {
             System.Console.WriteLine("[WARNING] Cannot save empty item");
@@ -281,6 +384,12 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async System.Threading.Tasks.Task CreateOrderFromCartAsync()
     {
+        if (!AuthService.HasPermission("create_orders"))
+        {
+            ToastService.ShowWarning("You need to be logged in to create orders");
+            return;
+        }
+
         if (CartItemIds.Count == 0)
         {
             System.Console.WriteLine("[WARNING] Cannot create order with empty cart");
@@ -572,6 +681,12 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async System.Threading.Tasks.Task PopulateInventoryAsync()
     {
+        if (!AuthService.HasPermission("populate_inventory"))
+        {
+            ToastService.ShowWarning("You don't have permission to populate inventory");
+            return;
+        }
+
         try
         {
             var inventoryPath = "Data/inventory.json";
@@ -629,6 +744,137 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         ConsoleService.Clear();
         System.Console.WriteLine("[INFO] Console cleared");
+    }
+
+    [RelayCommand]
+    private async System.Threading.Tasks.Task CreateUserAsync()
+    {
+        if (!IsAdmin)
+        {
+            ToastService.ShowWarning("Only admins can create users");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(NewUsername) || string.IsNullOrWhiteSpace(NewPassword))
+        {
+            ToastService.ShowWarning("Please enter both username and password");
+            return;
+        }
+
+        try
+        {
+            var role = NewUserRoleIndex == 1 ? UserRole.Admin : UserRole.User;
+            var userDAO = new UserDAO();
+            
+            await userDAO.AddUserAsync(NewUsername, NewPassword, role);
+            ToastService.ShowSuccess($"User '{NewUsername}' created successfully");
+            
+            NewUsername = string.Empty;
+            NewPassword = string.Empty;
+            NewUserRoleIndex = 0;
+            
+            await LoadUsersAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Console.WriteLine($"[ERROR] Failed to create user: {ex.Message}");
+            ToastService.ShowWarning($"Failed to create user: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private async System.Threading.Tasks.Task DeleteUserAsync(ushort userId)
+    {
+        if (!IsAdmin)
+        {
+            ToastService.ShowWarning("Only admins can delete users");
+            return;
+        }
+
+        try
+        {
+            var userDAO = new UserDAO();
+            var users = await userDAO.GetAllUsersAsync();
+            var userToDelete = users.FirstOrDefault(u => u.Id == userId);
+            
+            // Prevent deletion of admin users
+            if (userToDelete?.Role == UserRole.Admin)
+            {
+                ToastService.ShowWarning("Cannot delete admin users");
+                return;
+            }
+            
+            await userDAO.DeleteUserAsync(userId);
+            ToastService.ShowSuccess($"User deleted successfully");
+            await LoadUsersAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Console.WriteLine($"[ERROR] Failed to delete user: {ex.Message}");
+            ToastService.ShowWarning($"Failed to delete user: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private async System.Threading.Tasks.Task ReadUsersAsync()
+    {
+        if (!IsAdmin)
+        {
+            ToastService.ShowWarning("Only admins can view users");
+            return;
+        }
+
+        try
+        {
+            var userDAO = new UserDAO();
+            var users = await userDAO.GetAllUsersAsync();
+            
+            System.Console.WriteLine("[INFO] Reading users from file...");
+            
+            if (users.Count == 0)
+            {
+                System.Console.WriteLine("[INFO] No users found");
+                return;
+            }
+
+            var orderedUsers = users.OrderBy(x => x.Id).ToList();
+            for (int i = 0; i < orderedUsers.Count; i++)
+            {
+                var user = orderedUsers[i];
+                var status = user.IsTombstone ? "DELETED" : "ACTIVE";
+                System.Console.WriteLine(
+                    $"[ID: {user.Id}][{status}] - [Username: '{user.Username}'] - [Role: {user.Role}]"
+                );
+            }
+
+            System.Console.WriteLine($"[INFO] Found {users.Count} users total");
+        }
+        catch (Exception ex)
+        {
+            System.Console.WriteLine($"[ERROR] Failed to read users: {ex.Message}");
+        }
+    }
+
+    private async System.Threading.Tasks.Task LoadUsersAsync()
+    {
+        if (!IsAdmin) return;
+
+        try
+        {
+            var userDAO = new UserDAO();
+            var usersList = await userDAO.GetAllUsersAsync();
+            Users.Clear();
+            
+            // Filter out admin users from the UI - they should not be visible or deletable
+            foreach (var user in usersList.OrderBy(x => x.Id).Where(u => u.Role != UserRole.Admin))
+            {
+                Users.Add(user);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Console.WriteLine($"[ERROR] Failed to load users: {ex.Message}");
+        }
     }
 
     [RelayCommand]

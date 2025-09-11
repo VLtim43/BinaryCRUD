@@ -12,90 +12,201 @@
         Title="BinaryCRUD">
 
     <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
     <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
-        
-        <!-- Console Sidebar -->
-        <sidebars:ConsoleSidebar Grid.Column="0" 
-                                 IsVisible="{Binding IsConsoleVisible}"
-                                 DataContext="{Binding}" />
-        
-        <TabControl Grid.Column="1">
-            <!-- Items Tab -->
-            <TabItem Header="Items">
-                <tabs:ItemsTab DataContext="{Binding}" />
-            </TabItem>
+        <!-- Login Screen (shown when not logged in) -->
+        <Grid IsVisible="{Binding !IsLoggedIn}" Background="#F5F5F5">
+            <Border Width="400" Height="350" 
+                    Background="White" 
+                    CornerRadius="10" 
+                    BoxShadow="0 4 20 #20000000"
+                    VerticalAlignment="Center" 
+                    HorizontalAlignment="Center">
+                <StackPanel Margin="40" Spacing="15">
+                    <!-- Title -->
+                    <TextBlock Text="BinaryCRUD System" 
+                               FontSize="28" FontWeight="Bold" 
+                               HorizontalAlignment="Center" 
+                               Foreground="#333"
+                               Margin="0,0,0,10"/>
+                    
+                    <TextBlock Text="Please login to continue" 
+                               FontSize="14" 
+                               HorizontalAlignment="Center" 
+                               Foreground="#666"
+                               Margin="0,0,0,20"/>
+
+                    <!-- Username -->
+                    <TextBlock Text="Username:" FontWeight="Medium" Margin="0,0,0,5"/>
+                    <TextBox Name="LoginUsernameBox" 
+                             Text="{Binding LoginUsername}"
+                             Watermark="Enter username..." 
+                             Height="35"/>
+
+                    <!-- Password -->
+                    <TextBlock Text="Password:" FontWeight="Medium" Margin="0,10,0,5"/>
+                    <TextBox Name="LoginPasswordBox" 
+                             Text="{Binding LoginPassword}"
+                             Watermark="Enter password..." 
+                             PasswordChar="*"
+                             Height="35"/>
+
+                    <!-- Login Button -->
+                    <Button Content="Login" 
+                            Command="{Binding LoginCommand}"
+                            Width="200" Height="40" 
+                            Background="#007ACC" Foreground="White"
+                            FontSize="14" FontWeight="Medium"
+                            HorizontalAlignment="Center"
+                            Margin="0,15,0,0"/>
+
+                    <!-- Default Users Info -->
+                    <Border Background="#F8F9FA" 
+                            CornerRadius="5" Padding="15" 
+                            Margin="0,20,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Default Accounts:" FontWeight="Bold" FontSize="12" Margin="0,0,0,5"/>
+                            <TextBlock Text="Admin: admin / admin" FontSize="11" Foreground="#007ACC"/>
+                            <TextBlock Text="User: user / user" FontSize="11" Foreground="#28A745"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Main Application (shown when logged in) -->
+        <Grid IsVisible="{Binding IsLoggedIn}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
             
-            <!-- Orders Tab -->
-            <TabItem Header="Orders">
-                <tabs:OrdersTab DataContext="{Binding}" />
-            </TabItem>
-        </TabControl>
-        
-        <!-- Console Edge Toggle -->
-        <Border Grid.Column="0" 
-                Grid.ColumnSpan="2"
-                Background="#007ACC"
-                Width="20"
-                Height="60"
-                CornerRadius="0,10,10,0"
-                VerticalAlignment="Center"
-                HorizontalAlignment="Left"
-                Margin="0"
-                IsVisible="{Binding !IsConsoleVisible}"
-                Cursor="Hand">
-            <Button Background="Transparent"
-                    BorderThickness="0"
+            <!-- Console Sidebar -->
+            <sidebars:ConsoleSidebar Grid.Column="0" 
+                                     IsVisible="{Binding IsConsoleVisible}"
+                                     DataContext="{Binding}" />
+            
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <!-- Top bar with user info and logout -->
+                <Border Grid.Row="0" Background="#2C3E50" Padding="15,8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="BinaryCRUD System" 
+                                       FontWeight="Bold" FontSize="16" 
+                                       Foreground="White"
+                                       VerticalAlignment="Center"/>
+                            <Border Background="#007ACC" 
+                                    CornerRadius="12" Padding="8,3">
+                                <TextBlock Text="{Binding CurrentUser.Role}" 
+                                           FontSize="10" FontWeight="Bold"
+                                           Foreground="White"/>
+                            </Border>
+                        </StackPanel>
+                        
+                        <TextBlock Grid.Column="1" 
+                                   Text="{Binding CurrentUser.Username, StringFormat='Welcome, {0}'}" 
+                                   Foreground="White" FontSize="14"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,15,0"/>
+                        
+                        <Button Grid.Column="2" 
+                                Content="Logout" 
+                                Command="{Binding LogoutCommand}"
+                                Background="#E74C3C" Foreground="White"
+                                Padding="12,5" FontSize="12"/>
+                    </Grid>
+                </Border>
+                
+                <!-- Content based on role -->
+                <TabControl Grid.Row="1" IsVisible="{Binding IsAdmin}">
+                    <!-- Admin sees all tabs -->
+                    <TabItem Header="Items">
+                        <tabs:ItemsTab DataContext="{Binding}" />
+                    </TabItem>
+                    <TabItem Header="Orders">
+                        <tabs:OrdersTab DataContext="{Binding}" />
+                    </TabItem>
+                    <TabItem Header="Users">
+                        <tabs:UsersTab DataContext="{Binding}" />
+                    </TabItem>
+                </TabControl>
+                
+                <!-- Regular users see only Orders -->
+                <Grid Grid.Row="1" IsVisible="{Binding !IsAdmin}">
+                    <tabs:OrdersTab DataContext="{Binding}" />
+                </Grid>
+            </Grid>
+            
+            <!-- Console Edge Toggle -->
+            <Border Grid.Column="0" 
+                    Grid.ColumnSpan="2"
+                    Background="#007ACC"
                     Width="20"
                     Height="60"
-                    Command="{Binding ToggleConsoleCommand}"
-                    ToolTip.Tip="Show Debug Console"
+                    CornerRadius="0,10,10,0"
+                    VerticalAlignment="Center"
+                    HorizontalAlignment="Left"
+                    Margin="0"
+                    IsVisible="{Binding !IsConsoleVisible}"
                     Cursor="Hand">
-                <TextBlock Text="⚡" 
-                          FontSize="12"
-                          Foreground="White"
-                          HorizontalAlignment="Center"
-                          VerticalAlignment="Center">
-                    <TextBlock.RenderTransform>
-                        <RotateTransform Angle="90"/>
-                    </TextBlock.RenderTransform>
-                </TextBlock>
-            </Button>
-        </Border>
+                <Button Background="Transparent"
+                        BorderThickness="0"
+                        Width="20"
+                        Height="60"
+                        Command="{Binding ToggleConsoleCommand}"
+                        ToolTip.Tip="Show Debug Console"
+                        Cursor="Hand">
+                    <TextBlock Text="⚡" 
+                              FontSize="12"
+                              Foreground="White"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center">
+                        <TextBlock.RenderTransform>
+                            <RotateTransform Angle="90"/>
+                        </TextBlock.RenderTransform>
+                    </TextBlock>
+                </Button>
+            </Border>
 
-        <!-- Toast notifications container -->
-        <ItemsControl ItemsSource="{Binding ToastService.Toasts}" 
-                      VerticalAlignment="Top" 
-                      HorizontalAlignment="Right"
-                      Margin="20"
-                      Grid.Column="1">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <StackPanel Orientation="Vertical" Spacing="5"/>
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                    <Border Background="{Binding BackgroundColor}" 
-                            CornerRadius="5" 
-                            Padding="15,8" 
-                            Margin="0,2"
-                            IsVisible="{Binding IsVisible}">
-                        <TextBlock Text="{Binding Message}" 
-                                   Foreground="White" 
-                                   FontWeight="Medium"/>
-                    </Border>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
+            <!-- Toast notifications container -->
+            <ItemsControl ItemsSource="{Binding ToastService.Toasts}" 
+                          VerticalAlignment="Top" 
+                          HorizontalAlignment="Right"
+                          Margin="20"
+                          Grid.Column="1">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Vertical" Spacing="5"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Background="{Binding BackgroundColor}" 
+                                CornerRadius="5" 
+                                Padding="15,8" 
+                                Margin="0,2"
+                                IsVisible="{Binding IsVisible}">
+                            <TextBlock Text="{Binding Message}" 
+                                       Foreground="White" 
+                                       FontWeight="Medium"/>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Grid>
     </Grid>
 
 </Window>
