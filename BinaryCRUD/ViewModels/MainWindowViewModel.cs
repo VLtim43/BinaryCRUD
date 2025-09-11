@@ -59,6 +59,24 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool isConsoleVisible = false;
 
+    [ObservableProperty]
+    private ObservableCollection<ushort> cartItemIds = new();
+
+    [ObservableProperty]
+    private decimal cartTotal = 0.0m;
+
+    public IEnumerable<CartDisplayItem> CartDisplayItems
+    {
+        get
+        {
+            return CartItemIds.Select(id => new CartDisplayItem
+            {
+                ItemId = id,
+                ItemName = Items.FirstOrDefault(i => i.Id == id)?.Content ?? "Unknown Item"
+            });
+        }
+    }
+
     [RelayCommand]
     private async System.Threading.Tasks.Task SaveAsync()
     {
@@ -204,6 +222,97 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void AddToCart()
+    {
+        if (SelectedItem == null)
+        {
+            System.Console.WriteLine("[WARNING] Cannot add to cart without selecting an item");
+            ToastService.ShowWarning("Please select an item to add to cart");
+            return;
+        }
+
+        if (SelectedItem.IsTombstone)
+        {
+            System.Console.WriteLine("[WARNING] Cannot add deleted item to cart");
+            ToastService.ShowWarning("Cannot add deleted item to cart");
+            return;
+        }
+
+        CartItemIds.Add(SelectedItem.Id);
+        System.Console.WriteLine($"[INFO] Added item ID {SelectedItem.Id} to cart (total items: {CartItemIds.Count})");
+        
+        UpdateCartTotal();
+        OnPropertyChanged(nameof(CartDisplayItems));
+        ToastService.ShowSuccess($"Added '{SelectedItem.Content}' to cart");
+        SelectedItem = null;
+    }
+
+    [RelayCommand]
+    private void RemoveFromCart(ushort itemId)
+    {
+        CartItemIds.Remove(itemId);
+        UpdateCartTotal();
+        OnPropertyChanged(nameof(CartDisplayItems));
+        System.Console.WriteLine($"[INFO] Removed item ID {itemId} from cart (total items: {CartItemIds.Count})");
+        ToastService.ShowSuccess("Item removed from cart");
+    }
+
+    [RelayCommand]
+    private void ClearCart()
+    {
+        var itemCount = CartItemIds.Count;
+        CartItemIds.Clear();
+        UpdateCartTotal();
+        OnPropertyChanged(nameof(CartDisplayItems));
+        System.Console.WriteLine($"[INFO] Cleared cart ({itemCount} items removed)");
+        ToastService.ShowSuccess("Cart cleared");
+    }
+
+    [RelayCommand]
+    private async System.Threading.Tasks.Task CreateOrderFromCartAsync()
+    {
+        if (CartItemIds.Count == 0)
+        {
+            System.Console.WriteLine("[WARNING] Cannot create order with empty cart");
+            ToastService.ShowWarning("Please add items to cart before creating order");
+            return;
+        }
+
+        try
+        {
+            var totalPrice = (float)CartTotal;
+            
+            System.Console.WriteLine($"[INFO] Creating order with {CartItemIds.Count} items, total: ${totalPrice:F2}");
+            await _orderDAO.AddOrderAsync(CartItemIds.ToList(), totalPrice);
+            
+            var itemSummary = string.Join(", ", CartItemIds.Select(id => $"ID:{id}"));
+            ToastService.ShowSuccess($"Order created: {itemSummary} (${totalPrice:F2})");
+            
+            await LoadOrdersAsync();
+            ClearCart();
+        }
+        catch (System.Exception ex)
+        {
+            System.Console.WriteLine($"[ERROR] Failed to create order: {ex.Message}");
+            ToastService.ShowWarning($"Failed to create order: {ex.Message}");
+        }
+    }
+
+    private void UpdateCartTotal()
+    {
+        decimal total = 0;
+        foreach (var itemId in CartItemIds)
+        {
+            var item = Items.FirstOrDefault(i => i.Id == itemId);
+            if (item != null)
+            {
+                total += (decimal)item.Price;
+            }
+        }
+        CartTotal = total;
+    }
+
+    [RelayCommand]
     private async System.Threading.Tasks.Task DeleteOrderAsync(ushort orderId)
     {
         try
@@ -246,8 +355,10 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 var order = orderedOrders[i];
                 var status = order.IsTombstone ? "DELETED" : "ACTIVE";
+                var itemGroups = order.ItemIds.GroupBy(id => id).Select(g => $"ItemID:{g.Key} Qty:{g.Count()}");
+                var itemsDisplay = string.Join(", ", itemGroups);
                 System.Console.WriteLine(
-                    $"[ID: {order.Id}][{status}] - [ItemID: {order.ItemId}] - [Total: ${order.TotalPrice:F2}]"
+                    $"[ID: {order.Id}][{status}] - [Items: {itemsDisplay}] - [Total: ${order.TotalPrice:F2}]"
                 );
             }
 
@@ -507,5 +618,11 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         public string name { get; set; } = string.Empty;
         public double price { get; set; }
+    }
+
+    public class CartDisplayItem
+    {
+        public ushort ItemId { get; set; }
+        public string ItemName { get; set; } = string.Empty;
     }
 }

@@ -188,14 +188,14 @@
             
             <!-- Orders Tab -->
             <TabItem Header="Orders">
-                <Grid ColumnDefinitions="*,Auto,200">
+                <Grid ColumnDefinitions="*,Auto,200,Auto,250">
                     <!-- Order creation area -->
-                    <StackPanel Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Vertical" Spacing="10">
-                        <TextBlock Text="Create Order" FontWeight="Bold" FontSize="18" Margin="0,0,0,10"/>
+                    <StackPanel Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Top" Orientation="Vertical" Spacing="10" Margin="20">
+                        <TextBlock Text="Select Items" FontWeight="Bold" FontSize="18" Margin="0,0,0,10"/>
                         <ComboBox ItemsSource="{Binding ActiveItems}" 
                                   SelectedItem="{Binding SelectedItem}"
                                   Width="300" Height="35" 
-                                  PlaceholderText="Select an item...">
+                                  PlaceholderText="Select an item to add to cart...">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal">
@@ -205,7 +205,8 @@
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>
                         </ComboBox>
-                        <Button Content="Create Order" Command="{Binding CreateOrderCommand}" Width="300" Height="35" Background="Green" Foreground="White"/>
+                        <Button Content="Add to Cart" Command="{Binding AddToCartCommand}" Width="300" Height="35" Background="Blue" Foreground="White"/>
+                        <Separator Height="20"/>
                         <Button Content="Read Orders" Command="{Binding ReadOrdersCommand}" Width="300" Height="35"/>
                         <Button Content="Quit" Command="{Binding QuitCommand}" Width="300" Height="35"/>
                     </StackPanel>
@@ -213,8 +214,69 @@
                     <!-- Vertical separator -->
                     <Border Grid.Column="1" Width="1" Background="LightGray" Margin="10,20"/>
                     
+                    <!-- Shopping Cart -->
+                    <ScrollViewer Grid.Column="2" Background="#E8F4FD" Padding="10">
+                        <StackPanel>
+                            <TextBlock Text="Shopping Cart" FontWeight="Bold" FontSize="16" Margin="0,0,0,10"/>
+                            <TextBlock Text="{Binding CartTotal, StringFormat='Total: ${0:F2}'}" 
+                                      FontWeight="Bold" FontSize="14" Foreground="Green" Margin="0,0,0,10"/>
+                            <TextBlock Text="{Binding CartItemIds.Count, StringFormat='Items: {0}'}" 
+                                      FontSize="12" Foreground="Blue" Margin="0,0,0,10"/>
+                            <Button Content="Create Order" Command="{Binding CreateOrderFromCartCommand}" 
+                                   Width="180" Height="35" Background="Green" Foreground="White" 
+                                   Margin="0,0,0,5"/>
+                            <Button Content="Clear Cart" Command="{Binding ClearCartCommand}" 
+                                   Width="180" Height="30" Background="Orange" Foreground="White" 
+                                   Margin="0,0,0,10"/>
+                            
+                            <ItemsControl ItemsSource="{Binding CartDisplayItems}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Vertical"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="White" 
+                                                BorderBrush="LightBlue" 
+                                                BorderThickness="1" 
+                                                CornerRadius="3" 
+                                                Padding="8" 
+                                                Margin="0,2">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="{Binding ItemName}" FontWeight="Medium"/>
+                                                    <TextBlock Text="{Binding ItemId, StringFormat='ID: {0}'}" FontSize="10" Foreground="Gray"/>
+                                                </StackPanel>
+                                                
+                                                <Button Grid.Column="1" 
+                                                        Content="×" 
+                                                        Width="20" 
+                                                        Height="20" 
+                                                        Background="Red" 
+                                                        Foreground="White" 
+                                                        FontWeight="Bold"
+                                                        Command="{Binding $parent[Window].DataContext.RemoveFromCartCommand}"
+                                                        CommandParameter="{Binding ItemId}"
+                                                        VerticalAlignment="Top"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+                    
+                    <!-- Vertical separator -->
+                    <Border Grid.Column="3" Width="1" Background="LightGray" Margin="10,20"/>
+                    
                     <!-- Orders sidebar -->
-                    <ScrollViewer Grid.Column="2" Background="#F5F5F5" Padding="10">
+                    <ScrollViewer Grid.Column="4" Background="#F5F5F5" Padding="10">
                         <StackPanel>
                             <TextBlock Text="Orders List" FontWeight="Bold" FontSize="16" Margin="0,0,0,10"/>
                             <Button Content="Refresh" Command="{Binding RefreshOrdersCommand}" Width="180" Height="30" Margin="0,0,0,5"/>
@@ -242,7 +304,7 @@
                                                 
                                                 <StackPanel Grid.Column="0" Focusable="False">
                                                     <TextBlock Text="{Binding Id, StringFormat='Order #{0}'}" FontWeight="Medium"/>
-                                                    <TextBlock Text="{Binding ItemId, StringFormat='Item ID: {0}'}" FontSize="12" Foreground="Blue"/>
+                                                    <TextBlock Text="{Binding ItemsDisplayText}" FontSize="11" Foreground="Blue" TextWrapping="Wrap"/>
                                                     <TextBlock Text="{Binding TotalPrice, StringFormat='Total: ${0:F2}'}" FontSize="12" Foreground="Green"/>
                                                     <TextBlock Text="DELETED" FontSize="10" Foreground="Red" FontWeight="Bold" 
                                                               IsVisible="{Binding IsTombstone}"/>
