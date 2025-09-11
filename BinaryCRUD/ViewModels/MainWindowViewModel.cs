@@ -65,6 +65,12 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private decimal cartTotal = 0.0m;
 
+    [ObservableProperty]
+    private string orderName = string.Empty;
+
+    [ObservableProperty]
+    private string? orderAdditionalInfo = null;
+
     public IEnumerable<CartDisplayItem> CartDisplayItems
     {
         get
@@ -282,19 +288,26 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(OrderName))
+        {
+            System.Console.WriteLine("[WARNING] Cannot create order without name");
+            ToastService.ShowWarning("Please enter an order name");
+            return;
+        }
+
         try
         {
             var totalPrice = (float)CartTotal;
 
             System.Console.WriteLine(
-                $"[INFO] Creating order with {CartItemIds.Count} items, total: ${totalPrice:F2}"
+                $"[INFO] Creating order '{OrderName}' with {CartItemIds.Count} items, total: ${totalPrice:F2}"
             );
-            await _orderDAO.AddOrderAsync(CartItemIds.ToList(), totalPrice);
+            await _orderDAO.AddOrderAsync(CartItemIds.ToList(), totalPrice, OrderName, string.IsNullOrWhiteSpace(OrderAdditionalInfo) ? null : OrderAdditionalInfo);
 
-            var itemSummary = string.Join(", ", CartItemIds.Select(id => $"ID:{id}"));
-            ToastService.ShowSuccess($"Order created: {itemSummary} (${totalPrice:F2})");
+            ToastService.ShowSuccess($"Order '{OrderName}' created successfully (${totalPrice:F2})");
 
             await LoadOrdersAsync();
+            ClearOrderForm();
             ClearCart();
         }
         catch (System.Exception ex)
@@ -302,6 +315,12 @@ public partial class MainWindowViewModel : ViewModelBase
             System.Console.WriteLine($"[ERROR] Failed to create order: {ex.Message}");
             ToastService.ShowWarning($"Failed to create order: {ex.Message}");
         }
+    }
+
+    private void ClearOrderForm()
+    {
+        OrderName = string.Empty;
+        OrderAdditionalInfo = null;
     }
 
     private void UpdateCartTotal()
@@ -362,8 +381,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 var order = orderedOrders[i];
                 var status = order.IsTombstone ? "DELETED" : "ACTIVE";
                 var itemsDisplay = string.Join(", ", order.ItemIds.Select(id => $"ID:{id}"));
+                var additionalInfoDisplay = !string.IsNullOrEmpty(order.AdditionalInfo) ? $" - [Info: {order.AdditionalInfo}]" : "";
                 System.Console.WriteLine(
-                    $"[ID: {order.Id}][{status}] - [Items: {itemsDisplay}] - [Total: ${order.TotalPrice:F2}]"
+                    $"[ID: {order.Id}][{status}] - [Name: '{order.Name}'] - [Items: {itemsDisplay}] - [Total: ${order.TotalPrice:F2}]{additionalInfoDisplay}"
                 );
             }
 
@@ -511,10 +531,13 @@ public partial class MainWindowViewModel : ViewModelBase
             foreach (var item in itemsList.OrderBy(x => x.Id))
             {
                 Items.Add(item);
-                if (!item.IsTombstone)
-                {
-                    ActiveItems.Add(item);
-                }
+            }
+            
+            // Sort active items alphabetically by name for the ComboBox
+            var activeItemsList = itemsList.Where(x => !x.IsTombstone).OrderBy(x => x.Content).ToList();
+            foreach (var item in activeItemsList)
+            {
+                ActiveItems.Add(item);
             }
 
             HasItems = itemsList.Count > 0;

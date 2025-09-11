@@ -14,28 +14,28 @@ public class OrderDAO : FileBinaryDAO<Order>
     public OrderDAO()
         : base("order.bin") { }
 
-    public async Task AddOrderAsync(List<ushort> itemIds, float totalPrice)
+    public async Task AddOrderAsync(List<ushort> itemIds, float totalPrice, string name = "", string? additionalInfo = null)
     {
-        var order = new Order { ItemIds = itemIds, TotalPrice = totalPrice };
+        var order = new Order { ItemIds = itemIds, TotalPrice = totalPrice, Name = name, AdditionalInfo = additionalInfo };
         await AddAsync(order);
     }
 
     // Convenience method for single item orders
-    public async Task AddOrderAsync(ushort itemId, float totalPrice)
+    public async Task AddOrderAsync(ushort itemId, float totalPrice, string name = "", string? additionalInfo = null)
     {
         var itemIds = new List<ushort> { itemId };
-        await AddOrderAsync(itemIds, totalPrice);
+        await AddOrderAsync(itemIds, totalPrice, name, additionalInfo);
     }
 
     // Convenience method for multiple instances of same item
-    public async Task AddOrderAsync(ushort itemId, int quantity, float totalPrice)
+    public async Task AddOrderAsync(ushort itemId, int quantity, float totalPrice, string name = "", string? additionalInfo = null)
     {
         var itemIds = new List<ushort>();
         for (int i = 0; i < quantity; i++)
         {
             itemIds.Add(itemId);
         }
-        await AddOrderAsync(itemIds, totalPrice);
+        await AddOrderAsync(itemIds, totalPrice, name, additionalInfo);
     }
 
     public async Task<List<Order>> GetAllOrdersAsync()
