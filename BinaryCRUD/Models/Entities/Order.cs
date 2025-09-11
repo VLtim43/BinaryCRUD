@@ -2,21 +2,40 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace BinaryCRUD.Models;
 
-// Binary Layout: [IsTombstone:1byte][Id:2bytes][ItemCount:2bytes][ItemIds:2bytes*ItemCount][TotalPrice:4bytes][NameLength:2bytes][Name:variable][AdditionalInfoLength:2bytes][AdditionalInfo:variable]
-// Variable Size: 11 + (ItemCount * 2) + NameLength + AdditionalInfoLength bytes
+// Binary Layout: [IsTombstone:1byte][Id:2bytes][ItemCount:2bytes][ItemIds:2bytes*ItemCount][TotalPrice:4bytes][UserId:2bytes][AdditionalInfoLength:2bytes][AdditionalInfo:variable]
+// Fixed Size: 13 + (ItemCount * 2) + AdditionalInfoLength bytes
 // ItemId Format: [ItemId:2bytes] = 2 bytes each (multiple instances represent multiple items)
 // String Format: [Length:2bytes][UTF-8 Data:variable] - Length=0 for null/empty strings
 public class Order : InterfaceSerializable
 {
+    private static UserDAO? _userDAO;
+    private static UserDAO UserDAO => _userDAO ??= new UserDAO();
+    
     public ushort Id { get; set; }
     public bool IsTombstone { get; set; } = false;
     public List<ushort> ItemIds { get; set; } = new List<ushort>();
     public float TotalPrice { get; set; } = 0.0f;
-    public string Name { get; set; } = string.Empty;
+    public ushort UserId { get; set; }
     public string? AdditionalInfo { get; set; } = null;
+
+    // Method to get username from UserId
+    public async Task<string> GetUsernameAsync()
+    {
+        try
+        {
+            var users = await UserDAO.GetAllUsersAsync();
+            var user = users.FirstOrDefault(u => u.Id == UserId && !u.IsTombstone);
+            return user?.Username ?? "Unknown User";
+        }
+        catch
+        {
+            return "Unknown User";
+        }
+    }
 
     // Property for XAML binding - shows individual item IDs
     public string ItemsDisplayText
@@ -35,21 +54,27 @@ public class Order : InterfaceSerializable
     {
         get 
         { 
-            var display = $"ID:{Id} - {Name}";
+            // Note: This is synchronous for UI binding, username will be resolved asynchronously in UI
+            var display = $"ID:{Id} - User:{UserId}";
             if (!string.IsNullOrEmpty(AdditionalInfo))
                 display += $" ({AdditionalInfo})";
             return display;
         }
     }
 
+    // Property for XAML binding - shows user information
+    public string UserDisplayText
+    {
+        get { return $"User ID: {UserId}"; }
+    }
+
     public byte[] ToBytes()
     {
         // Prepare string data
-        byte[] nameBytes = string.IsNullOrEmpty(Name) ? Array.Empty<byte>() : Encoding.UTF8.GetBytes(Name);
         byte[] additionalInfoBytes = string.IsNullOrEmpty(AdditionalInfo) ? Array.Empty<byte>() : Encoding.UTF8.GetBytes(AdditionalInfo);
 
-        // Calculate total size: IsTombstone(1) + Id(2) + ItemCount(2) + ItemIds(2*count) + TotalPrice(4) + NameLength(2) + Name + AdditionalInfoLength(2) + AdditionalInfo
-        var totalSize = 1 + sizeof(ushort) + sizeof(ushort) + (ItemIds.Count * sizeof(ushort)) + sizeof(float) + sizeof(ushort) + nameBytes.Length + sizeof(ushort) + additionalInfoBytes.Length;
+        // Calculate total size: IsTombstone(1) + Id(2) + ItemCount(2) + ItemIds(2*count) + TotalPrice(4) + UserId(2) + AdditionalInfoLength(2) + AdditionalInfo
+        var totalSize = 1 + sizeof(ushort) + sizeof(ushort) + (ItemIds.Count * sizeof(ushort)) + sizeof(float) + sizeof(ushort) + sizeof(ushort) + additionalInfoBytes.Length;
         var result = new byte[totalSize];
         int offset = 0;
 
@@ -76,14 +101,9 @@ public class Order : InterfaceSerializable
         BitConverter.GetBytes(TotalPrice).CopyTo(result, offset);
         offset += sizeof(float);
 
-        // Write Name length (2 bytes) and data
-        BitConverter.GetBytes((ushort)nameBytes.Length).CopyTo(result, offset);
+        // Write UserId (2 bytes)
+        BitConverter.GetBytes(UserId).CopyTo(result, offset);
         offset += sizeof(ushort);
-        if (nameBytes.Length > 0)
-        {
-            nameBytes.CopyTo(result, offset);
-            offset += nameBytes.Length;
-        }
 
         // Write AdditionalInfo length (2 bytes) and data
         BitConverter.GetBytes((ushort)additionalInfoBytes.Length).CopyTo(result, offset);
@@ -125,18 +145,9 @@ public class Order : InterfaceSerializable
         TotalPrice = BitConverter.ToSingle(data, offset);
         offset += sizeof(float);
 
-        // Read Name length (2 bytes) and data
-        var nameLength = BitConverter.ToUInt16(data, offset);
+        // Read UserId (2 bytes)
+        UserId = BitConverter.ToUInt16(data, offset);
         offset += sizeof(ushort);
-        if (nameLength > 0)
-        {
-            Name = Encoding.UTF8.GetString(data, offset, nameLength);
-            offset += nameLength;
-        }
-        else
-        {
-            Name = string.Empty;
-        }
 
         // Read AdditionalInfo length (2 bytes) and data
         var additionalInfoLength = BitConverter.ToUInt16(data, offset);

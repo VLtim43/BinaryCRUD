@@ -50,6 +50,9 @@ public partial class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(CanDeleteItems));
         OnPropertyChanged(nameof(CanManageInventory));
         OnPropertyChanged(nameof(CanDeleteFiles));
+        OnPropertyChanged(nameof(CanCreateOrders));
+        OnPropertyChanged(nameof(CanDeleteOrders));
+        OnPropertyChanged(nameof(CanViewOrders));
         OnPropertyChanged(nameof(LoginButtonText));
     }
 
@@ -72,6 +75,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool hasOrders = false;
 
     [ObservableProperty]
+    private bool hasUsers = false;
+
+    [ObservableProperty]
     private Item? selectedItem = null;
 
     [ObservableProperty]
@@ -86,8 +92,6 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private decimal cartTotal = 0.0m;
 
-    [ObservableProperty]
-    private string orderName = string.Empty;
 
     [ObservableProperty]
     private string? orderAdditionalInfo = null;
@@ -125,6 +129,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public bool CanDeleteFiles => AuthService.HasPermission("delete_files");
     public bool CanCreateOrders => AuthService.HasPermission("create_orders");
     public bool CanDeleteOrders => AuthService.HasPermission("delete_orders");
+    public bool CanViewOrders => AuthService.HasPermission("view_orders");
 
     public IEnumerable<CartDisplayItem> CartDisplayItems
     {
@@ -315,8 +320,15 @@ public partial class MainWindowViewModel : ViewModelBase
 
         try
         {
-            System.Console.WriteLine($"[INFO] Creating order for item ID: {SelectedItem.Id}");
-            await _orderDAO.AddOrderAsync(SelectedItem.Id, SelectedItem.Price);
+            if (CurrentUser == null)
+            {
+                System.Console.WriteLine("[WARNING] Cannot create order without logged in user");
+                ToastService.ShowWarning("You must be logged in to create orders");
+                return;
+            }
+
+            System.Console.WriteLine($"[INFO] Creating order for item ID: {SelectedItem.Id} by user {CurrentUser.Username}");
+            await _orderDAO.AddOrderAsync(SelectedItem.Id, SelectedItem.Price, CurrentUser.Id);
             ToastService.ShowSuccess(
                 $"Order created for '{SelectedItem.Content}' (${SelectedItem.Price:F2})"
             );
@@ -397,23 +409,24 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(OrderName))
-        {
-            System.Console.WriteLine("[WARNING] Cannot create order without name");
-            ToastService.ShowWarning("Please enter an order name");
-            return;
-        }
 
         try
         {
             var totalPrice = (float)CartTotal;
 
-            System.Console.WriteLine(
-                $"[INFO] Creating order '{OrderName}' with {CartItemIds.Count} items, total: ${totalPrice:F2}"
-            );
-            await _orderDAO.AddOrderAsync(CartItemIds.ToList(), totalPrice, OrderName, string.IsNullOrWhiteSpace(OrderAdditionalInfo) ? null : OrderAdditionalInfo);
+            if (CurrentUser == null)
+            {
+                System.Console.WriteLine("[WARNING] Cannot create order without logged in user");
+                ToastService.ShowWarning("You must be logged in to create orders");
+                return;
+            }
 
-            ToastService.ShowSuccess($"Order '{OrderName}' created successfully (${totalPrice:F2})");
+            System.Console.WriteLine(
+                $"[INFO] Creating order for user '{CurrentUser.Username}' with {CartItemIds.Count} items, total: ${totalPrice:F2}"
+            );
+            await _orderDAO.AddOrderAsync(CartItemIds.ToList(), totalPrice, CurrentUser.Id, string.IsNullOrWhiteSpace(OrderAdditionalInfo) ? null : OrderAdditionalInfo);
+
+            ToastService.ShowSuccess($"Order for '{CurrentUser.Username}' created successfully (${totalPrice:F2})");
 
             await LoadOrdersAsync();
             ClearOrderForm();
@@ -428,7 +441,6 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void ClearOrderForm()
     {
-        OrderName = string.Empty;
         OrderAdditionalInfo = null;
     }
 
@@ -492,7 +504,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 var itemsDisplay = string.Join(", ", order.ItemIds.Select(id => $"ID:{id}"));
                 var additionalInfoDisplay = !string.IsNullOrEmpty(order.AdditionalInfo) ? $" - [Info: {order.AdditionalInfo}]" : "";
                 System.Console.WriteLine(
-                    $"[ID: {order.Id}][{status}] - [Name: '{order.Name}'] - [Items: {itemsDisplay}] - [Total: ${order.TotalPrice:F2}]{additionalInfoDisplay}"
+                    $"[ID: {order.Id}][{status}] - [UserId: {order.UserId}] - [Items: {itemsDisplay}] - [Total: ${order.TotalPrice:F2}]{additionalInfoDisplay}"
                 );
             }
 
@@ -553,6 +565,33 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             System.Console.WriteLine($"[ERROR] Failed to delete file: {ex.Message}");
             ToastService.ShowSuccess($"Error deleting file: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private async System.Threading.Tasks.Task DeleteUsersFileAsync()
+    {
+        try
+        {
+            var result = await ShowConfirmationDialogAsync(
+                "Delete File",
+                "Are you sure you want to delete the entire users.bin file?\n\nThis will permanently remove all users and cannot be undone."
+            );
+
+            if (result)
+            {
+                var userDAO = new UserDAO();
+                await userDAO.DeleteFileAsync();
+                Users.Clear();
+                HasUsers = false;
+                ToastService.ShowWarning("Users file deleted successfully");
+                System.Console.WriteLine("[INFO] users.bin file deleted");
+            }
+        }
+        catch (System.Exception ex)
+        {
+            System.Console.WriteLine($"[ERROR] Failed to delete users file: {ex.Message}");
+            ToastService.ShowSuccess($"Error deleting users file: {ex.Message}");
         }
     }
 
@@ -870,10 +909,13 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 Users.Add(user);
             }
+            
+            HasUsers = Users.Count > 0;
         }
         catch (Exception ex)
         {
             System.Console.WriteLine($"[ERROR] Failed to load users: {ex.Message}");
+            HasUsers = false;
         }
     }
 

@@ -30,6 +30,12 @@ public class UserDAO : FileBinaryDAO<User>
                                         u.Username.Equals(username, StringComparison.OrdinalIgnoreCase));
     }
 
+    public async Task<User?> GetUserByIdAsync(ushort userId)
+    {
+        var users = await GetAllUsersAsync();
+        return users.FirstOrDefault(u => !u.IsTombstone && u.Id == userId);
+    }
+
     public async Task AddUserAsync(string username, string password, UserRole role = UserRole.User)
     {
         // Check if user already exists

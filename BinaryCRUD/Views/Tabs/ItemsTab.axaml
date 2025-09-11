@@ -7,7 +7,7 @@
              x:Class="BinaryCRUD.Views.Tabs.ItemsTab"
              x:DataType="vm:MainWindowViewModel">
 
-    <Grid ColumnDefinitions="*,Auto,200">
+    <Grid ColumnDefinitions="*,Auto,250">
         <!-- Item creation area -->
         <StackPanel Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Top" Orientation="Vertical" Spacing="10" Margin="20">
             <TextBlock Text="Create Item" FontWeight="Bold" FontSize="18" Margin="0,0,0,10"/>
@@ -54,33 +54,13 @@
                                     Padding="8" 
                                     Margin="0,2"
                                     Focusable="False">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    
-                                    <StackPanel Grid.Column="0" Focusable="False">
-                                        <TextBlock Text="{Binding Content}" FontWeight="Medium" TextWrapping="Wrap"/>
-                                        <TextBlock Text="{Binding Price, StringFormat='${0:F2}'}" FontSize="12" Foreground="Green"/>
-                                        <TextBlock Text="{Binding Id, StringFormat='ID: {0}'}" FontSize="10" Foreground="Gray"/>
-                                        <TextBlock Text="DELETED" FontSize="10" Foreground="Red" FontWeight="Bold" 
-                                                  IsVisible="{Binding IsTombstone}"/>
-                                    </StackPanel>
-                                    
-                                    <Button Grid.Column="1" 
-                                            Content="×" 
-                                            Width="25" 
-                                            Height="25" 
-                                            Background="Red" 
-                                            Foreground="White" 
-                                            FontWeight="Bold"
-                                            Command="{Binding $parent[UserControl].DataContext.DeleteItemCommand}"
-                                            CommandParameter="{Binding Id}"
-                                            IsVisible="{Binding !IsTombstone}"
-                                            IsEnabled="{Binding $parent[UserControl].DataContext.CanDeleteItems}"
-                                            VerticalAlignment="Top"/>
-                                </Grid>
+                                <StackPanel Focusable="False">
+                                    <TextBlock Text="{Binding Content}" FontWeight="Medium" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding Price, StringFormat='${0:F2}'}" FontSize="12" Foreground="Green"/>
+                                    <TextBlock Text="{Binding Id, StringFormat='ID: {0}'}" FontSize="10" Foreground="Gray"/>
+                                    <TextBlock Text="DELETED" FontSize="10" Foreground="Red" FontWeight="Bold" 
+                                              IsVisible="{Binding IsTombstone}"/>
+                                </StackPanel>
                             </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

@@ -68,10 +68,10 @@ public class AuthenticationService
             "delete_items" => IsAdmin,
             "populate_inventory" => IsAdmin,
             "delete_files" => IsAdmin,
-            "create_orders" => IsLoggedIn, // Both admin and user can create orders
+            "create_orders" => IsUser, // Only regular users can create orders
             "delete_orders" => IsAdmin,
             "view_items" => IsLoggedIn,
-            "view_orders" => IsLoggedIn,
+            "view_orders" => IsAdmin, // Only admins can view order list
             _ => false
         };
     }

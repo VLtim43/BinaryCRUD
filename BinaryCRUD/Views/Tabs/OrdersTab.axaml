@@ -7,14 +7,51 @@
              x:Class="BinaryCRUD.Views.Tabs.OrdersTab"
              x:DataType="vm:MainWindowViewModel">
 
-    <Grid ColumnDefinitions="*,Auto,200,Auto,250">
-        <!-- Order creation area -->
-        <StackPanel Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Top" Orientation="Vertical" Spacing="10" Margin="20">
+    <Grid ColumnDefinitions="*,Auto,250,Auto,250">
+        <!-- Admin orders list in center of screen -->
+        <ScrollViewer Grid.Column="0" Margin="20" IsVisible="{Binding IsAdmin}" HorizontalAlignment="Center" VerticalAlignment="Top">
+            <StackPanel HorizontalAlignment="Center" MaxWidth="800">
+                <TextBlock Text="All Orders" FontWeight="Bold" FontSize="18" Margin="0,0,0,10" HorizontalAlignment="Center"/>
+                <Button Content="Delete All Orders" Command="{Binding DeleteAllOrdersCommand}" Width="200" Height="30" Margin="0,0,0,20" Background="Red" Foreground="White" IsEnabled="{Binding HasOrders}" IsVisible="{Binding CanDeleteOrders}" HorizontalAlignment="Center"/>
+                <ItemsControl ItemsSource="{Binding Orders}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Vertical"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="White" 
+                                    BorderBrush="LightGray" 
+                                    BorderThickness="1" 
+                                    CornerRadius="3" 
+                                    Padding="8" 
+                                    Margin="0,2"
+                                    Width="600"
+                                    HorizontalAlignment="Center"
+                                    Focusable="False">
+                                <StackPanel Focusable="False">
+                                    <TextBlock Text="{Binding Id, StringFormat='Order #{0}'}" FontWeight="Medium"/>
+                                    <TextBlock Text="{Binding UserDisplayText}" FontSize="12" FontWeight="Medium" Margin="0,2,0,0"/>
+                                    <TextBlock Text="{Binding AdditionalInfo}" FontSize="10" Foreground="Gray" TextWrapping="Wrap" 
+                                              IsVisible="{Binding HasAdditionalInfo}" 
+                                              Margin="0,2,0,0"/>
+                                    <TextBlock Text="{Binding ItemsDisplayText}" FontSize="11" Foreground="Blue" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                    <TextBlock Text="{Binding TotalPrice, StringFormat='Total: ${0:F2}'}" FontSize="12" Foreground="Green" Margin="0,2,0,0"/>
+                                    <TextBlock Text="DELETED" FontSize="10" Foreground="Red" FontWeight="Bold" 
+                                              IsVisible="{Binding IsTombstone}"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Button Content="Quit" Command="{Binding QuitCommand}" Width="150" Height="35" Margin="0,20,0,0" HorizontalAlignment="Center"/>
+            </StackPanel>
+        </ScrollViewer>
+        
+        <!-- Order creation area - Only visible to regular users -->
+        <StackPanel Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Top" Orientation="Vertical" Spacing="10" Margin="20" IsVisible="{Binding CanCreateOrders}">
             <TextBlock Text="Create Order" FontWeight="Bold" FontSize="18" Margin="0,0,0,10"/>
-            <TextBox Text="{Binding OrderName}" 
-                     Watermark="Enter order name..." 
-                     Width="300" Height="30"
-                     IsEnabled="{Binding CanCreateOrders}"/>
             <TextBox Text="{Binding OrderAdditionalInfo}" 
                      Watermark="Enter additional info (optional)..." 
                      Width="300" Height="60"
@@ -44,11 +81,11 @@
             <Button Content="Quit" Command="{Binding QuitCommand}" Width="300" Height="35"/>
         </StackPanel>
         
-        <!-- Vertical separator -->
-        <Border Grid.Column="1" Width="1" Background="LightGray" Margin="10,20"/>
+        <!-- Vertical separator - Only visible when order creation is visible -->
+        <Border Grid.Column="1" Width="1" Background="LightGray" Margin="10,20" IsVisible="{Binding CanCreateOrders}"/>
         
-        <!-- Shopping Cart -->
-        <ScrollViewer Grid.Column="2" Background="#E8F4FD" Padding="10">
+        <!-- Shopping Cart - Only visible to regular users -->
+        <ScrollViewer Grid.Column="2" Background="#F5F5F5" Padding="10" IsVisible="{Binding CanCreateOrders}">
             <StackPanel Margin="0,0,0,40">
                 <TextBlock Text="Shopping Cart" FontWeight="Bold" FontSize="16" Margin="0,0,0,10"/>
                 <TextBlock Text="{Binding CartTotal, StringFormat='Total: ${0:F2}'}" 
@@ -56,7 +93,7 @@
                 <TextBlock Text="{Binding CartItemIds.Count, StringFormat='Items: {0}'}" 
                           FontSize="12" Foreground="Blue" Margin="0,0,0,10"/>
                 <Button Content="Create Order" Command="{Binding CreateOrderFromCartCommand}" 
-                       Width="180" Height="35" Background="Green" Foreground="White" 
+                       Width="180" Height="30" Background="Green" Foreground="White" 
                        Margin="0,0,0,5"/>
                 <Button Content="Clear Cart" Command="{Binding ClearCartCommand}" 
                        Width="180" Height="30" Background="Orange" Foreground="White" 
@@ -105,11 +142,11 @@
             </StackPanel>
         </ScrollViewer>
         
-        <!-- Vertical separator -->
-        <Border Grid.Column="3" Width="1" Background="LightGray" Margin="10,20"/>
+        <!-- Vertical separator - Only visible when orders sidebar is visible -->
+        <Border Grid.Column="3" Width="1" Background="LightGray" Margin="10,20" IsVisible="False"/>
         
-        <!-- Orders sidebar -->
-        <ScrollViewer Grid.Column="4" Background="#F5F5F5" Padding="10">
+        <!-- Orders sidebar - Hidden since orders are now shown in center for admins -->
+        <ScrollViewer Grid.Column="4" Background="#F5F5F5" Padding="10" IsVisible="False">
             <StackPanel Margin="0,0,0,40">
                 <TextBlock Text="Orders List" FontWeight="Bold" FontSize="16" Margin="0,0,0,10"/>
                 <Button Content="Delete All Orders" Command="{Binding DeleteAllOrdersCommand}" Width="180" Height="30" Margin="0,0,0,10" Background="Red" Foreground="White" IsEnabled="{Binding HasOrders}" IsVisible="{Binding CanDeleteOrders}"/>
@@ -128,36 +165,17 @@
                                     Padding="8" 
                                     Margin="0,2"
                                     Focusable="False">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    
-                                    <StackPanel Grid.Column="0" Focusable="False">
-                                        <TextBlock Text="{Binding Id, StringFormat='Order #{0}'}" FontWeight="Medium"/>
-                                        <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="Medium" Margin="0,2,0,0"/>
-                                        <TextBlock Text="{Binding AdditionalInfo}" FontSize="10" Foreground="Gray" TextWrapping="Wrap" 
-                                                  IsVisible="{Binding HasAdditionalInfo}" 
-                                                  Margin="0,2,0,0"/>
-                                        <TextBlock Text="{Binding ItemsDisplayText}" FontSize="11" Foreground="Blue" TextWrapping="Wrap" Margin="0,2,0,0"/>
-                                        <TextBlock Text="{Binding TotalPrice, StringFormat='Total: ${0:F2}'}" FontSize="12" Foreground="Green" Margin="0,2,0,0"/>
-                                        <TextBlock Text="DELETED" FontSize="10" Foreground="Red" FontWeight="Bold" 
-                                                  IsVisible="{Binding IsTombstone}"/>
-                                    </StackPanel>
-                                    
-                                    <Button Grid.Column="1" 
-                                            Content="×" 
-                                            Width="25" 
-                                            Height="25" 
-                                            Background="Red" 
-                                            Foreground="White" 
-                                            FontWeight="Bold"
-                                            Command="{Binding $parent[UserControl].DataContext.DeleteOrderCommand}"
-                                            CommandParameter="{Binding Id}"
-                                            IsVisible="{Binding !IsTombstone}"
-                                            VerticalAlignment="Top"/>
-                                </Grid>
+                                <StackPanel Focusable="False">
+                                    <TextBlock Text="{Binding Id, StringFormat='Order #{0}'}" FontWeight="Medium"/>
+                                    <TextBlock Text="{Binding UserDisplayText}" FontSize="12" FontWeight="Medium" Margin="0,2,0,0"/>
+                                    <TextBlock Text="{Binding AdditionalInfo}" FontSize="10" Foreground="Gray" TextWrapping="Wrap" 
+                                              IsVisible="{Binding HasAdditionalInfo}" 
+                                              Margin="0,2,0,0"/>
+                                    <TextBlock Text="{Binding ItemsDisplayText}" FontSize="11" Foreground="Blue" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                    <TextBlock Text="{Binding TotalPrice, StringFormat='Total: ${0:F2}'}" FontSize="12" Foreground="Green" Margin="0,2,0,0"/>
+                                    <TextBlock Text="DELETED" FontSize="10" Foreground="Red" FontWeight="Bold" 
+                                              IsVisible="{Binding IsTombstone}"/>
+                                </StackPanel>
                             </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
