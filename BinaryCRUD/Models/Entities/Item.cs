@@ -18,7 +18,9 @@ public class Item : InterfaceSerializable
         var idBytes = BitConverter.GetBytes(Id);
         var priceBytes = BitConverter.GetBytes(Price);
 
-        var result = new byte[1 + sizeof(ushort) + sizeof(float) + sizeof(ushort) + contentBytes.Length];
+        var result = new byte[
+            1 + sizeof(ushort) + sizeof(float) + sizeof(ushort) + contentBytes.Length
+        ];
 
         int offset = 0;
 

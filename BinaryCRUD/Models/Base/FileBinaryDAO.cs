@@ -109,10 +109,7 @@ public abstract class FileBinaryDAO<T> : InterfaceFileDAO<T>, IDisposable
 
         var count = BitConverter.ToInt32(buffer, 0);
 
-        return new FileHeader
-        {
-            Count = count
-        };
+        return new FileHeader { Count = count };
     }
 
     private async Task WriteHeaderAsync(Stream stream, FileHeader header)

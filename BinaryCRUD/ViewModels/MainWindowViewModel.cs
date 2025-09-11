@@ -78,9 +78,7 @@ public partial class MainWindowViewModel : ViewModelBase
             System.Console.WriteLine($"[HEADER] Header Size: 4 bytes");
             System.Console.WriteLine($"[HEADER] File Path: item.bin");
 
-            ToastService.ShowSuccess(
-                $"Header: {header.Count} items"
-            );
+            ToastService.ShowSuccess($"Header: {header.Count} items");
         }
         catch (System.Exception ex)
         {
