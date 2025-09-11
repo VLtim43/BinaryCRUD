@@ -20,12 +20,14 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly ItemDAO _itemDAO;
     private readonly OrderDAO _orderDAO;
     public ToastService ToastService { get; }
+    public ConsoleService ConsoleService { get; }
 
     public MainWindowViewModel(ItemDAO itemDAO)
     {
         _itemDAO = itemDAO;
         _orderDAO = new OrderDAO();
         ToastService = new ToastService();
+        ConsoleService = new ConsoleService();
         _ = LoadItemsAsync();
         _ = LoadOrdersAsync();
     }
@@ -53,6 +55,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private ObservableCollection<Item> activeItems = new();
+
+    [ObservableProperty]
+    private bool isConsoleVisible = false;
 
     [RelayCommand]
     private async System.Threading.Tasks.Task SaveAsync()
@@ -469,6 +474,20 @@ public partial class MainWindowViewModel : ViewModelBase
             System.Console.WriteLine($"[ERROR] Failed to populate inventory: {ex.Message}");
             ToastService.ShowWarning($"Failed to populate inventory: {ex.Message}");
         }
+    }
+
+    [RelayCommand]
+    private void ToggleConsole()
+    {
+        IsConsoleVisible = !IsConsoleVisible;
+        System.Console.WriteLine($"[INFO] Console {(IsConsoleVisible ? "shown" : "hidden")}");
+    }
+
+    [RelayCommand]
+    private void ClearConsole()
+    {
+        ConsoleService.Clear();
+        System.Console.WriteLine("[INFO] Console cleared");
     }
 
     [RelayCommand]
