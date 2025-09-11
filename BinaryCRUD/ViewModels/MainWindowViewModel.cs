@@ -355,8 +355,7 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 var order = orderedOrders[i];
                 var status = order.IsTombstone ? "DELETED" : "ACTIVE";
-                var itemGroups = order.ItemIds.GroupBy(id => id).Select(g => $"ItemID:{g.Key} Qty:{g.Count()}");
-                var itemsDisplay = string.Join(", ", itemGroups);
+                var itemsDisplay = string.Join(", ", order.ItemIds.Select(id => $"ID:{id}"));
                 System.Console.WriteLine(
                     $"[ID: {order.Id}][{status}] - [Items: {itemsDisplay}] - [Total: ${order.TotalPrice:F2}]"
                 );
