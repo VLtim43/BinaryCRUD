@@ -72,7 +72,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return CartItemIds.Select(id => new CartDisplayItem
             {
                 ItemId = id,
-                ItemName = Items.FirstOrDefault(i => i.Id == id)?.Content ?? "Unknown Item"
+                ItemName = Items.FirstOrDefault(i => i.Id == id)?.Content ?? "Unknown Item",
             });
         }
     }
@@ -239,8 +239,10 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         CartItemIds.Add(SelectedItem.Id);
-        System.Console.WriteLine($"[INFO] Added item ID {SelectedItem.Id} to cart (total items: {CartItemIds.Count})");
-        
+        System.Console.WriteLine(
+            $"[INFO] Added item ID {SelectedItem.Id} to cart (total items: {CartItemIds.Count})"
+        );
+
         UpdateCartTotal();
         OnPropertyChanged(nameof(CartDisplayItems));
         ToastService.ShowSuccess($"Added '{SelectedItem.Content}' to cart");
@@ -253,7 +255,9 @@ public partial class MainWindowViewModel : ViewModelBase
         CartItemIds.Remove(itemId);
         UpdateCartTotal();
         OnPropertyChanged(nameof(CartDisplayItems));
-        System.Console.WriteLine($"[INFO] Removed item ID {itemId} from cart (total items: {CartItemIds.Count})");
+        System.Console.WriteLine(
+            $"[INFO] Removed item ID {itemId} from cart (total items: {CartItemIds.Count})"
+        );
         ToastService.ShowSuccess("Item removed from cart");
     }
 
@@ -281,13 +285,15 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             var totalPrice = (float)CartTotal;
-            
-            System.Console.WriteLine($"[INFO] Creating order with {CartItemIds.Count} items, total: ${totalPrice:F2}");
+
+            System.Console.WriteLine(
+                $"[INFO] Creating order with {CartItemIds.Count} items, total: ${totalPrice:F2}"
+            );
             await _orderDAO.AddOrderAsync(CartItemIds.ToList(), totalPrice);
-            
+
             var itemSummary = string.Join(", ", CartItemIds.Select(id => $"ID:{id}"));
             ToastService.ShowSuccess($"Order created: {itemSummary} (${totalPrice:F2})");
-            
+
             await LoadOrdersAsync();
             ClearCart();
         }
@@ -576,7 +582,9 @@ public partial class MainWindowViewModel : ViewModelBase
             }
 
             await LoadItemsAsync();
-            System.Console.WriteLine($"[INFO] Successfully populated {addedCount} items from inventory");
+            System.Console.WriteLine(
+                $"[INFO] Successfully populated {addedCount} items from inventory"
+            );
             ToastService.ShowSuccess($"Populated {addedCount} items from inventory");
         }
         catch (System.Exception ex)

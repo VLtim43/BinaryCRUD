@@ -183,7 +183,6 @@ public abstract class FileBinaryDAO<T> : InterfaceFileDAO<T>, IDisposable
         return entity;
     }
 
-
     private static int GetHeaderSize() => sizeof(int);
 
     protected virtual void Dispose(bool disposing)

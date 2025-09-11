@@ -17,16 +17,14 @@ public class Order : InterfaceSerializable
     // Property for XAML binding - shows individual item IDs
     public string ItemsDisplayText
     {
-        get
-        {
-            return string.Join(", ", ItemIds.Select(id => $"ID:{id}"));
-        }
+        get { return string.Join(", ", ItemIds.Select(id => $"ID:{id}")); }
     }
 
     public byte[] ToBytes()
     {
         // Calculate total size: IsTombstone(1) + Id(2) + ItemCount(2) + ItemIds(2*count) + TotalPrice(4)
-        var totalSize = 1 + sizeof(ushort) + sizeof(ushort) + (ItemIds.Count * sizeof(ushort)) + sizeof(float);
+        var totalSize =
+            1 + sizeof(ushort) + sizeof(ushort) + (ItemIds.Count * sizeof(ushort)) + sizeof(float);
         var result = new byte[totalSize];
         int offset = 0;
 
