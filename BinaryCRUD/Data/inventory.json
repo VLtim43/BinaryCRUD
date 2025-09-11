@@ -1,0 +1,62 @@
+[
+  {
+    "name": "Classic Burger",
+    "price": 8.99
+  },
+  {
+    "name": "Cheeseburger",
+    "price": 9.49
+  },
+  {
+    "name": "Double Bacon Burger",
+    "price": 12.99
+  },
+  {
+    "name": "Chicken Sandwich",
+    "price": 9.99
+  },
+  {
+    "name": "Fish Sandwich",
+    "price": 10.49
+  },
+  {
+    "name": "Veggie Burger",
+    "price": 8.49
+  },
+  {
+    "name": "French Fries",
+    "price": 3.99
+  },
+  {
+    "name": "Onion Rings",
+    "price": 4.49
+  },
+  {
+    "name": "Sweet Potato Fries",
+    "price": 4.99
+  },
+  {
+    "name": "Coca Cola",
+    "price": 2.49
+  },
+  {
+    "name": "Sprite",
+    "price": 2.49
+  },
+  {
+    "name": "Orange Juice",
+    "price": 2.99
+  },
+  {
+    "name": "Milkshake - Vanilla",
+    "price": 4.99
+  },
+  {
+    "name": "Milkshake - Chocolate",
+    "price": 4.99
+  },
+  {
+    "name": "Coffee",
+    "price": 1.99
+  }
+]

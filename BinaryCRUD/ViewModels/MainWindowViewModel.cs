@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -16,13 +18,16 @@ namespace BinaryCRUD.ViewModels;
 public partial class MainWindowViewModel : ViewModelBase
 {
     private readonly ItemDAO _itemDAO;
+    private readonly OrderDAO _orderDAO;
     public ToastService ToastService { get; }
 
     public MainWindowViewModel(ItemDAO itemDAO)
     {
         _itemDAO = itemDAO;
+        _orderDAO = new OrderDAO();
         ToastService = new ToastService();
         _ = LoadItemsAsync();
+        _ = LoadOrdersAsync();
     }
 
     [ObservableProperty]
@@ -33,6 +38,21 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private ObservableCollection<Item> items = new();
+
+    [ObservableProperty]
+    private bool hasItems = false;
+
+    [ObservableProperty]
+    private ObservableCollection<Order> orders = new();
+
+    [ObservableProperty]
+    private bool hasOrders = false;
+
+    [ObservableProperty]
+    private Item? selectedItem = null;
+
+    [ObservableProperty]
+    private ObservableCollection<Item> activeItems = new();
 
     [RelayCommand]
     private async System.Threading.Tasks.Task SaveAsync()
@@ -145,6 +165,122 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async System.Threading.Tasks.Task CreateOrderAsync()
+    {
+        if (SelectedItem == null)
+        {
+            System.Console.WriteLine("[WARNING] Cannot create order without selecting an item");
+            ToastService.ShowWarning("Please select an item to create an order");
+            return;
+        }
+
+        if (SelectedItem.IsTombstone)
+        {
+            System.Console.WriteLine("[WARNING] Cannot create order for deleted item");
+            ToastService.ShowWarning("Cannot create order for deleted item");
+            return;
+        }
+
+        try
+        {
+            System.Console.WriteLine($"[INFO] Creating order for item ID: {SelectedItem.Id}");
+            await _orderDAO.AddOrderAsync(SelectedItem.Id, SelectedItem.Price);
+            ToastService.ShowSuccess(
+                $"Order created for '{SelectedItem.Content}' (${SelectedItem.Price:F2})"
+            );
+            await LoadOrdersAsync();
+            SelectedItem = null;
+        }
+        catch (System.Exception ex)
+        {
+            System.Console.WriteLine($"[ERROR] Failed to create order: {ex.Message}");
+            ToastService.ShowWarning($"Failed to create order: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private async System.Threading.Tasks.Task DeleteOrderAsync(ushort orderId)
+    {
+        try
+        {
+            System.Console.WriteLine($"[INFO] Deleting order with ID: {orderId}");
+            await _orderDAO.DeleteOrderAsync(orderId);
+            ToastService.ShowSuccess($"Order {orderId} marked as deleted");
+            await LoadOrdersAsync();
+        }
+        catch (System.Exception ex)
+        {
+            System.Console.WriteLine($"[ERROR] Failed to delete order: {ex.Message}");
+            ToastService.ShowWarning($"Failed to delete order: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private async System.Threading.Tasks.Task RefreshOrdersAsync()
+    {
+        await LoadOrdersAsync();
+        ToastService.ShowSuccess("Orders list refreshed");
+    }
+
+    [RelayCommand]
+    private async System.Threading.Tasks.Task ReadOrdersAsync()
+    {
+        try
+        {
+            System.Console.WriteLine("[INFO] Reading orders from file...");
+            var orders = await _orderDAO.GetAllOrdersAsync();
+
+            if (orders.Count == 0)
+            {
+                System.Console.WriteLine("[INFO] No orders found");
+                return;
+            }
+
+            var orderedOrders = orders.OrderBy(x => x.Id).ToList();
+            for (int i = 0; i < orderedOrders.Count; i++)
+            {
+                var order = orderedOrders[i];
+                var status = order.IsTombstone ? "DELETED" : "ACTIVE";
+                System.Console.WriteLine(
+                    $"[ID: {order.Id}][{status}] - [ItemID: {order.ItemId}] - [Total: ${order.TotalPrice:F2}]"
+                );
+            }
+
+            System.Console.WriteLine($"[INFO] Found {orders.Count} orders total");
+        }
+        catch (System.Exception ex)
+        {
+            System.Console.WriteLine($"[ERROR] Failed to read orders: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private async System.Threading.Tasks.Task DeleteAllOrdersAsync()
+    {
+        try
+        {
+            var result = await ShowConfirmationDialogAsync(
+                "Delete File",
+                "Are you sure you want to delete the entire order.bin file?\n\nThis will permanently remove all orders and cannot be undone."
+            );
+
+            if (result)
+            {
+                await _orderDAO.DeleteFileAsync();
+                Orders.Clear();
+                HasOrders = false;
+                ToastService.ShowWarning("Orders file deleted successfully");
+                System.Console.WriteLine("[INFO] order.bin file deleted");
+            }
+        }
+        catch (System.Exception ex)
+        {
+            System.Console.WriteLine($"[ERROR] Failed to delete orders file: {ex.Message}");
+            ToastService.ShowWarning($"Error deleting orders file: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
     private async System.Threading.Tasks.Task DeleteFileAsync()
     {
         try
@@ -158,6 +294,7 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 await _itemDAO.DeleteFileAsync();
                 Items.Clear();
+                HasItems = false;
                 ToastService.ShowWarning("File deleted successfully");
                 System.Console.WriteLine("[INFO] item.bin file deleted");
             }
@@ -249,14 +386,88 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             var itemsList = await _itemDAO.GetAllItemsAsync();
             Items.Clear();
+            ActiveItems.Clear();
             foreach (var item in itemsList.OrderBy(x => x.Id))
             {
                 Items.Add(item);
+                if (!item.IsTombstone)
+                {
+                    ActiveItems.Add(item);
+                }
             }
+
+            HasItems = itemsList.Count > 0;
         }
         catch (System.Exception ex)
         {
             System.Console.WriteLine($"[ERROR] Failed to load items: {ex.Message}");
+            HasItems = false;
+        }
+    }
+
+    private async System.Threading.Tasks.Task LoadOrdersAsync()
+    {
+        try
+        {
+            var ordersList = await _orderDAO.GetAllOrdersAsync();
+            Orders.Clear();
+            foreach (var order in ordersList.OrderBy(x => x.Id))
+            {
+                Orders.Add(order);
+            }
+
+            HasOrders = ordersList.Count > 0;
+        }
+        catch (System.Exception ex)
+        {
+            System.Console.WriteLine($"[ERROR] Failed to load orders: {ex.Message}");
+            HasOrders = false;
+        }
+    }
+
+    [RelayCommand]
+    private async System.Threading.Tasks.Task PopulateInventoryAsync()
+    {
+        try
+        {
+            var inventoryPath = "Data/inventory.json";
+            if (!File.Exists(inventoryPath))
+            {
+                System.Console.WriteLine("[ERROR] inventory.json file not found");
+                ToastService.ShowWarning("inventory.json file not found");
+                return;
+            }
+
+            System.Console.WriteLine("[INFO] Loading inventory from JSON...");
+            var jsonContent = await File.ReadAllTextAsync(inventoryPath);
+            var inventoryItems = JsonSerializer.Deserialize<InventoryItem[]>(jsonContent);
+
+            if (inventoryItems == null || inventoryItems.Length == 0)
+            {
+                System.Console.WriteLine("[WARNING] No items found in inventory.json");
+                ToastService.ShowWarning("No items found in inventory file");
+                return;
+            }
+
+            int addedCount = 0;
+            foreach (var item in inventoryItems)
+            {
+                if (!string.IsNullOrEmpty(item.name))
+                {
+                    await _itemDAO.AddItemAsync(item.name, (decimal)item.price);
+                    addedCount++;
+                    System.Console.WriteLine($"[INFO] Added: {item.name} - ${item.price:F2}");
+                }
+            }
+
+            await LoadItemsAsync();
+            System.Console.WriteLine($"[INFO] Successfully populated {addedCount} items from inventory");
+            ToastService.ShowSuccess($"Populated {addedCount} items from inventory");
+        }
+        catch (System.Exception ex)
+        {
+            System.Console.WriteLine($"[ERROR] Failed to populate inventory: {ex.Message}");
+            ToastService.ShowWarning($"Failed to populate inventory: {ex.Message}");
         }
     }
 
@@ -271,5 +482,11 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             desktop.Shutdown();
         }
+    }
+
+    private class InventoryItem
+    {
+        public string name { get; set; } = string.Empty;
+        public double price { get; set; }
     }
 }

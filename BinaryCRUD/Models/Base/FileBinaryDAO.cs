@@ -39,6 +39,8 @@ public abstract class FileBinaryDAO<T> : InterfaceFileDAO<T>, IDisposable
             // Set entity ID based on new count (sequential ID)
             if (entity is Item item)
                 item.Id = (ushort)header.Count;
+            else if (entity is Order order)
+                order.Id = (ushort)header.Count;
 
             Console.WriteLine(
                 $"[{GetType().Name}] Updating header: {previousCount} -> {header.Count} entities"
@@ -180,6 +182,7 @@ public abstract class FileBinaryDAO<T> : InterfaceFileDAO<T>, IDisposable
         entity.FromBytes(entityBuffer);
         return entity;
     }
+
 
     private static int GetHeaderSize() => sizeof(int);
 
