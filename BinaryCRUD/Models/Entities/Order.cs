@@ -14,7 +14,7 @@ public class Order : InterfaceSerializable
 {
     private static UserDAO? _userDAO;
     private static UserDAO UserDAO => _userDAO ??= new UserDAO();
-    
+
     public ushort Id { get; set; }
     public bool IsTombstone { get; set; } = false;
     public List<ushort> ItemIds { get; set; } = new List<ushort>();
@@ -52,8 +52,8 @@ public class Order : InterfaceSerializable
     // Property for XAML binding - shows display information
     public string DisplayText
     {
-        get 
-        { 
+        get
+        {
             // Note: This is synchronous for UI binding, username will be resolved asynchronously in UI
             var display = $"ID:{Id} - User:{UserId}";
             if (!string.IsNullOrEmpty(AdditionalInfo))
@@ -71,10 +71,20 @@ public class Order : InterfaceSerializable
     public byte[] ToBytes()
     {
         // Prepare string data
-        byte[] additionalInfoBytes = string.IsNullOrEmpty(AdditionalInfo) ? Array.Empty<byte>() : Encoding.UTF8.GetBytes(AdditionalInfo);
+        byte[] additionalInfoBytes = string.IsNullOrEmpty(AdditionalInfo)
+            ? Array.Empty<byte>()
+            : Encoding.UTF8.GetBytes(AdditionalInfo);
 
         // Calculate total size: IsTombstone(1) + Id(2) + ItemCount(2) + ItemIds(2*count) + TotalPrice(4) + UserId(2) + AdditionalInfoLength(2) + AdditionalInfo
-        var totalSize = 1 + sizeof(ushort) + sizeof(ushort) + (ItemIds.Count * sizeof(ushort)) + sizeof(float) + sizeof(ushort) + sizeof(ushort) + additionalInfoBytes.Length;
+        var totalSize =
+            1
+            + sizeof(ushort)
+            + sizeof(ushort)
+            + (ItemIds.Count * sizeof(ushort))
+            + sizeof(float)
+            + sizeof(ushort)
+            + sizeof(ushort)
+            + additionalInfoBytes.Length;
         var result = new byte[totalSize];
         int offset = 0;
 

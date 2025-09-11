@@ -23,11 +23,22 @@ public class User : InterfaceSerializable
     public byte[] ToBytes()
     {
         // Convert strings to UTF-8 bytes
-        var usernameBytes = string.IsNullOrEmpty(Username) ? new byte[0] : Encoding.UTF8.GetBytes(Username);
-        var passwordBytes = string.IsNullOrEmpty(Password) ? new byte[0] : Encoding.UTF8.GetBytes(Password);
+        var usernameBytes = string.IsNullOrEmpty(Username)
+            ? new byte[0]
+            : Encoding.UTF8.GetBytes(Username);
+        var passwordBytes = string.IsNullOrEmpty(Password)
+            ? new byte[0]
+            : Encoding.UTF8.GetBytes(Password);
 
         // Calculate total size: IsTombstone(1) + Id(2) + UsernameLength(2) + Username + PasswordLength(2) + Password + Role(1)
-        var totalSize = 1 + sizeof(ushort) + sizeof(ushort) + usernameBytes.Length + sizeof(ushort) + passwordBytes.Length + 1;
+        var totalSize =
+            1
+            + sizeof(ushort)
+            + sizeof(ushort)
+            + usernameBytes.Length
+            + sizeof(ushort)
+            + passwordBytes.Length
+            + 1;
         var result = new byte[totalSize];
         int offset = 0;
 
@@ -109,5 +120,5 @@ public class User : InterfaceSerializable
 public enum UserRole : byte
 {
     User = 0,
-    Admin = 1
+    Admin = 1,
 }

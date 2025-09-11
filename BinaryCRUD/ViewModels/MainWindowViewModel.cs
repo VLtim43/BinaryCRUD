@@ -92,7 +92,6 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private decimal cartTotal = 0.0m;
 
-
     [ObservableProperty]
     private string? orderAdditionalInfo = null;
 
@@ -121,7 +120,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public bool IsLoggedIn => AuthService.IsLoggedIn;
     public bool IsAdmin => AuthService.IsAdmin;
     public string LoginButtonText => IsLoggedIn ? $"Logout ({CurrentUser?.Username})" : "Login";
-    
+
     // Permission properties for UI binding
     public bool CanCreateItems => AuthService.HasPermission("create_items");
     public bool CanDeleteItems => AuthService.HasPermission("delete_items");
@@ -153,13 +152,13 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         var success = await AuthService.LoginAsync(LoginUsername, LoginPassword);
-        
+
         if (success)
         {
             ToastService.ShowSuccess($"Welcome, {CurrentUser?.Username}!");
             LoginUsername = string.Empty;
             LoginPassword = string.Empty;
-            
+
             // Load users for admin
             if (IsAdmin)
             {
@@ -178,7 +177,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         AuthService.Logout();
         ToastService.ShowSuccess("Logged out successfully");
-        
+
         // Clear sensitive data
         LoginUsername = string.Empty;
         LoginPassword = string.Empty;
@@ -327,7 +326,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 return;
             }
 
-            System.Console.WriteLine($"[INFO] Creating order for item ID: {SelectedItem.Id} by user {CurrentUser.Username}");
+            System.Console.WriteLine(
+                $"[INFO] Creating order for item ID: {SelectedItem.Id} by user {CurrentUser.Username}"
+            );
             await _orderDAO.AddOrderAsync(SelectedItem.Id, SelectedItem.Price, CurrentUser.Id);
             ToastService.ShowSuccess(
                 $"Order created for '{SelectedItem.Content}' (${SelectedItem.Price:F2})"
@@ -409,7 +410,6 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-
         try
         {
             var totalPrice = (float)CartTotal;
@@ -424,9 +424,16 @@ public partial class MainWindowViewModel : ViewModelBase
             System.Console.WriteLine(
                 $"[INFO] Creating order for user '{CurrentUser.Username}' with {CartItemIds.Count} items, total: ${totalPrice:F2}"
             );
-            await _orderDAO.AddOrderAsync(CartItemIds.ToList(), totalPrice, CurrentUser.Id, string.IsNullOrWhiteSpace(OrderAdditionalInfo) ? null : OrderAdditionalInfo);
+            await _orderDAO.AddOrderAsync(
+                CartItemIds.ToList(),
+                totalPrice,
+                CurrentUser.Id,
+                string.IsNullOrWhiteSpace(OrderAdditionalInfo) ? null : OrderAdditionalInfo
+            );
 
-            ToastService.ShowSuccess($"Order for '{CurrentUser.Username}' created successfully (${totalPrice:F2})");
+            ToastService.ShowSuccess(
+                $"Order for '{CurrentUser.Username}' created successfully (${totalPrice:F2})"
+            );
 
             await LoadOrdersAsync();
             ClearOrderForm();
@@ -502,7 +509,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 var order = orderedOrders[i];
                 var status = order.IsTombstone ? "DELETED" : "ACTIVE";
                 var itemsDisplay = string.Join(", ", order.ItemIds.Select(id => $"ID:{id}"));
-                var additionalInfoDisplay = !string.IsNullOrEmpty(order.AdditionalInfo) ? $" - [Info: {order.AdditionalInfo}]" : "";
+                var additionalInfoDisplay = !string.IsNullOrEmpty(order.AdditionalInfo)
+                    ? $" - [Info: {order.AdditionalInfo}]"
+                    : "";
                 System.Console.WriteLine(
                     $"[ID: {order.Id}][{status}] - [UserId: {order.UserId}] - [Items: {itemsDisplay}] - [Total: ${order.TotalPrice:F2}]{additionalInfoDisplay}"
                 );
@@ -680,9 +689,12 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 Items.Add(item);
             }
-            
+
             // Sort active items alphabetically by name for the ComboBox
-            var activeItemsList = itemsList.Where(x => !x.IsTombstone).OrderBy(x => x.Content).ToList();
+            var activeItemsList = itemsList
+                .Where(x => !x.IsTombstone)
+                .OrderBy(x => x.Content)
+                .ToList();
             foreach (var item in activeItemsList)
             {
                 ActiveItems.Add(item);
@@ -804,14 +816,14 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             var role = NewUserRoleIndex == 1 ? UserRole.Admin : UserRole.User;
             var userDAO = new UserDAO();
-            
+
             await userDAO.AddUserAsync(NewUsername, NewPassword, role);
             ToastService.ShowSuccess($"User '{NewUsername}' created successfully");
-            
+
             NewUsername = string.Empty;
             NewPassword = string.Empty;
             NewUserRoleIndex = 0;
-            
+
             await LoadUsersAsync();
         }
         catch (Exception ex)
@@ -835,14 +847,14 @@ public partial class MainWindowViewModel : ViewModelBase
             var userDAO = new UserDAO();
             var users = await userDAO.GetAllUsersAsync();
             var userToDelete = users.FirstOrDefault(u => u.Id == userId);
-            
+
             // Prevent deletion of admin users
             if (userToDelete?.Role == UserRole.Admin)
             {
                 ToastService.ShowWarning("Cannot delete admin users");
                 return;
             }
-            
+
             await userDAO.DeleteUserAsync(userId);
             ToastService.ShowSuccess($"User deleted successfully");
             await LoadUsersAsync();
@@ -867,9 +879,9 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             var userDAO = new UserDAO();
             var users = await userDAO.GetAllUsersAsync();
-            
+
             System.Console.WriteLine("[INFO] Reading users from file...");
-            
+
             if (users.Count == 0)
             {
                 System.Console.WriteLine("[INFO] No users found");
@@ -896,20 +908,21 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private async System.Threading.Tasks.Task LoadUsersAsync()
     {
-        if (!IsAdmin) return;
+        if (!IsAdmin)
+            return;
 
         try
         {
             var userDAO = new UserDAO();
             var usersList = await userDAO.GetAllUsersAsync();
             Users.Clear();
-            
+
             // Filter out admin users from the UI - they should not be visible or deletable
             foreach (var user in usersList.OrderBy(x => x.Id).Where(u => u.Role != UserRole.Admin))
             {
                 Users.Add(user);
             }
-            
+
             HasUsers = Users.Count > 0;
         }
         catch (Exception ex)

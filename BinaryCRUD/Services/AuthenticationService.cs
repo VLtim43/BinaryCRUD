@@ -7,7 +7,7 @@ namespace BinaryCRUD.Services;
 public class AuthenticationService
 {
     private readonly UserDAO _userDAO;
-    
+
     public User? CurrentUser { get; private set; }
     public bool IsLoggedIn => CurrentUser != null;
     public bool IsAdmin => CurrentUser?.Role == UserRole.Admin;
@@ -60,8 +60,9 @@ public class AuthenticationService
 
     public bool HasPermission(string action)
     {
-        if (!IsLoggedIn) return false;
-        
+        if (!IsLoggedIn)
+            return false;
+
         return action switch
         {
             "create_items" => IsAdmin,
@@ -72,7 +73,7 @@ public class AuthenticationService
             "delete_orders" => IsAdmin,
             "view_items" => IsLoggedIn,
             "view_orders" => IsAdmin, // Only admins can view order list
-            _ => false
+            _ => false,
         };
     }
 }

@@ -17,17 +17,20 @@ public class UserDAO : FileBinaryDAO<User>
     public async Task<User?> AuthenticateAsync(string username, string password)
     {
         var users = await GetAllUsersAsync();
-        var user = users.FirstOrDefault(u => !u.IsTombstone && 
-                                            u.Username.Equals(username, StringComparison.OrdinalIgnoreCase) && 
-                                            u.Password == password);
+        var user = users.FirstOrDefault(u =>
+            !u.IsTombstone
+            && u.Username.Equals(username, StringComparison.OrdinalIgnoreCase)
+            && u.Password == password
+        );
         return user;
     }
 
     public async Task<User?> GetUserByUsernameAsync(string username)
     {
         var users = await GetAllUsersAsync();
-        return users.FirstOrDefault(u => !u.IsTombstone && 
-                                        u.Username.Equals(username, StringComparison.OrdinalIgnoreCase));
+        return users.FirstOrDefault(u =>
+            !u.IsTombstone && u.Username.Equals(username, StringComparison.OrdinalIgnoreCase)
+        );
     }
 
     public async Task<User?> GetUserByIdAsync(ushort userId)
@@ -45,11 +48,11 @@ public class UserDAO : FileBinaryDAO<User>
             throw new InvalidOperationException($"User '{username}' already exists");
         }
 
-        var user = new User 
-        { 
-            Username = username, 
-            Password = password, 
-            Role = role 
+        var user = new User
+        {
+            Username = username,
+            Password = password,
+            Role = role,
         };
         await AddAsync(user);
     }
@@ -110,18 +113,20 @@ public class UserDAO : FileBinaryDAO<User>
     public async Task InitializeDefaultUsersAsync()
     {
         var users = await GetAllUsersAsync();
-        
+
         // Create default admin if no users exist
         if (!users.Any(u => !u.IsTombstone))
         {
             await AddUserAsync("admin", "admin", UserRole.Admin);
             await AddUserAsync("user", "user", UserRole.User);
-            
+
             // Log the created users with their IDs
             var createdUsers = await GetAllUsersAsync();
             foreach (var user in createdUsers.Where(u => !u.IsTombstone))
             {
-                System.Console.WriteLine($"[UserDAO] Created user: {user.Username} (ID: {user.Id}, Role: {user.Role})");
+                System.Console.WriteLine(
+                    $"[UserDAO] Created user: {user.Username} (ID: {user.Id}, Role: {user.Role})"
+                );
             }
         }
     }
