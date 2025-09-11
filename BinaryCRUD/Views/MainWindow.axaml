@@ -17,64 +17,28 @@
 
     <Grid>
         <!-- Login Screen (shown when not logged in) -->
-        <Grid IsVisible="{Binding !IsLoggedIn}" Background="#F5F5F5">
-            <Border Width="400" Height="350" 
-                    Background="White" 
-                    CornerRadius="10" 
-                    BoxShadow="0 4 20 #20000000"
-                    VerticalAlignment="Center" 
-                    HorizontalAlignment="Center">
-                <StackPanel Margin="40" Spacing="15">
-                    <!-- Title -->
-                    <TextBlock Text="BinaryCRUD System" 
-                               FontSize="28" FontWeight="Bold" 
-                               HorizontalAlignment="Center" 
-                               Foreground="#333"
-                               Margin="0,0,0,10"/>
-                    
-                    <TextBlock Text="Please login to continue" 
-                               FontSize="14" 
-                               HorizontalAlignment="Center" 
-                               Foreground="#666"
-                               Margin="0,0,0,20"/>
-
-                    <!-- Username -->
-                    <TextBlock Text="Username:" FontWeight="Medium" Margin="0,0,0,5"/>
-                    <TextBox Name="LoginUsernameBox" 
-                             Text="{Binding LoginUsername}"
-                             Watermark="Enter username..." 
-                             Height="35"/>
-
-                    <!-- Password -->
-                    <TextBlock Text="Password:" FontWeight="Medium" Margin="0,10,0,5"/>
-                    <TextBox Name="LoginPasswordBox" 
-                             Text="{Binding LoginPassword}"
-                             Watermark="Enter password..." 
-                             PasswordChar="*"
-                             Height="35"/>
-
-                    <!-- Login Button -->
-                    <Button Content="Login" 
-                            Command="{Binding LoginCommand}"
-                            Width="200" Height="40" 
-                            Background="#007ACC" Foreground="White"
-                            FontSize="14" FontWeight="Medium"
-                            HorizontalAlignment="Center"
-                            Margin="0,15,0,0"/>
-
-                    <!-- Default Users Info -->
-                    <Border Background="#F8F9FA" 
-                            CornerRadius="5" Padding="15" 
-                            Margin="0,20,0,0">
-                        <StackPanel>
-                            <TextBlock Text="Default Accounts:" FontWeight="Bold" FontSize="12" Margin="0,0,0,5"/>
-                            <TextBlock Text="Admin: admin / admin" FontSize="11" Foreground="#007ACC"/>
-                            <TextBlock Text="User: user / user" FontSize="11" Foreground="#28A745"/>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-            </Border>
-        </Grid>
+        <StackPanel IsVisible="{Binding !IsLoggedIn}" 
+                    HorizontalAlignment="Center" 
+                    VerticalAlignment="Top" 
+                    Orientation="Vertical" 
+                    Spacing="10" 
+                    Margin="20">
+            <TextBlock Text="Login" FontWeight="Bold" FontSize="18" Margin="0,0,0,10"/>
+            <TextBox Text="{Binding LoginUsername}" 
+                     Watermark="Enter username..." 
+                     Width="300" Height="30"/>
+            <TextBox Text="{Binding LoginPassword}" 
+                     Watermark="Enter password..." 
+                     PasswordChar="*"
+                     Width="300" Height="30"/>
+            <Button Content="Login" 
+                    Command="{Binding LoginCommand}" 
+                    Width="300" Height="35" 
+                    Background="Green" Foreground="White"/>
+            <Button Content="Quit" 
+                    Command="{Binding QuitCommand}" 
+                    Width="300" Height="35"/>
+        </StackPanel>
 
         <!-- Main Application (shown when logged in) -->
         <Grid IsVisible="{Binding IsLoggedIn}">
