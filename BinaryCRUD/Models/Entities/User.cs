@@ -11,10 +11,9 @@ public class User : InterfaceSerializable
     public ushort Id { get; set; }
     public bool IsTombstone { get; set; } = false;
     public string Username { get; set; } = string.Empty;
-    public string Password { get; set; } = string.Empty; // Simple plaintext for demo - use hashing in production
+    public string Password { get; set; } = string.Empty;
     public UserRole Role { get; set; } = UserRole.User;
 
-    // Property for XAML binding - shows user info
     public string DisplayText
     {
         get { return $"{Username} ({Role})"; }
@@ -78,7 +77,7 @@ public class User : InterfaceSerializable
     {
         int offset = 0;
 
-        // Read tombstone bit (1 byte)
+        // Read tombstone (1 byte)
         IsTombstone = data[offset] == 1;
         offset += 1;
 
