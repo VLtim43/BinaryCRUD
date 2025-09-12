@@ -26,6 +26,8 @@
                     IsVisible="{Binding CanManageInventory}"/>
             <Button Content="Read Items" Command="{Binding ReadItemsCommand}" Width="300" Height="35"
                     IsVisible="{Binding IsLoggedIn}"/>
+            <Button Content="Read Active Items" Command="{Binding ReadActiveItemsCommand}" Width="300" Height="35" Background="DarkGreen" Foreground="White"
+                    IsVisible="{Binding IsLoggedIn}"/>
             <Button Content="Read Header" Command="{Binding ReadHeaderCommand}" Width="300" Height="35"
                     IsVisible="{Binding IsLoggedIn}"/>
             <Button Content="Quit" Command="{Binding QuitCommand}" Width="300" Height="35"/>
@@ -54,13 +56,41 @@
                                     Padding="8" 
                                     Margin="0,2"
                                     Focusable="False">
-                                <StackPanel Focusable="False">
-                                    <TextBlock Text="{Binding Content}" FontWeight="Medium" TextWrapping="Wrap"/>
-                                    <TextBlock Text="{Binding Price, StringFormat='${0:F2}'}" FontSize="12" Foreground="Green"/>
-                                    <TextBlock Text="{Binding Id, StringFormat='ID: {0}'}" FontSize="10" Foreground="Gray"/>
-                                    <TextBlock Text="DELETED" FontSize="10" Foreground="Red" FontWeight="Bold" 
-                                              IsVisible="{Binding IsTombstone}"/>
-                                </StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    
+                                    <StackPanel Grid.Column="0" Focusable="False">
+                                        <TextBlock Text="{Binding Content}" FontWeight="Medium" TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding Price, StringFormat='${0:F2}'}" FontSize="12" Foreground="Green"/>
+                                        <TextBlock Text="{Binding Id, StringFormat='ID: {0}'}" FontSize="10" Foreground="Gray"/>
+                                        <TextBlock Text="DELETED" FontSize="10" Foreground="Red" FontWeight="Bold" 
+                                                  IsVisible="{Binding IsTombstone}"/>
+                                    </StackPanel>
+                                    
+                                    <Button Grid.Column="1" 
+                                            Content="✕" 
+                                            Width="25" 
+                                            Height="25" 
+                                            Background="Red" 
+                                            Foreground="White" 
+                                            FontSize="12"
+                                            FontWeight="Bold"
+                                            VerticalAlignment="Top"
+                                            HorizontalAlignment="Right"
+                                            Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).DeleteItemCommand}"
+                                            CommandParameter="{Binding Id}"
+                                            ToolTip.Tip="Mark as deleted">
+                                        <Button.IsVisible>
+                                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                                <Binding Path="$parent[UserControl].((vm:MainWindowViewModel)DataContext).CanDeleteItems"/>
+                                                <Binding Path="IsTombstone" Converter="{x:Static BoolConverters.Not}"/>
+                                            </MultiBinding>
+                                        </Button.IsVisible>
+                                    </Button>
+                                </Grid>
                             </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

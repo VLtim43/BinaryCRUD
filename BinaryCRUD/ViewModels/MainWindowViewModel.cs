@@ -277,6 +277,39 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async System.Threading.Tasks.Task ReadActiveItemsAsync()
+    {
+        try
+        {
+            System.Console.WriteLine("[INFO] Reading active (non-deleted) items from file...");
+            var items = await _itemDAO.GetAllItemsAsync();
+            var activeItems = items.Where(x => !x.IsTombstone).ToList();
+
+            if (activeItems.Count == 0)
+            {
+                System.Console.WriteLine("[INFO] No active items found");
+                return;
+            }
+
+            // Console output: Show only active items in chronological order (oldest first)
+            var orderedItems = activeItems.OrderBy(x => x.Id).ToList();
+            for (int i = 0; i < orderedItems.Count; i++)
+            {
+                var item = orderedItems[i];
+                System.Console.WriteLine(
+                    $"[ID: {item.Id}][ACTIVE] - [Name: '{item.Content}'] - [Price: ${item.Price:F2}]"
+                );
+            }
+
+            System.Console.WriteLine($"[INFO] Found {activeItems.Count} active items out of {items.Count} total items");
+        }
+        catch (System.Exception ex)
+        {
+            System.Console.WriteLine($"[ERROR] Failed to read active items: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
     private async System.Threading.Tasks.Task RefreshItemsAsync()
     {
         await LoadItemsAsync();
