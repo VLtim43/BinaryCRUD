@@ -22,13 +22,13 @@
 }
 
 .input-box .btn {
-    width: 60px;
+    width: auto;
     height: 30px;
     line-height: 30px;
     border-radius: 3px;
     border: none;
     margin: 0 0 0 20px;
-    padding: 0 8px;
+    padding: 0 15px;
     cursor: pointer;
 }
 
