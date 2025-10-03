@@ -1,16 +1,16 @@
-import "./App.css";
+import "./App.scss";
 import logo from "./assets/images/logo-universal.png";
 import { AddItem } from "../wailsjs/go/main/App";
 import { useState } from "preact/hooks";
-import { h } from "preact";
+import { h, Fragment } from "preact";
 
-export function App(props: any) {
+export const App = (props: any) => {
   const [resultText, setResultText] = useState("Enter item text below 👇");
   const [itemText, setItemText] = useState("");
   const updateItemText = (e: any) => setItemText(e.target.value);
   const updateResultText = (result: string) => setResultText(result);
 
-  function addItem() {
+  const addItem = () => {
     AddItem(itemText)
       .then(() => {
         updateResultText(`Item saved: ${itemText}`);
@@ -19,7 +19,7 @@ export function App(props: any) {
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
       });
-  }
+  };
 
   return (
     <>
