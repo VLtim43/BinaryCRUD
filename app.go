@@ -36,6 +36,15 @@ func (a *App) AddItem(text string) error {
 }
 
 // GetItems reads items from the binary file
-func (a *App) GetItems() (string, error) {
-	return a.itemDAO.Read()
+func (a *App) GetItems() ([]string, error) {
+	items, err := a.itemDAO.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	names := make([]string, 0, len(items))
+	for _, item := range items {
+		names = append(names, item.Name)
+	}
+	return names, nil
 }

@@ -3,6 +3,6 @@
 
 export function AddItem(arg1:string):Promise<void>;
 
-export function GetItems():Promise<string>;
+export function GetItems():Promise<Array<string>>;
 
 export function Greet(arg1:string):Promise<string>;

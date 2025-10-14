@@ -11,9 +11,9 @@ func NewItemDAO(filename string) *ItemDAO {
 }
 
 func (dao *ItemDAO) Write(text string) error {
-	return serialization.WriteHex(dao.filename, text)
+	return serialization.AppendEntry(dao.filename, text)
 }
 
-func (dao *ItemDAO) Read() (string, error) {
-	return serialization.ReadHex(dao.filename)
+func (dao *ItemDAO) Read() ([]serialization.Item, error) {
+	return serialization.ReadAllEntries(dao.filename)
 }
