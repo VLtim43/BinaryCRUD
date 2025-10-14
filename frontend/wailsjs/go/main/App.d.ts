@@ -6,3 +6,7 @@ export function AddItem(arg1:string):Promise<void>;
 export function GetItems():Promise<Array<string>>;
 
 export function Greet(arg1:string):Promise<string>;
+
+export function PrintBinaryFile():Promise<void>;
+
+export function ValidateBinaryFile():Promise<string>;

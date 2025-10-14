@@ -13,3 +13,11 @@ export function GetItems() {
 export function Greet(arg1) {
   return window['go']['main']['App']['Greet'](arg1);
 }
+
+export function PrintBinaryFile() {
+  return window['go']['main']['App']['PrintBinaryFile']();
+}
+
+export function ValidateBinaryFile() {
+  return window['go']['main']['App']['ValidateBinaryFile']();
+}

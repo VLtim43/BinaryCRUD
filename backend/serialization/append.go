@@ -3,7 +3,6 @@ package serialization
 import (
 	"bufio"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"os"
 )
@@ -21,6 +20,7 @@ func AppendEntry(filename string, name string) error {
 	}
 	defer file.Close()
 
+	// Read current record count from header
 	var count uint32
 	if err := binary.Read(file, binary.LittleEndian, &count); err != nil {
 		return err
@@ -28,50 +28,22 @@ func AppendEntry(filename string, name string) error {
 
 	fmt.Printf("[DEBUG] Current record count: %d\n", count)
 
+	// Seek to end of file for appending
 	if _, err := file.Seek(0, 2); err != nil {
 		return err
 	}
 
+	// Create the item record
+	item := Item{
+		Name:      name,
+		Tombstone: false,
+	}
+
+	// Write the record using centralized record writer
 	writer := bufio.NewWriter(file)
-
-	// Write tombstone (0 = active)
-	if err := binary.Write(writer, binary.LittleEndian, uint8(0)); err != nil {
-		return err
+	if err := WriteRecord(writer, item, true); err != nil {
+		return fmt.Errorf("failed to write record: %w", err)
 	}
-	fmt.Printf("[DEBUG] Wrote tombstone: [00] (active)\n")
-
-	// Write unit separator
-	if err := writer.WriteByte(UnitSeparator); err != nil {
-		return err
-	}
-	fmt.Printf("[DEBUG] Wrote unit separator: [1F]\n")
-
-	// Write name length
-	size := uint32(len(name))
-	if err := binary.Write(writer, binary.LittleEndian, size); err != nil {
-		return err
-	}
-	fmt.Printf("[DEBUG] Wrote name length: [%02X %02X %02X %02X] (%d bytes)\n",
-		byte(size), byte(size>>8), byte(size>>16), byte(size>>24), size)
-
-	// Write unit separator
-	if err := writer.WriteByte(UnitSeparator); err != nil {
-		return err
-	}
-	fmt.Printf("[DEBUG] Wrote unit separator: [1F]\n")
-
-	// Write name data
-	nameBytes := []byte(name)
-	if _, err := writer.Write(nameBytes); err != nil {
-		return err
-	}
-	fmt.Printf("[DEBUG] Wrote name data: [%s] (\"%s\")\n", hex.EncodeToString(nameBytes), name)
-
-	// Write record separator
-	if err := writer.WriteByte(RecordSeparator); err != nil {
-		return err
-	}
-	fmt.Printf("[DEBUG] Wrote record separator: [1E]\n")
 
 	if err := writer.Flush(); err != nil {
 		return err
@@ -82,11 +54,11 @@ func AppendEntry(filename string, name string) error {
 		return err
 	}
 
-	// Update record count in header
+	// Update record count in header using centralized header writer
 	writer = bufio.NewWriter(file)
 	count++
-	if err := binary.Write(writer, binary.LittleEndian, count); err != nil {
-		return err
+	if err := WriteHeader(writer, count); err != nil {
+		return fmt.Errorf("failed to update header: %w", err)
 	}
 
 	if err := writer.Flush(); err != nil {

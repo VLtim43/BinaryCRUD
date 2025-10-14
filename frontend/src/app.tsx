@@ -1,6 +1,6 @@
 import "./App.scss";
 import logo from "./assets/images/logo-universal.png";
-import { AddItem } from "../wailsjs/go/main/App";
+import { AddItem, PrintBinaryFile } from "../wailsjs/go/main/App";
 import { useState } from "preact/hooks";
 import { h, Fragment } from "preact";
 
@@ -15,6 +15,16 @@ export const App = (props: any) => {
       .then(() => {
         updateResultText(`Item saved: ${itemText}`);
         setItemText("");
+      })
+      .catch((err: any) => {
+        updateResultText(`Error: ${err}`);
+      });
+  };
+
+  const printFile = () => {
+    PrintBinaryFile()
+      .then(() => {
+        updateResultText("Binary file printed to application console!");
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -40,6 +50,9 @@ export const App = (props: any) => {
           />
           <button className="btn" onClick={addItem}>
             Add Item
+          </button>
+          <button className="btn" onClick={printFile}>
+            Print
           </button>
         </div>
       </div>
