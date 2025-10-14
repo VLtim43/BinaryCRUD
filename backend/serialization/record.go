@@ -205,7 +205,6 @@ func ReadRecord(reader *bufio.Reader) (*Item, error) {
 	}, nil
 }
 
-// Helper function to get tombstone status string
 func getTombstoneStatus(tombstone bool) string {
 	if tombstone {
 		return "deleted"

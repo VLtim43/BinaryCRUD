@@ -57,13 +57,3 @@ func (a *App) PrintBinaryFile() error {
 
 	return nil
 }
-
-// ValidateBinaryFile validates the structure of the binary file
-func (a *App) ValidateBinaryFile() (string, error) {
-	result, err := a.itemDAO.Validate()
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("Valid: %v\nHeader Count: %d\nActual Records: %d\nErrors: %v\nWarnings: %v",
-		result.Valid, result.HeaderCount, result.ActualRecords, result.Errors, result.Warnings), nil
-}

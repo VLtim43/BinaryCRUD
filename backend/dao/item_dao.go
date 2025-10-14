@@ -21,7 +21,3 @@ func (dao *ItemDAO) Read() ([]serialization.Item, error) {
 func (dao *ItemDAO) Print() (string, error) {
 	return serialization.PrintBinaryFile(dao.filename)
 }
-
-func (dao *ItemDAO) Validate() (*serialization.ValidationResult, error) {
-	return serialization.ValidateFile(dao.filename)
-}
