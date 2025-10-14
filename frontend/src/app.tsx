@@ -1,6 +1,7 @@
 import "./App.scss";
 import logo from "./assets/images/logo-universal.png";
 import { AddItem, PrintBinaryFile } from "../wailsjs/go/main/App";
+import { Quit } from "../wailsjs/runtime/runtime";
 import { useState } from "preact/hooks";
 import { h, Fragment } from "preact";
 
@@ -27,13 +28,6 @@ export const App = (props: any) => {
       });
   };
 
-  const handleKeyDown = (e: any) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      addItem();
-    }
-  };
-
   const printFile = () => {
     PrintBinaryFile()
       .then(() => {
@@ -46,6 +40,7 @@ export const App = (props: any) => {
 
   return (
     <>
+      <button className="close-btn" onClick={() => Quit()}>×</button>
       <div id="App">
         <img src={logo} id="logo" alt="logo" />
         <div id="result" className="result">
@@ -56,7 +51,6 @@ export const App = (props: any) => {
             id="name"
             className="input"
             onChange={updateItemText}
-            onKeyDown={handleKeyDown}
             autoComplete="off"
             name="input"
             type="text"
