@@ -1,9 +1,0 @@
-filename: data/items.bin
-record count: 1 [01 00 00 00]
--------------------------
-record id: 1 [01]
-timestamp: 1760475249 [71 B8 EE 68 00 00 00 00]
-status: active [00]
-record name: banana [62 61 6E 61 6E 61]
-record total size: 23 [17]
--------------------------

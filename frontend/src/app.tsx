@@ -27,6 +27,13 @@ export const App = (props: any) => {
       });
   };
 
+  const handleKeyDown = (e: any) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addItem();
+    }
+  };
+
   const printFile = () => {
     PrintBinaryFile()
       .then(() => {
@@ -49,6 +56,7 @@ export const App = (props: any) => {
             id="name"
             className="input"
             onChange={updateItemText}
+            onKeyDown={handleKeyDown}
             autoComplete="off"
             name="input"
             type="text"
