@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 )
 
 // WriteHeader writes the file header with the given record count
@@ -94,6 +95,27 @@ func WriteRecord(writer *bufio.Writer, item Item, debug bool) error {
 		fmt.Printf("[DEBUG] Wrote name data: [%s] (\"%s\")\n", formatHexBytesDebug(nameBytes), item.Name)
 	}
 
+	// Write unit separator before timestamp
+	if err := writer.WriteByte(UnitSeparator); err != nil {
+		return fmt.Errorf("failed to write unit separator: %w", err)
+	}
+	if debug {
+		fmt.Printf("[DEBUG] Wrote unit separator: [%02X]\n", UnitSeparator)
+	}
+
+	// Write timestamp (8 bytes, little-endian)
+	if err := binary.Write(writer, binary.LittleEndian, item.Timestamp); err != nil {
+		return fmt.Errorf("failed to write timestamp: %w", err)
+	}
+	if debug {
+		timestampBytes := make([]byte, 8)
+		for i := 0; i < 8; i++ {
+			timestampBytes[i] = byte(item.Timestamp >> (i * 8))
+		}
+		timestampDate := time.Unix(item.Timestamp, 0).Format("2006-01-02 15:04:05")
+		fmt.Printf("[DEBUG] Wrote timestamp: [%s] (%s)\n", formatHexBytesDebug(timestampBytes), timestampDate)
+	}
+
 	// Write record separator
 	if err := writer.WriteByte(RecordSeparator); err != nil {
 		return fmt.Errorf("failed to write record separator: %w", err)
@@ -152,6 +174,21 @@ func ReadRecord(reader *bufio.Reader) (*Item, error) {
 		return nil, fmt.Errorf("failed to read name data: %w", err)
 	}
 
+	// Read and verify unit separator before timestamp
+	sep, err = reader.ReadByte()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read unit separator before timestamp: %w", err)
+	}
+	if sep != UnitSeparator {
+		return nil, fmt.Errorf("invalid unit separator before timestamp: expected 0x%02X, got 0x%02X", UnitSeparator, sep)
+	}
+
+	// Read timestamp (8 bytes, little-endian)
+	var timestamp int64
+	if err := binary.Read(reader, binary.LittleEndian, &timestamp); err != nil {
+		return nil, fmt.Errorf("failed to read timestamp: %w", err)
+	}
+
 	// Read and verify record separator
 	sep, err = reader.ReadByte()
 	if err != nil {
@@ -164,6 +201,7 @@ func ReadRecord(reader *bufio.Reader) (*Item, error) {
 	return &Item{
 		Name:      string(nameBytes),
 		Tombstone: tombstone != 0,
+		Timestamp: timestamp,
 	}, nil
 }
 

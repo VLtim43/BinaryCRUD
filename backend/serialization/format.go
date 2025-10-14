@@ -5,20 +5,21 @@ package serialization
 //
 // File Structure:
 //   HEADER: [RecordCount:4bytes] [RecordSeparator:1byte]
-//   RECORD: [Tombstone:1byte] [UnitSeparator:1byte] [NameSize:4bytes] [UnitSeparator:1byte] [NameData:Nbytes] [RecordSeparator:1byte]
+//   RECORD: [Tombstone:1byte] [UnitSeparator:1byte] [NameSize:4bytes] [UnitSeparator:1byte] [NameData:Nbytes] [UnitSeparator:1byte] [Timestamp:8bytes] [RecordSeparator:1byte]
 //
 // Example:
 //   Header: [03 00 00 00 1E] = 3 records
-//   Record: [00 1F 05 00 00 00 1F 70 69 7A 7A 61 1E] = "pizza" (active)
+//   Record: [00 1F 05 00 00 00 1F 70 69 7A 7A 61 1F <timestamp> 1E] = "pizza" (active)
 type BinaryFormat struct {
 	// Header structure
 	HeaderCountSize     int // 4 bytes - uint32 record count
 	HeaderSeparatorSize int // 1 byte - record separator
 
 	// Record structure
-	TombstoneSize      int // 1 byte - uint8 (0=active, 1=deleted)
-	UnitSeparatorSize  int // 1 byte - unit separator
-	NameSizeFieldSize  int // 4 bytes - uint32 length of name
+	TombstoneSize       int // 1 byte - uint8 (0=active, 1=deleted)
+	UnitSeparatorSize   int // 1 byte - unit separator
+	NameSizeFieldSize   int // 4 bytes - uint32 length of name
+	TimestampSize       int // 8 bytes - int64 unix timestamp
 	RecordSeparatorSize int // 1 byte - record separator
 }
 
@@ -30,6 +31,7 @@ func GetFormat() *BinaryFormat {
 		TombstoneSize:       1,
 		UnitSeparatorSize:   1,
 		NameSizeFieldSize:   4,
+		TimestampSize:       8,
 		RecordSeparatorSize: 1,
 	}
 }
@@ -45,6 +47,8 @@ func (f *BinaryFormat) RecordOverheadSize() int {
 		f.UnitSeparatorSize +
 		f.NameSizeFieldSize +
 		f.UnitSeparatorSize +
+		f.UnitSeparatorSize + // Extra separator before timestamp
+		f.TimestampSize +
 		f.RecordSeparatorSize
 }
 

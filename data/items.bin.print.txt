@@ -1,18 +1,9 @@
 filename: data/items.bin
-record count: 3 [03 00 00 00]
+record count: 1 [01 00 00 00]
 -------------------------
 record id: 1 [01]
+timestamp: 1760475249 [71 B8 EE 68 00 00 00 00]
 status: active [00]
-record name: test [74 65 73 74]
-record total size: 12 [0C]
--------------------------
-record id: 2 [02]
-status: active [00]
-record name: test [74 65 73 74]
-record total size: 12 [0C]
--------------------------
-record id: 3 [03]
-status: active [00]
-record name: banana 123 [62 61 6E 61 6E 61 20 31 32 33]
-record total size: 18 [12]
+record name: banana [62 61 6E 61 6E 61]
+record total size: 23 [17]
 -------------------------

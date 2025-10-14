@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 // PrintBinaryFile reads and prints the entire binary file in a human-readable format
@@ -123,6 +124,19 @@ func printRecordSimple(output *strings.Builder, reader *bufio.Reader, index int,
 	}
 	offset += int(size)
 
+	// Read unit separator (skip)
+	if _, err := reader.ReadByte(); err != nil {
+		return nil, 0, err
+	}
+	offset += 1
+
+	// Read timestamp
+	var timestamp int64
+	if err := binary.Read(reader, binary.LittleEndian, &timestamp); err != nil {
+		return nil, 0, err
+	}
+	offset += 8
+
 	// Read record separator (skip)
 	if _, err := reader.ReadByte(); err != nil {
 		return nil, 0, err
@@ -140,7 +154,16 @@ func printRecordSimple(output *strings.Builder, reader *bufio.Reader, index int,
 	totalSize := format.CalculateRecordSize(int(size))
 	totalSizeHex := fmt.Sprintf("%02X", totalSize)
 
+	// Format timestamp bytes and date
+	timestampBytes := make([]byte, 8)
+	for i := 0; i < 8; i++ {
+		timestampBytes[i] = byte(timestamp >> (i * 8))
+	}
+	timestampHex := formatHexBytes(timestampBytes)
+	timestampDate := time.Unix(timestamp, 0).Format("2006-01-02 15:04:05")
+
 	output.WriteString(fmt.Sprintf("record id: %d [%02X]\n", index, index))
+	output.WriteString(fmt.Sprintf("timestamp: %s [%s]\n", timestampDate, timestampHex))
 	output.WriteString(fmt.Sprintf("status: %s [%s]\n", status, tombstoneHex))
 	output.WriteString(fmt.Sprintf("record name: %s [%s]\n", string(nameBytes), nameHex))
 	output.WriteString(fmt.Sprintf("record total size: %d [%s]\n", totalSize, totalSizeHex))
@@ -149,6 +172,7 @@ func printRecordSimple(output *strings.Builder, reader *bufio.Reader, index int,
 	item := &Item{
 		Name:      string(nameBytes),
 		Tombstone: tombstone != 0,
+		Timestamp: timestamp,
 	}
 
 	return item, offset - startOffset, nil

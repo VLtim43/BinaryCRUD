@@ -5,9 +5,15 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"time"
 )
 
 func AppendEntry(filename string, name string) error {
+	// Validate that name is not empty
+	if len(name) == 0 {
+		return fmt.Errorf("cannot add empty item: name is required")
+	}
+
 	if err := InitFile(filename); err != nil {
 		return err
 	}
@@ -33,10 +39,11 @@ func AppendEntry(filename string, name string) error {
 		return err
 	}
 
-	// Create the item record
+	// Create the item record with current timestamp
 	item := Item{
 		Name:      name,
 		Tombstone: false,
+		Timestamp: time.Now().Unix(),
 	}
 
 	// Write the record using centralized record writer

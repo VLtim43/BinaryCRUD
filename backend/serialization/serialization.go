@@ -11,6 +11,7 @@ import (
 type Item struct {
 	Name      string
 	Tombstone bool
+	Timestamp int64 // Unix timestamp in seconds
 }
 
 const (

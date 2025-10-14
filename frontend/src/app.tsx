@@ -11,6 +11,12 @@ export const App = (props: any) => {
   const updateResultText = (result: string) => setResultText(result);
 
   const addItem = () => {
+    // Validate input before sending to backend
+    if (!itemText || itemText.trim().length === 0) {
+      updateResultText("Error: Cannot add empty item");
+      return;
+    }
+
     AddItem(itemText)
       .then(() => {
         updateResultText(`Item saved: ${itemText}`);
