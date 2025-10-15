@@ -57,3 +57,23 @@ func (a *App) PrintBinaryFile() error {
 
 	return nil
 }
+
+// GetItemByID retrieves an item by its record ID using the B+ tree index
+func (a *App) GetItemByID(recordID uint32) (string, error) {
+	item, err := a.itemDAO.GetByID(recordID)
+	if err != nil {
+		return "", err
+	}
+
+	return item.Name, nil
+}
+
+// RebuildIndex rebuilds the B+ tree index from scratch
+func (a *App) RebuildIndex() error {
+	return a.itemDAO.RebuildIndex()
+}
+
+// PrintIndex prints the B+ tree structure to the console (for debugging)
+func (a *App) PrintIndex() {
+	a.itemDAO.PrintIndex()
+}

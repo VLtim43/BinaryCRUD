@@ -1,0 +1,256 @@
+package index
+
+import (
+	"BinaryCRUD/backend/index/b_tree"
+	"BinaryCRUD/backend/serialization"
+	"bufio"
+	"encoding/binary"
+	"fmt"
+	"io"
+	"os"
+)
+
+// IndexManager manages the B+ tree index for a binary data file
+type IndexManager struct {
+	tree         *b_tree.BPlusTree
+	dataFilename string
+	indexFilename string
+	order        int
+}
+
+// NewIndexManager creates a new index manager
+// dataFilename: path to the binary data file (e.g., "data/items.bin")
+// order: B+ tree order (max keys per node, default 4)
+func NewIndexManager(dataFilename string, order int) *IndexManager {
+	if order < 3 {
+		order = 4 // default order
+	}
+
+	indexFilename := dataFilename + ".idx"
+
+	return &IndexManager{
+		tree:          nil, // initialized lazily
+		dataFilename:  dataFilename,
+		indexFilename: indexFilename,
+		order:         order,
+	}
+}
+
+// Initialize loads or builds the index
+// Should be called once at startup
+func (m *IndexManager) Initialize() error {
+	fmt.Printf("[INDEX] Initializing index for %s\n", m.dataFilename)
+
+	// Try to load existing index file
+	if b_tree.IndexFileExists(m.indexFilename) {
+		fmt.Printf("[INDEX] Loading existing index from %s\n", m.indexFilename)
+		tree, err := b_tree.LoadFromFile(m.indexFilename)
+		if err != nil {
+			fmt.Printf("[INDEX] Failed to load index: %v, rebuilding...\n", err)
+			return m.RebuildIndex()
+		}
+		m.tree = tree
+		fmt.Printf("[INDEX] Index loaded: %d entries\n", m.tree.Count())
+		return nil
+	}
+
+	// No index file exists, build from data file
+	fmt.Printf("[INDEX] No index file found, building from data file...\n")
+	return m.RebuildIndex()
+}
+
+// RebuildIndex scans the data file and rebuilds the index from scratch
+func (m *IndexManager) RebuildIndex() error {
+	fmt.Printf("[INDEX] Rebuilding index from %s\n", m.dataFilename)
+
+	// Create new tree
+	m.tree = b_tree.NewBPlusTree(m.order)
+
+	// Check if data file exists
+	if _, err := os.Stat(m.dataFilename); os.IsNotExist(err) {
+		fmt.Printf("[INDEX] Data file doesn't exist yet, creating empty index\n")
+		return m.Save()
+	}
+
+	// Open data file
+	file, err := os.Open(m.dataFilename)
+	if err != nil {
+		return fmt.Errorf("failed to open data file: %w", err)
+	}
+	defer file.Close()
+
+	reader := bufio.NewReader(file)
+
+	// Read header to get record count
+	count, err := serialization.ReadHeader(reader)
+	if err != nil {
+		return fmt.Errorf("failed to read header: %w", err)
+	}
+
+	fmt.Printf("[INDEX] Scanning %d records...\n", count)
+
+	// Track file position (starts after header)
+	format := serialization.GetFormat()
+	currentOffset := int64(format.HeaderSize())
+
+	// Read each record and build index
+	for recordID := uint32(0); recordID < count; recordID++ {
+		// Record the offset BEFORE reading the record
+		recordOffset := currentOffset
+
+		// Read the record
+		item, err := serialization.ReadRecord(reader)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return fmt.Errorf("failed to read record %d: %w", recordID, err)
+		}
+
+		// Calculate size of this record
+		recordSize := format.CalculateRecordSize(len(item.Name))
+		currentOffset += int64(recordSize)
+
+		// Insert into index (RecordID → FileOffset)
+		m.tree.Insert(recordID, recordOffset)
+
+		if recordID < 5 || recordID >= count-5 {
+			fmt.Printf("[INDEX]   Record %d: offset=%d, name=%s\n", recordID, recordOffset, item.Name)
+		} else if recordID == 5 {
+			fmt.Printf("[INDEX]   ... (%d more records) ...\n", count-10)
+		}
+	}
+
+	fmt.Printf("[INDEX] Index rebuilt: %d entries\n", m.tree.Count())
+
+	// Save to disk
+	return m.Save()
+}
+
+// Insert adds a new entry to the index
+// recordID: the position of the record in the file (0-based)
+// offset: the byte offset where the record starts in the file
+func (m *IndexManager) Insert(recordID uint32, offset int64) error {
+	if m.tree == nil {
+		return fmt.Errorf("index not initialized")
+	}
+
+	fmt.Printf("[INDEX] Inserting: recordID=%d, offset=%d\n", recordID, offset)
+	m.tree.Insert(recordID, offset)
+	return nil
+}
+
+// GetOffset looks up the file offset for a given record ID
+// Returns: offset, found
+func (m *IndexManager) GetOffset(recordID uint32) (int64, bool) {
+	if m.tree == nil {
+		return 0, false
+	}
+
+	return m.tree.Search(recordID)
+}
+
+// Save persists the index to disk
+func (m *IndexManager) Save() error {
+	if m.tree == nil {
+		return fmt.Errorf("index not initialized")
+	}
+
+	return m.tree.SaveToFile(m.indexFilename)
+}
+
+// GetRecordByID reads a specific record from the data file using the index
+// Returns the item at the given record ID
+func (m *IndexManager) GetRecordByID(recordID uint32) (*serialization.Item, error) {
+	// Lookup offset in index
+	offset, found := m.GetOffset(recordID)
+	if !found {
+		return nil, fmt.Errorf("record ID %d not found in index", recordID)
+	}
+
+	fmt.Printf("[INDEX] Found recordID=%d at offset=%d\n", recordID, offset)
+
+	// Open data file
+	file, err := os.Open(m.dataFilename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open data file: %w", err)
+	}
+	defer file.Close()
+
+	// Seek to offset
+	if _, err := file.Seek(offset, io.SeekStart); err != nil {
+		return nil, fmt.Errorf("failed to seek to offset %d: %w", offset, err)
+	}
+
+	// Read the record
+	reader := bufio.NewReader(file)
+	item, err := serialization.ReadRecord(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read record at offset %d: %w", offset, err)
+	}
+
+	return item, nil
+}
+
+// GetNextRecordID returns the next available record ID
+// Used when appending new records
+func (m *IndexManager) GetNextRecordID() uint32 {
+	if m.tree == nil || m.tree.Count() == 0 {
+		return 0
+	}
+
+	// The next ID is simply the current count
+	return uint32(m.tree.Count())
+}
+
+// PrintTree prints the B+ tree structure (for debugging)
+func (m *IndexManager) PrintTree() {
+	if m.tree != nil {
+		m.tree.PrintTree()
+	}
+}
+
+// GetCurrentOffset calculates the file offset where the next record should be written
+// This reads the data file to find the current end position
+func (m *IndexManager) GetCurrentOffset() (int64, error) {
+	file, err := os.Open(m.dataFilename)
+	if err != nil {
+		// If file doesn't exist, offset is 0 (will be header size after init)
+		if os.IsNotExist(err) {
+			format := serialization.GetFormat()
+			return int64(format.HeaderSize()), nil
+		}
+		return 0, fmt.Errorf("failed to open data file: %w", err)
+	}
+	defer file.Close()
+
+	// Get file size
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return 0, fmt.Errorf("failed to stat data file: %w", err)
+	}
+
+	return fileInfo.Size(), nil
+}
+
+// UpdateHeader updates the record count in the data file header
+// Called after appending new records
+func (m *IndexManager) UpdateHeader(count uint32) error {
+	file, err := os.OpenFile(m.dataFilename, os.O_RDWR, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open data file for header update: %w", err)
+	}
+	defer file.Close()
+
+	// Seek to beginning
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("failed to seek to header: %w", err)
+	}
+
+	// Write updated count
+	if err := binary.Write(file, binary.LittleEndian, count); err != nil {
+		return fmt.Errorf("failed to write header count: %w", err)
+	}
+
+	return nil
+}
