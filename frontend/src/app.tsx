@@ -5,10 +5,13 @@ import { Quit } from "../wailsjs/runtime/runtime";
 import { useState } from "preact/hooks";
 import { h, Fragment } from "preact";
 
-export const App = (props: any) => {
+export const App = () => {
+  const [activeTab, setActiveTab] = useState<"create" | "read">("create");
   const [resultText, setResultText] = useState("Enter item text below 👇");
   const [itemText, setItemText] = useState("");
+  const [recordId, setRecordId] = useState("");
   const updateItemText = (e: any) => setItemText(e.target.value);
+  const updateRecordId = (e: any) => setRecordId(e.target.value);
   const updateResultText = (result: string) => setResultText(result);
 
   const addItem = () => {
@@ -38,31 +41,71 @@ export const App = (props: any) => {
       });
   };
 
+  const getRecordById = () => {
+    // TODO: Implement logic to fetch record by ID
+    updateResultText(`Getting record with ID: ${recordId}`);
+  };
+
   return (
     <>
       <button className="close-btn" onClick={() => Quit()}>×</button>
+      <div className="tabs">
+        <button
+          className={`tab ${activeTab === "create" ? "active" : ""}`}
+          onClick={() => setActiveTab("create")}
+        >
+          Create
+        </button>
+        <button
+          className={`tab ${activeTab === "read" ? "active" : ""}`}
+          onClick={() => setActiveTab("read")}
+        >
+          Read
+        </button>
+      </div>
       <div id="App">
         <img src={logo} id="logo" alt="logo" />
         <div id="result" className="result">
           {resultText}
         </div>
-        <div id="input" className="input-box">
-          <input
-            id="name"
-            className="input"
-            onChange={updateItemText}
-            autoComplete="off"
-            name="input"
-            type="text"
-            value={itemText}
-          />
-          <button className="btn" onClick={addItem}>
-            Add Item
-          </button>
-          <button className="btn" onClick={printFile}>
-            Print
-          </button>
-        </div>
+
+        {activeTab === "create" && (
+          <div id="input" className="input-box">
+            <input
+              id="name"
+              className="input"
+              onChange={updateItemText}
+              autoComplete="off"
+              name="input"
+              type="text"
+              value={itemText}
+            />
+            <button className="btn" onClick={addItem}>
+              Add Item
+            </button>
+            <button className="btn" onClick={printFile}>
+              Print
+            </button>
+          </div>
+        )}
+
+        {activeTab === "read" && (
+          <div id="read-input" className="input-box">
+            <input
+              id="record-id"
+              className="input"
+              onChange={updateRecordId}
+              autoComplete="off"
+              name="record-id"
+              type="text"
+              placeholder="Enter Record ID"
+              value={recordId}
+            />
+            <button className="btn" onClick={getRecordById}>
+              Get Record
+            </button>
+          </div>
+        )}
       </div>
     </>
   );

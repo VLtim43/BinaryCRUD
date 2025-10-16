@@ -21,8 +21,6 @@ const (
 
 // SaveToFile serializes the B+ tree to a binary file
 func (t *BPlusTree) SaveToFile(filename string) error {
-	fmt.Printf("[BTREE] Saving index to %s\n", filename)
-
 	// Get all entries (sorted)
 	entries := t.GetAllLeafEntries()
 
@@ -54,8 +52,6 @@ func (t *BPlusTree) SaveToFile(filename string) error {
 		return fmt.Errorf("failed to write entry count: %w", err)
 	}
 
-	fmt.Printf("[BTREE] Writing %d entries\n", entryCount)
-
 	// Write entries
 	for _, entry := range entries {
 		key := entry[0].(uint32)
@@ -70,18 +66,13 @@ func (t *BPlusTree) SaveToFile(filename string) error {
 		if err := binary.Write(file, binary.LittleEndian, value); err != nil {
 			return fmt.Errorf("failed to write value: %w", err)
 		}
-
-		fmt.Printf("[BTREE]   Entry: key=%d, offset=%d\n", key, value)
 	}
 
-	fmt.Printf("[BTREE] Index saved successfully\n")
 	return nil
 }
 
 // LoadFromFile deserializes a B+ tree from a binary file
 func LoadFromFile(filename string) (*BPlusTree, error) {
-	fmt.Printf("[BTREE] Loading index from %s\n", filename)
-
 	// Open file
 	file, err := os.Open(filename)
 	if err != nil {
@@ -119,8 +110,6 @@ func LoadFromFile(filename string) (*BPlusTree, error) {
 		return nil, fmt.Errorf("failed to read entry count: %w", err)
 	}
 
-	fmt.Printf("[BTREE] Loading %d entries with order=%d\n", entryCount, order)
-
 	// Create new tree
 	tree := NewBPlusTree(int(order))
 
@@ -140,15 +129,8 @@ func LoadFromFile(filename string) (*BPlusTree, error) {
 
 		// Insert into tree (rebuilds structure)
 		tree.Insert(key, value)
-
-		if i < 5 || i >= entryCount-5 {
-			fmt.Printf("[BTREE]   Entry %d: key=%d, offset=%d\n", i, key, value)
-		} else if i == 5 {
-			fmt.Printf("[BTREE]   ... (%d more entries) ...\n", entryCount-10)
-		}
 	}
 
-	fmt.Printf("[BTREE] Index loaded successfully\n")
 	return tree, nil
 }
 

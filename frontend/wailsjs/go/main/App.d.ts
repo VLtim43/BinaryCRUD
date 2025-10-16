@@ -3,10 +3,12 @@
 
 export function AddItem(arg1:string):Promise<void>;
 
-export function GetItems():Promise<Array<string>>;
+export function GetItemByID(arg1:number):Promise<string>;
 
-export function Greet(arg1:string):Promise<string>;
+export function GetItems():Promise<Array<string>>;
 
 export function PrintBinaryFile():Promise<void>;
 
-export function ValidateBinaryFile():Promise<string>;
+export function PrintIndex():Promise<void>;
+
+export function RebuildIndex():Promise<void>;

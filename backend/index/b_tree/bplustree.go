@@ -26,8 +26,6 @@ func NewBPlusTree(order int) *BPlusTree {
 // Key: RecordID (uint32)
 // Value: File offset (int64)
 func (t *BPlusTree) Insert(key uint32, value int64) {
-	fmt.Printf("[BTREE] Inserting key=%d, value=%d\n", key, value)
-
 	// Find the leaf node where this key should go
 	leaf := t.findLeaf(key)
 
@@ -85,14 +83,11 @@ func (t *BPlusTree) findLeaf(key uint32) *BPlusNode {
 
 // splitLeafAndPropagate handles leaf split and propagates changes up the tree
 func (t *BPlusTree) splitLeafAndPropagate(leaf *BPlusNode) {
-	fmt.Printf("[BTREE] Splitting leaf node: %v\n", leaf)
-
 	// Split the leaf
 	rightLeaf, pushUpKey := leaf.SplitLeaf()
 
 	// If leaf has no parent, create new root
 	if leaf.Parent == nil {
-		fmt.Printf("[BTREE] Creating new root with key=%d\n", pushUpKey)
 		newRoot := NewInternalNode()
 		newRoot.Keys = []uint32{pushUpKey}
 		newRoot.Children = []*BPlusNode{leaf, rightLeaf}
@@ -114,14 +109,11 @@ func (t *BPlusTree) splitLeafAndPropagate(leaf *BPlusNode) {
 
 // splitInternalAndPropagate handles internal node split and propagates up
 func (t *BPlusTree) splitInternalAndPropagate(node *BPlusNode) {
-	fmt.Printf("[BTREE] Splitting internal node: %v\n", node)
-
 	// Split the internal node
 	rightNode, pushUpKey := node.SplitInternal()
 
 	// If node has no parent, create new root
 	if node.Parent == nil {
-		fmt.Printf("[BTREE] Creating new root with key=%d\n", pushUpKey)
 		newRoot := NewInternalNode()
 		newRoot.Keys = []uint32{pushUpKey}
 		newRoot.Children = []*BPlusNode{node, rightNode}
@@ -143,9 +135,7 @@ func (t *BPlusTree) splitInternalAndPropagate(node *BPlusNode) {
 
 // PrintTree prints the tree structure (for debugging)
 func (t *BPlusTree) PrintTree() {
-	fmt.Println("\n=== B+ Tree Structure ===")
 	t.printNode(t.Root, 0)
-	fmt.Println("=========================\n")
 }
 
 // printNode recursively prints tree structure

@@ -6,18 +6,22 @@ export function AddItem(arg1) {
   return window['go']['main']['App']['AddItem'](arg1);
 }
 
-export function GetItems() {
-  return window['go']['main']['App']['GetItems']();
+export function GetItemByID(arg1) {
+  return window['go']['main']['App']['GetItemByID'](arg1);
 }
 
-export function Greet(arg1) {
-  return window['go']['main']['App']['Greet'](arg1);
+export function GetItems() {
+  return window['go']['main']['App']['GetItems']();
 }
 
 export function PrintBinaryFile() {
   return window['go']['main']['App']['PrintBinaryFile']();
 }
 
-export function ValidateBinaryFile() {
-  return window['go']['main']['App']['ValidateBinaryFile']();
+export function PrintIndex() {
+  return window['go']['main']['App']['PrintIndex']();
+}
+
+export function RebuildIndex() {
+  return window['go']['main']['App']['RebuildIndex']();
 }
