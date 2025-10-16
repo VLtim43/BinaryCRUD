@@ -3,7 +3,9 @@ package main
 import (
 	"BinaryCRUD/backend/dao"
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 )
 
 // App struct
@@ -81,4 +83,55 @@ func (a *App) PrintIndex() {
 // DeleteAllFiles deletes all generated files (data/*.bin and *.idx files)
 func (a *App) DeleteAllFiles() error {
 	return a.itemDAO.DeleteAllFiles()
+}
+
+// InventoryData represents the JSON structure for inventory population
+type InventoryData struct {
+	Items []string `json:"items"`
+}
+
+// PopulateInventory reads a JSON file and adds all items to the binary file
+func (a *App) PopulateInventory(filePath string) (string, error) {
+	// Read the JSON file
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file: %w", err)
+	}
+
+	// Parse JSON
+	var inventory InventoryData
+	if err := json.Unmarshal(data, &inventory); err != nil {
+		return "", fmt.Errorf("failed to parse JSON: %w", err)
+	}
+
+	// Validate that we have items
+	if len(inventory.Items) == 0 {
+		return "No items found in JSON", nil
+	}
+
+	// Add each item
+	successCount := 0
+	errorCount := 0
+
+	for _, itemName := range inventory.Items {
+		if itemName == "" {
+			errorCount++
+			continue
+		}
+
+		if err := a.itemDAO.Write(itemName); err != nil {
+			fmt.Printf("Failed to add item '%s': %v\n", itemName, err)
+			errorCount++
+		} else {
+			successCount++
+		}
+	}
+
+	// Return summary
+	result := fmt.Sprintf("Added %d items", successCount)
+	if errorCount > 0 {
+		result += fmt.Sprintf(", %d failed", errorCount)
+	}
+
+	return result, nil
 }

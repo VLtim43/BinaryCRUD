@@ -5,6 +5,7 @@ import {
   PrintBinaryFile,
   DeleteAllFiles,
   GetItemByID,
+  PopulateInventory,
 } from "../wailsjs/go/main/App";
 import { Quit } from "../wailsjs/runtime/runtime";
 import { useState } from "preact/hooks";
@@ -17,6 +18,7 @@ export const App = () => {
   const [resultText, setResultText] = useState("Enter item text below 👇");
   const [itemText, setItemText] = useState("");
   const [recordId, setRecordId] = useState("");
+  const [jsonFilePath, setJsonFilePath] = useState("inventory.json");
   const updateItemText = (e: any) => setItemText(e.target.value);
   const updateRecordId = (e: any) => {
     const value = e.target.value;
@@ -25,6 +27,7 @@ export const App = () => {
       setRecordId(value);
     }
   };
+  const updateJsonFilePath = (e: any) => setJsonFilePath(e.target.value);
   const updateResultText = (result: string) => setResultText(result);
 
   // Get default text for each tab
@@ -107,6 +110,22 @@ export const App = () => {
       });
   };
 
+  const populateInventory = () => {
+    // Validate file path
+    if (!jsonFilePath || jsonFilePath.trim().length === 0) {
+      updateResultText("Error: Please enter a file path");
+      return;
+    }
+
+    PopulateInventory(jsonFilePath)
+      .then((result: string) => {
+        updateResultText(`Inventory populated! ${result}`);
+      })
+      .catch((err: any) => {
+        updateResultText(`Error: ${err}`);
+      });
+  };
+
   return (
     <>
       <button className="close-btn" onClick={() => Quit()}>
@@ -152,9 +171,6 @@ export const App = () => {
             <button className="btn" onClick={addItem}>
               Add Item
             </button>
-            <button className="btn" onClick={printFile}>
-              Print
-            </button>
           </div>
         )}
 
@@ -172,14 +188,22 @@ export const App = () => {
             <button className="btn" onClick={getRecordById}>
               Get Record
             </button>
+            <button className="btn" onClick={printFile}>
+              Print
+            </button>
           </div>
         )}
 
         {activeTab === "debug" && (
-          <div id="debug-controls" className="input-box">
-            <button className="btn btn-danger" onClick={deleteAllFiles}>
-              Delete All Files
-            </button>
+          <div id="debug-controls" className="debug-section">
+            <div className="input-box">
+              <button className="btn btn-warning" onClick={populateInventory}>
+                Populate Inventory
+              </button>
+              <button className="btn btn-danger" onClick={deleteAllFiles}>
+                Delete All Files
+              </button>
+            </div>
           </div>
         )}
       </div>

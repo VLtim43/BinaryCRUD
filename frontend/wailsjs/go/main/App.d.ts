@@ -9,6 +9,8 @@ export function GetItemByID(arg1:number):Promise<string>;
 
 export function GetItems():Promise<Array<string>>;
 
+export function PopulateInventory(arg1:string):Promise<string>;
+
 export function PrintBinaryFile():Promise<void>;
 
 export function PrintIndex():Promise<void>;

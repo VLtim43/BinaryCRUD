@@ -18,6 +18,10 @@ export function GetItems() {
   return window['go']['main']['App']['GetItems']();
 }
 
+export function PopulateInventory(arg1) {
+  return window['go']['main']['App']['PopulateInventory'](arg1);
+}
+
 export function PrintBinaryFile() {
   return window['go']['main']['App']['PrintBinaryFile']();
 }
