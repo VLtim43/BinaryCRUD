@@ -7,7 +7,7 @@ import "fmt"
 // Root: pointer to the root node
 type BPlusTree struct {
 	Root  *BPlusNode
-	Order int // max keys per node (typically 3-5 for demonstration, higher in production)
+	Order int
 }
 
 // NewBPlusTree creates a new B+ tree with the given order
