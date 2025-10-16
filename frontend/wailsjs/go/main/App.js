@@ -6,6 +6,10 @@ export function AddItem(arg1) {
   return window['go']['main']['App']['AddItem'](arg1);
 }
 
+export function CreateOrder(arg1) {
+  return window['go']['main']['App']['CreateOrder'](arg1);
+}
+
 export function DeleteAllFiles() {
   return window['go']['main']['App']['DeleteAllFiles']();
 }
@@ -32,6 +36,10 @@ export function PrintBinaryFile() {
 
 export function PrintIndex() {
   return window['go']['main']['App']['PrintIndex']();
+}
+
+export function PrintOrderBinaryFile() {
+  return window['go']['main']['App']['PrintOrderBinaryFile']();
 }
 
 export function RebuildIndex() {

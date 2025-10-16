@@ -10,16 +10,17 @@ import {
   PrintIndex,
   RebuildIndex,
   GetItems,
+  CreateOrder,
+  PrintOrderBinaryFile,
 } from "../wailsjs/go/main/App";
 import { Quit } from "../wailsjs/runtime/runtime";
 import { useState, useEffect } from "preact/hooks";
 import { h, Fragment } from "preact";
 
 export const App = () => {
-  const [activeTab, setActiveTab] = useState<
-    "create" | "read" | "delete" | "debug"
-  >("create");
-  const [createSubTab, setCreateSubTab] = useState<"item" | "order">("item");
+  const [activeTab, setActiveTab] = useState<"item" | "order" | "debug">("item");
+  const [itemSubTab, setItemSubTab] = useState<"create" | "read" | "delete">("create");
+  const [orderSubTab, setOrderSubTab] = useState<"create" | "read" | "delete">("create");
   const [resultText, setResultText] = useState("Enter item text below 👇");
   const [itemText, setItemText] = useState("");
   const [recordId, setRecordId] = useState("");
@@ -51,47 +52,71 @@ export const App = () => {
   const updateJsonFilePath = (e: any) => setJsonFilePath(e.target.value);
   const updateResultText = (result: string) => setResultText(result);
 
-  // Get default text for each tab
+  // Get default text for each tab/subtab combination
   const getDefaultText = (
-    tab: "create" | "read" | "delete" | "debug",
-    subTab?: "item" | "order"
+    tab: "item" | "order" | "debug",
+    subTab?: "create" | "read" | "delete"
   ) => {
-    switch (tab) {
-      case "create":
-        if (subTab === "order") {
-          return "Select items for your order";
-        }
-        return "Enter item text below 👇";
-      case "read":
-        return "Enter a record ID to fetch 👇";
-      case "delete":
-        return "Enter a record ID to delete 👇";
-      case "debug":
-        return "Debug tools and utilities";
-      default:
-        return "";
+    if (tab === "debug") {
+      return "Debug tools and utilities";
     }
+
+    if (tab === "item") {
+      switch (subTab) {
+        case "create":
+          return "Enter item text below 👇";
+        case "read":
+          return "Enter a record ID to fetch 👇";
+        case "delete":
+          return "Enter a record ID to delete 👇";
+        default:
+          return "";
+      }
+    }
+
+    if (tab === "order") {
+      switch (subTab) {
+        case "create":
+          return "Select items for your order";
+        case "read":
+          return "View orders";
+        case "delete":
+          return "Enter an order ID to delete 👇";
+        default:
+          return "";
+      }
+    }
+
+    return "";
   };
 
-  // Handle tab changes
-  const handleTabChange = (tab: "create" | "read" | "delete" | "debug") => {
+  // Handle main tab changes
+  const handleTabChange = (tab: "item" | "order" | "debug") => {
     setActiveTab(tab);
-    if (tab === "create") {
-      setResultText(getDefaultText(tab, createSubTab));
+    if (tab === "item") {
+      setResultText(getDefaultText(tab, itemSubTab));
+    } else if (tab === "order") {
+      setResultText(getDefaultText(tab, orderSubTab));
     } else {
       setResultText(getDefaultText(tab));
     }
   };
 
-  // Handle create subtab changes
-  const handleCreateSubTabChange = (subTab: "item" | "order") => {
-    setCreateSubTab(subTab);
-    setResultText(getDefaultText("create", subTab));
+  // Handle item subtab changes
+  const handleItemSubTabChange = (subTab: "create" | "read" | "delete") => {
+    setItemSubTab(subTab);
+    setResultText(getDefaultText("item", subTab));
   };
 
-  // Load all items when create order subtab becomes active
+  // Handle order subtab changes
+  const handleOrderSubTabChange = (subTab: "create" | "read" | "delete") => {
+    setOrderSubTab(subTab);
+    setResultText(getDefaultText("order", subTab));
+  };
+
+  // Load all items when order create subtab becomes active
   useEffect(() => {
-    if (activeTab === "create" && createSubTab === "order") {
+    if (activeTab === "order" && orderSubTab === "create") {
       GetItems()
         .then((items: Array<{ id: number; name: string }>) => {
           setAllItems(items);
@@ -100,7 +125,7 @@ export const App = () => {
           updateResultText(`Error loading items: ${err}`);
         });
     }
-  }, [activeTab, createSubTab]);
+  }, [activeTab, orderSubTab]);
 
   const addItem = () => {
     // Validate input before sending to backend
@@ -283,6 +308,38 @@ export const App = () => {
     return sortedCart;
   };
 
+  const createOrder = () => {
+    if (cart.length === 0) {
+      updateResultText("Error: Cart is empty");
+      return;
+    }
+
+    // Convert cart items to the format expected by the backend
+    const orderItems = cart.map((item) => ({
+      itemId: item.id,
+      quantity: item.quantity,
+    }));
+
+    CreateOrder(orderItems)
+      .then(() => {
+        updateResultText(`Order created successfully with ${cart.length} items`);
+        setCart([]);
+      })
+      .catch((err: any) => {
+        updateResultText(`Error creating order: ${err}`);
+      });
+  };
+
+  const printOrderFile = () => {
+    PrintOrderBinaryFile()
+      .then(() => {
+        updateResultText("Order binary file printed to application console!");
+      })
+      .catch((err: any) => {
+        updateResultText(`Error: ${err}`);
+      });
+  };
+
   return (
     <>
       <button className="close-btn" onClick={() => Quit()}>
@@ -290,22 +347,16 @@ export const App = () => {
       </button>
       <div className="tabs">
         <button
-          className={`tab ${activeTab === "create" ? "active" : ""}`}
-          onClick={() => handleTabChange("create")}
+          className={`tab ${activeTab === "item" ? "active" : ""}`}
+          onClick={() => handleTabChange("item")}
         >
-          Create
+          Item
         </button>
         <button
-          className={`tab ${activeTab === "read" ? "active" : ""}`}
-          onClick={() => handleTabChange("read")}
+          className={`tab ${activeTab === "order" ? "active" : ""}`}
+          onClick={() => handleTabChange("order")}
         >
-          Read
-        </button>
-        <button
-          className={`tab ${activeTab === "delete" ? "active" : ""}`}
-          onClick={() => handleTabChange("delete")}
-        >
-          Delete
+          Order
         </button>
         <button
           className={`tab ${activeTab === "debug" ? "active" : ""}`}
@@ -315,33 +366,62 @@ export const App = () => {
         </button>
       </div>
 
-      {activeTab === "create" && (
+      {activeTab === "item" && (
         <div className="sub_tabs">
           <button
-            className={`tab ${createSubTab === "item" ? "active" : ""}`}
-            onClick={() => handleCreateSubTabChange("item")}
+            className={`tab ${itemSubTab === "create" ? "active" : ""}`}
+            onClick={() => handleItemSubTabChange("create")}
           >
-            Create Item
+            Create
           </button>
           <button
-            className={`tab ${createSubTab === "order" ? "active" : ""}`}
-            onClick={() => handleCreateSubTabChange("order")}
+            className={`tab ${itemSubTab === "read" ? "active" : ""}`}
+            onClick={() => handleItemSubTabChange("read")}
           >
-            Create Order
+            Read
+          </button>
+          <button
+            className={`tab ${itemSubTab === "delete" ? "active" : ""}`}
+            onClick={() => handleItemSubTabChange("delete")}
+          >
+            Delete
+          </button>
+        </div>
+      )}
+
+      {activeTab === "order" && (
+        <div className="sub_tabs">
+          <button
+            className={`tab ${orderSubTab === "create" ? "active" : ""}`}
+            onClick={() => handleOrderSubTabChange("create")}
+          >
+            Create
+          </button>
+          <button
+            className={`tab ${orderSubTab === "read" ? "active" : ""}`}
+            onClick={() => handleOrderSubTabChange("read")}
+          >
+            Read
+          </button>
+          <button
+            className={`tab ${orderSubTab === "delete" ? "active" : ""}`}
+            onClick={() => handleOrderSubTabChange("delete")}
+          >
+            Delete
           </button>
         </div>
       )}
 
       <div id="App">
 
-        {!(activeTab === "create" && createSubTab === "order") && (
+        {!(activeTab === "order" && orderSubTab === "create") && (
           <img src={logo} id="logo" alt="logo" />
         )}
         <div id="result" className="result">
           {resultText}
         </div>
 
-        {activeTab === "create" && createSubTab === "item" && (
+        {activeTab === "item" && itemSubTab === "create" && (
           <div id="input" className="input-box">
             <input
               id="name"
@@ -358,7 +438,44 @@ export const App = () => {
           </div>
         )}
 
-        {activeTab === "create" && createSubTab === "order" && (
+        {activeTab === "item" && itemSubTab === "read" && (
+          <div id="read-input" className="input-box">
+            <input
+              id="record-id"
+              className="input"
+              onChange={updateRecordId}
+              autoComplete="off"
+              name="record-id"
+              placeholder="Enter Record ID"
+              value={recordId}
+            />
+            <button className="btn" onClick={getRecordById}>
+              Get Record
+            </button>
+            <button className="btn" onClick={printFile}>
+              Print
+            </button>
+          </div>
+        )}
+
+        {activeTab === "item" && itemSubTab === "delete" && (
+          <div id="delete-input" className="input-box">
+            <input
+              id="delete-record-id"
+              className="input"
+              onChange={updateDeleteRecordId}
+              autoComplete="off"
+              name="delete-record-id"
+              placeholder="Enter Record ID"
+              value={deleteRecordId}
+            />
+            <button className="btn btn-danger" onClick={deleteItem}>
+              Delete Record
+            </button>
+          </div>
+        )}
+
+        {activeTab === "order" && orderSubTab === "create" && (
           <div id="order-section">
             <div className="cart-container">
               <div className="cart-header">
@@ -417,7 +534,7 @@ export const App = () => {
                 <button className="btn" onClick={addToCart}>
                   Add to Cart
                 </button>
-                <button className="btn btn-primary">
+                <button className="btn btn-primary" onClick={createOrder}>
                   Create Order
                 </button>
               </div>
@@ -425,39 +542,10 @@ export const App = () => {
           </div>
         )}
 
-        {activeTab === "read" && (
-          <div id="read-input" className="input-box">
-            <input
-              id="record-id"
-              className="input"
-              onChange={updateRecordId}
-              autoComplete="off"
-              name="record-id"
-              placeholder="Enter Record ID"
-              value={recordId}
-            />
-            <button className="btn" onClick={getRecordById}>
-              Get Record
-            </button>
-            <button className="btn" onClick={printFile}>
+        {activeTab === "order" && orderSubTab === "read" && (
+          <div id="order-read" className="input-box">
+            <button className="btn" onClick={printOrderFile}>
               Print
-            </button>
-          </div>
-        )}
-
-        {activeTab === "delete" && (
-          <div id="delete-input" className="input-box">
-            <input
-              id="delete-record-id"
-              className="input"
-              onChange={updateDeleteRecordId}
-              autoComplete="off"
-              name="delete-record-id"
-              placeholder="Enter Record ID"
-              value={deleteRecordId}
-            />
-            <button className="btn btn-danger" onClick={deleteItem}>
-              Delete Record
             </button>
           </div>
         )}

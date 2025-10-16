@@ -4,6 +4,8 @@ import {main} from '../models';
 
 export function AddItem(arg1:string):Promise<void>;
 
+export function CreateOrder(arg1:Array<main.OrderItemDTO>):Promise<void>;
+
 export function DeleteAllFiles():Promise<void>;
 
 export function DeleteItem(arg1:number):Promise<string>;
@@ -17,5 +19,7 @@ export function PopulateInventory(arg1:string):Promise<string>;
 export function PrintBinaryFile():Promise<void>;
 
 export function PrintIndex():Promise<void>;
+
+export function PrintOrderBinaryFile():Promise<void>;
 
 export function RebuildIndex():Promise<void>;

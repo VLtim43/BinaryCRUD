@@ -51,15 +51,7 @@ func PrintBinaryFile(filename string) (string, error) {
 		offset += bytesRead
 	}
 
-	outputStr := output.String()
-
-	// Write to file
-	txtFilename := filename + ".print.txt"
-	if err := os.WriteFile(txtFilename, []byte(outputStr), 0644); err != nil {
-		return "", fmt.Errorf("failed to write output file: %w", err)
-	}
-
-	return outputStr, nil
+	return output.String(), nil
 }
 
 // readHeaderForPrint reads the header and returns count and count bytes
