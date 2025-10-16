@@ -42,10 +42,22 @@ func InitFile(filename string) error {
 
 	writer := bufio.NewWriter(file)
 
+	// Write count = 0
 	if err := binary.Write(writer, binary.LittleEndian, uint32(0)); err != nil {
 		return err
 	}
 
+	// Write unit separator
+	if err := writer.WriteByte(UnitSeparator); err != nil {
+		return err
+	}
+
+	// Write nextID = 0
+	if err := binary.Write(writer, binary.LittleEndian, uint32(0)); err != nil {
+		return err
+	}
+
+	// Write record separator
 	if err := writer.WriteByte(RecordSeparator); err != nil {
 		return err
 	}
@@ -54,6 +66,6 @@ func InitFile(filename string) error {
 		return err
 	}
 
-	fmt.Printf("[DEBUG] Initialized header: [00 00 00 00 1E] (count=0)\n")
+	fmt.Printf("[DEBUG] Initialized header: [00 00 00 00 1F 00 00 00 00 1E] (count=0, nextID=0)\n")
 	return nil
 }

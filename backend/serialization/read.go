@@ -20,7 +20,7 @@ func ReadAllEntries(filename string) ([]Item, error) {
 	reader := bufio.NewReader(file)
 
 	// Read header using centralized header reader
-	count, err := ReadHeader(reader)
+	count, _, err := ReadHeader(reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read header: %w", err)
 	}
@@ -34,8 +34,7 @@ func ReadAllEntries(filename string) ([]Item, error) {
 			return nil, fmt.Errorf("failed to read record %d: %w", i+1, err)
 		}
 
-		// Assign the RecordID based on the position in the file
-		item.RecordID = i
+		// RecordID is now read from the file, no need to assign it
 
 		// Only include active records (not tombstoned)
 		if !item.Tombstone {

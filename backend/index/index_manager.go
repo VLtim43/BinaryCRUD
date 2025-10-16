@@ -4,7 +4,6 @@ import (
 	"BinaryCRUD/backend/index/b_tree"
 	"BinaryCRUD/backend/serialization"
 	"bufio"
-	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
@@ -81,8 +80,8 @@ func (m *IndexManager) RebuildIndex() error {
 
 	reader := bufio.NewReader(file)
 
-	// Read header to get record count
-	count, err := serialization.ReadHeader(reader)
+	// Read header to get record count and nextID
+	count, _, err := serialization.ReadHeader(reader)
 	if err != nil {
 		return fmt.Errorf("failed to read header: %w", err)
 	}
@@ -94,7 +93,7 @@ func (m *IndexManager) RebuildIndex() error {
 	currentOffset := int64(format.HeaderSize())
 
 	// Read each record and build index
-	for recordID := uint32(0); recordID < count; recordID++ {
+	for i := uint32(0); i < count; i++ {
 		// Record the offset BEFORE reading the record
 		recordOffset := currentOffset
 
@@ -104,19 +103,19 @@ func (m *IndexManager) RebuildIndex() error {
 			if err == io.EOF {
 				break
 			}
-			return fmt.Errorf("failed to read record %d: %w", recordID, err)
+			return fmt.Errorf("failed to read record %d: %w", i, err)
 		}
 
 		// Calculate size of this record
 		recordSize := format.CalculateRecordSize(len(item.Name))
 		currentOffset += int64(recordSize)
 
-		// Insert into index (RecordID → FileOffset)
-		m.tree.Insert(recordID, recordOffset)
+		// Insert into index using the stored ID from the record (ID → FileOffset)
+		m.tree.Insert(item.RecordID, recordOffset)
 
-		if recordID < 5 || recordID >= count-5 {
-			fmt.Printf("[INDEX]   Record %d: offset=%d, name=%s\n", recordID, recordOffset, item.Name)
-		} else if recordID == 5 {
+		if i < 5 || i >= count-5 {
+			fmt.Printf("[INDEX]   Record %d (ID=%d): offset=%d, name=%s\n", i, item.RecordID, recordOffset, item.Name)
+		} else if i == 5 {
 			fmt.Printf("[INDEX]   ... (%d more records) ...\n", count-10)
 		}
 	}
@@ -221,38 +220,33 @@ func (m *IndexManager) sequentialSearchByID(recordID uint32) (*serialization.Ite
 
 	reader := bufio.NewReader(file)
 
-	// Read header to get record count
-	count, err := serialization.ReadHeader(reader)
+	// Read header to get record count and nextID
+	count, _, err := serialization.ReadHeader(reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read header: %w", err)
-	}
-
-	// Check if recordID is within valid range
-	if recordID >= count {
-		return nil, fmt.Errorf("record ID %d out of range (total records: %d)", recordID, count)
 	}
 
 	fmt.Printf("[INDEX] Sequentially searching for recordID=%d among %d records\n", recordID, count)
 
 	// Read records sequentially until we find the target ID
-	for currentID := uint32(0); currentID < count; currentID++ {
+	for i := uint32(0); i < count; i++ {
 		item, err := serialization.ReadRecord(reader)
 		if err != nil {
 			if err == io.EOF {
 				return nil, fmt.Errorf("unexpected EOF while searching for record ID %d", recordID)
 			}
-			return nil, fmt.Errorf("failed to read record %d: %w", currentID, err)
+			return nil, fmt.Errorf("failed to read record at position %d: %w", i, err)
 		}
 
-		// Found the target record
-		if currentID == recordID {
+		// Found the target record by comparing stored IDs
+		if item.RecordID == recordID {
 			fmt.Printf("[INDEX] Found recordID=%d via sequential search\n", recordID)
 			return item, nil
 		}
 	}
 
-	// Should not reach here if recordID < count
-	return nil, fmt.Errorf("record ID %d not found after sequential search", recordID)
+	// Record ID not found in the file
+	return nil, fmt.Errorf("record ID %d not found after scanning %d records", recordID, count)
 }
 
 // GetNextRecordID returns the next available record ID
@@ -296,9 +290,10 @@ func (m *IndexManager) GetCurrentOffset() (int64, error) {
 	return fileInfo.Size(), nil
 }
 
-// UpdateHeader updates the record count in the data file header
+// UpdateHeader updates the record count and nextID in the data file header
 // Called after appending new records
-func (m *IndexManager) UpdateHeader(count uint32) error {
+// Note: This function is currently unused as AppendEntry handles header updates directly
+func (m *IndexManager) UpdateHeader(count uint32, nextID uint32) error {
 	file, err := os.OpenFile(m.dataFilename, os.O_RDWR, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open data file for header update: %w", err)
@@ -310,9 +305,14 @@ func (m *IndexManager) UpdateHeader(count uint32) error {
 		return fmt.Errorf("failed to seek to header: %w", err)
 	}
 
-	// Write updated count
-	if err := binary.Write(file, binary.LittleEndian, count); err != nil {
-		return fmt.Errorf("failed to write header count: %w", err)
+	// Write updated header using centralized writer
+	writer := bufio.NewWriter(file)
+	if err := serialization.WriteHeader(writer, count, nextID); err != nil {
+		return fmt.Errorf("failed to write header: %w", err)
+	}
+
+	if err := writer.Flush(); err != nil {
+		return fmt.Errorf("failed to flush header: %w", err)
 	}
 
 	return nil

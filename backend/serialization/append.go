@@ -2,7 +2,6 @@ package serialization
 
 import (
 	"bufio"
-	"encoding/binary"
 	"fmt"
 	"os"
 	"time"
@@ -32,13 +31,14 @@ func AppendEntry(filename string, name string) (*AppendResult, error) {
 	}
 	defer file.Close()
 
-	// Read current record count from header
-	var count uint32
-	if err := binary.Read(file, binary.LittleEndian, &count); err != nil {
+	// Read current record count and next ID from header
+	reader := bufio.NewReader(file)
+	count, nextID, err := ReadHeader(reader)
+	if err != nil {
 		return nil, err
 	}
 
-	fmt.Printf("[DEBUG] Current record count: %d\n", count)
+	fmt.Printf("[DEBUG] Current record count: %d, nextID: %d\n", count, nextID)
 
 	// Seek to end of file for appending and capture offset
 	offset, err := file.Seek(0, 2)
@@ -48,8 +48,9 @@ func AppendEntry(filename string, name string) (*AppendResult, error) {
 
 	fmt.Printf("[DEBUG] Writing record at offset: %d\n", offset)
 
-	// Create the item record with current timestamp
+	// Create the item record with current timestamp and the nextID
 	item := Item{
+		RecordID:  nextID,
 		Name:      name,
 		Tombstone: false,
 		Timestamp: time.Now().Unix(),
@@ -70,13 +71,13 @@ func AppendEntry(filename string, name string) (*AppendResult, error) {
 		return nil, err
 	}
 
-	// Update record count in header using centralized header writer
-	// The new record ID is the current count (0-based indexing)
-	recordID := count
+	// Update record count and nextID in header using centralized header writer
+	recordID := nextID
 	count++
+	nextID++
 
 	writer = bufio.NewWriter(file)
-	if err := WriteHeader(writer, count); err != nil {
+	if err := WriteHeader(writer, count, nextID); err != nil {
 		return nil, fmt.Errorf("failed to update header: %w", err)
 	}
 
@@ -84,7 +85,7 @@ func AppendEntry(filename string, name string) (*AppendResult, error) {
 		return nil, err
 	}
 
-	fmt.Printf("[DEBUG] Updated header count to: %d\n", count)
+	fmt.Printf("[DEBUG] Updated header: count=%d, nextID=%d\n", count, nextID)
 	fmt.Printf("[DEBUG] Assigned recordID: %d at offset: %d\n", recordID, offset)
 	fmt.Printf("[DEBUG] === Entry successfully written ===\n\n")
 

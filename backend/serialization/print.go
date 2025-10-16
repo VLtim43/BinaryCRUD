@@ -33,18 +33,19 @@ func PrintBinaryFile(filename string) (string, error) {
 
 	// Read header
 	offset := 0
-	count, countBytes, err := readHeaderForPrint(reader)
+	count, nextID, countBytes, nextIDBytes, err := readHeaderForPrint(reader)
 	if err != nil {
 		return "", fmt.Errorf("failed to read header: %w", err)
 	}
 	output.WriteString(fmt.Sprintf("record count: %d [%s]\n", count, formatHexBytes(countBytes)))
+	output.WriteString(fmt.Sprintf("next ID: %d [%s]\n", nextID, formatHexBytes(nextIDBytes)))
 	output.WriteString("-------------------------\n")
 
 	offset += format.HeaderSize()
 
 	// Read and print all records
 	for i := uint32(0); i < count; i++ {
-		_, bytesRead, err := printRecordSimple(&output, reader, int(i), offset)
+		_, bytesRead, err := printRecordSimple(&output, reader, offset)
 		if err != nil {
 			return "", fmt.Errorf("failed to read record %d: %w", i, err)
 		}
@@ -54,17 +55,28 @@ func PrintBinaryFile(filename string) (string, error) {
 	return output.String(), nil
 }
 
-// readHeaderForPrint reads the header and returns count and count bytes
-func readHeaderForPrint(reader *bufio.Reader) (uint32, []byte, error) {
+// readHeaderForPrint reads the header and returns count, nextID and their bytes
+func readHeaderForPrint(reader *bufio.Reader) (uint32, uint32, []byte, []byte, error) {
 	// Read count
 	var count uint32
 	if err := binary.Read(reader, binary.LittleEndian, &count); err != nil {
-		return 0, nil, err
+		return 0, 0, nil, nil, err
 	}
 
-	// Read separator (skip it)
+	// Read unit separator (skip it)
 	if _, err := reader.ReadByte(); err != nil {
-		return 0, nil, err
+		return 0, 0, nil, nil, err
+	}
+
+	// Read nextID
+	var nextID uint32
+	if err := binary.Read(reader, binary.LittleEndian, &nextID); err != nil {
+		return 0, 0, nil, nil, err
+	}
+
+	// Read record separator (skip it)
+	if _, err := reader.ReadByte(); err != nil {
+		return 0, 0, nil, nil, err
 	}
 
 	// Format count bytes
@@ -75,13 +87,34 @@ func readHeaderForPrint(reader *bufio.Reader) (uint32, []byte, error) {
 		byte(count >> 24),
 	}
 
-	return count, countBytes, nil
+	// Format nextID bytes
+	nextIDBytes := []byte{
+		byte(nextID),
+		byte(nextID >> 8),
+		byte(nextID >> 16),
+		byte(nextID >> 24),
+	}
+
+	return count, nextID, countBytes, nextIDBytes, nil
 }
 
 // printRecordSimple reads and formats a single record in the simple format
-func printRecordSimple(output *strings.Builder, reader *bufio.Reader, index int, offset int) (*Item, int, error) {
+func printRecordSimple(output *strings.Builder, reader *bufio.Reader, offset int) (*Item, int, error) {
 	format := GetFormat()
 	startOffset := offset
+
+	// Read ID
+	var recordID uint32
+	if err := binary.Read(reader, binary.LittleEndian, &recordID); err != nil {
+		return nil, 0, err
+	}
+	offset += 4
+
+	// Read unit separator (skip)
+	if _, err := reader.ReadByte(); err != nil {
+		return nil, 0, err
+	}
+	offset += 1
 
 	// Read tombstone
 	var tombstone uint8
@@ -154,7 +187,16 @@ func printRecordSimple(output *strings.Builder, reader *bufio.Reader, index int,
 	timestampHex := formatHexBytes(timestampBytes)
 	timestampDate := time.Unix(timestamp, 0).Format("2006-01-02 15:04:05")
 
-	output.WriteString(fmt.Sprintf("record id: %d [%02X]\n", index, index))
+	// Format recordID bytes
+	recordIDBytes := []byte{
+		byte(recordID),
+		byte(recordID >> 8),
+		byte(recordID >> 16),
+		byte(recordID >> 24),
+	}
+	recordIDHex := formatHexBytes(recordIDBytes)
+
+	output.WriteString(fmt.Sprintf("record id: %d [%s]\n", recordID, recordIDHex))
 	output.WriteString(fmt.Sprintf("record name: %s [%s]\n", string(nameBytes), nameHex))
 	output.WriteString(fmt.Sprintf("record total size: %d [%s]\n", totalSize, totalSizeHex))
 	output.WriteString(fmt.Sprintf("timestamp: %s [%s]\n", timestampDate, timestampHex))
@@ -162,6 +204,7 @@ func printRecordSimple(output *strings.Builder, reader *bufio.Reader, index int,
 	output.WriteString("-------------------------\n")
 
 	item := &Item{
+		RecordID:  recordID,
 		Name:      string(nameBytes),
 		Tombstone: tombstone != 0,
 		Timestamp: timestamp,

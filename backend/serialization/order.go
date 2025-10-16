@@ -41,13 +41,14 @@ func AppendOrder(filename string, items []OrderItem) (*AppendResult, error) {
 	}
 	defer file.Close()
 
-	// Read current record count from header
-	var count uint32
-	if err := binary.Read(file, binary.LittleEndian, &count); err != nil {
+	// Read current record count and next ID from header
+	reader := bufio.NewReader(file)
+	count, nextID, err := ReadHeader(reader)
+	if err != nil {
 		return nil, err
 	}
 
-	fmt.Printf("[DEBUG] Current order count: %d\n", count)
+	fmt.Printf("[DEBUG] Current order count: %d, nextID: %d\n", count, nextID)
 
 	// Seek to end of file for appending and capture offset
 	offset, err := file.Seek(0, 2)
@@ -79,13 +80,13 @@ func AppendOrder(filename string, items []OrderItem) (*AppendResult, error) {
 		return nil, err
 	}
 
-	// Update record count in header
-	// The new record ID is the current count (0-based indexing)
-	recordID := count
+	// Update record count and nextID in header
+	recordID := nextID
 	count++
+	nextID++
 
 	writer = bufio.NewWriter(file)
-	if err := WriteHeader(writer, count); err != nil {
+	if err := WriteHeader(writer, count, nextID); err != nil {
 		return nil, fmt.Errorf("failed to update header: %w", err)
 	}
 
@@ -337,7 +338,7 @@ func ReadAllOrders(filename string) ([]Order, error) {
 	reader := bufio.NewReader(file)
 
 	// Read header
-	count, err := ReadHeader(reader)
+	count, _, err := ReadHeader(reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read header: %w", err)
 	}
@@ -381,11 +382,12 @@ func PrintOrderBinaryFile(filename string) (string, error) {
 	reader := bufio.NewReader(file)
 
 	// Read header
-	count, countBytes, err := readHeaderForPrint(reader)
+	count, nextID, countBytes, nextIDBytes, err := readHeaderForPrint(reader)
 	if err != nil {
 		return "", fmt.Errorf("failed to read header: %w", err)
 	}
 	output += fmt.Sprintf("order count: %d [%s]\n", count, formatHexBytes(countBytes))
+	output += fmt.Sprintf("next ID: %d [%s]\n", nextID, formatHexBytes(nextIDBytes))
 	output += "-------------------------\n"
 
 	// Read and print all orders
