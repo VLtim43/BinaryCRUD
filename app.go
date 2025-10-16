@@ -226,3 +226,25 @@ func (a *App) PrintOrderBinaryFile() error {
 	return nil
 }
 
+// GetOrderByID retrieves an order by its record ID using sequential search
+// Returns a formatted string with order details
+func (a *App) GetOrderByID(recordID uint32) (string, error) {
+	order, err := a.orderDAO.GetByID(recordID)
+	if err != nil {
+		return "", err
+	}
+
+	// Format the order details
+	result := fmt.Sprintf("Order ID: %d\n", order.RecordID)
+	result += fmt.Sprintf("Items (%d):\n", len(order.Items))
+	for _, item := range order.Items {
+		result += fmt.Sprintf("  - Item ID: %d, Quantity: %d\n", item.ItemID, item.Quantity)
+	}
+
+	if order.Tombstone {
+		result += "(deleted)"
+	}
+
+	return result, nil
+}
+

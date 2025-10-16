@@ -12,6 +12,7 @@ import {
   GetItems,
   CreateOrder,
   PrintOrderBinaryFile,
+  GetOrderByID,
 } from "../wailsjs/go/main/App";
 import { Quit } from "../wailsjs/runtime/runtime";
 import { useState, useEffect } from "preact/hooks";
@@ -25,6 +26,7 @@ export const App = () => {
   const [itemText, setItemText] = useState("");
   const [recordId, setRecordId] = useState("");
   const [deleteRecordId, setDeleteRecordId] = useState("");
+  const [orderRecordId, setOrderRecordId] = useState("");
   const [jsonFilePath, setJsonFilePath] = useState("inventory.json");
   const [allItems, setAllItems] = useState<Array<{ id: number; name: string }>>(
     []
@@ -47,6 +49,13 @@ export const App = () => {
     // Only allow empty string or non-negative integers
     if (value === "" || /^\d+$/.test(value)) {
       setDeleteRecordId(value);
+    }
+  };
+  const updateOrderRecordId = (e: any) => {
+    const value = e.target.value;
+    // Only allow empty string or non-negative integers
+    if (value === "" || /^\d+$/.test(value)) {
+      setOrderRecordId(value);
     }
   };
   const updateJsonFilePath = (e: any) => setJsonFilePath(e.target.value);
@@ -79,7 +88,7 @@ export const App = () => {
         case "create":
           return "Select items for your order";
         case "read":
-          return "View orders";
+          return "Enter an order ID to fetch 👇";
         case "delete":
           return "Enter an order ID to delete 👇";
         default:
@@ -340,6 +349,29 @@ export const App = () => {
       });
   };
 
+  const getOrderById = () => {
+    // Validate input before sending to backend
+    if (!orderRecordId || orderRecordId.trim().length === 0) {
+      updateResultText("Error: Please enter an order ID");
+      return;
+    }
+
+    // Parse the record ID as a number
+    const id = parseInt(orderRecordId, 10);
+    if (isNaN(id) || id < 0) {
+      updateResultText("Error: Order ID must be a valid non-negative number");
+      return;
+    }
+
+    GetOrderByID(id)
+      .then((orderDetails: string) => {
+        updateResultText(orderDetails);
+      })
+      .catch((err: any) => {
+        updateResultText(`Error: ${err}`);
+      });
+  };
+
   return (
     <>
       <button className="close-btn" onClick={() => Quit()}>
@@ -544,8 +576,20 @@ export const App = () => {
 
         {activeTab === "order" && orderSubTab === "read" && (
           <div id="order-read" className="input-box">
+            <input
+              id="order-record-id"
+              className="input"
+              onChange={updateOrderRecordId}
+              autoComplete="off"
+              name="order-record-id"
+              placeholder="Enter Order ID"
+              value={orderRecordId}
+            />
+            <button className="btn" onClick={getOrderById}>
+              Get Order
+            </button>
             <button className="btn" onClick={printOrderFile}>
-              Print
+              Print All
             </button>
           </div>
         )}

@@ -33,7 +33,7 @@ BinaryCRUD.exe
 ### Order Tab
 
 - **Create**: Build orders from existing items (shopping cart)
-- **Read**: View all orders
+- **Read**: Look up orders by record ID or print all orders
 - **Delete**: Remove orders
 
 ### Debug Tab

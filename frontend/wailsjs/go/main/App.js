@@ -26,6 +26,10 @@ export function GetItems() {
   return window['go']['main']['App']['GetItems']();
 }
 
+export function GetOrderByID(arg1) {
+  return window['go']['main']['App']['GetOrderByID'](arg1);
+}
+
 export function PopulateInventory(arg1) {
   return window['go']['main']['App']['PopulateInventory'](arg1);
 }

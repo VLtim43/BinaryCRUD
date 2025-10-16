@@ -249,17 +249,6 @@ func (m *IndexManager) sequentialSearchByID(recordID uint32) (*serialization.Ite
 	return nil, fmt.Errorf("record ID %d not found after scanning %d records", recordID, count)
 }
 
-// GetNextRecordID returns the next available record ID
-// Used when appending new records
-func (m *IndexManager) GetNextRecordID() uint32 {
-	if m.tree == nil || m.tree.Count() == 0 {
-		return 0
-	}
-
-	// The next ID is simply the current count
-	return uint32(m.tree.Count())
-}
-
 // PrintTree prints the B+ tree structure (for debugging)
 func (m *IndexManager) PrintTree() {
 	if m.tree != nil {

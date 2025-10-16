@@ -20,6 +20,7 @@ package dao
 
 import (
 	"BinaryCRUD/backend/serialization"
+	"fmt"
 )
 
 type OrderDAO struct {
@@ -48,4 +49,22 @@ func (dao *OrderDAO) Read() ([]serialization.Order, error) {
 
 func (dao *OrderDAO) Print() (string, error) {
 	return serialization.PrintOrderBinaryFile(dao.filename)
+}
+
+// GetByID retrieves an order by its record ID using sequential search
+// Note: Orders are not indexed, so this performs a sequential scan
+func (dao *OrderDAO) GetByID(recordID uint32) (*serialization.Order, error) {
+	orders, err := serialization.ReadAllOrders(dao.filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read orders: %w", err)
+	}
+
+	// Sequential search through orders
+	for _, order := range orders {
+		if order.RecordID == recordID {
+			return &order, nil
+		}
+	}
+
+	return nil, fmt.Errorf("order with ID %d not found", recordID)
 }
