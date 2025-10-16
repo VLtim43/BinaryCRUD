@@ -29,6 +29,10 @@ export const App = () => {
     []
   );
   const [selectedItemId, setSelectedItemId] = useState<number | "">("");
+  const [cart, setCart] = useState<Array<{ id: number; name: string; quantity: number }>>(
+    []
+  );
+  const [cartSortBy, setCartSortBy] = useState<"id" | "name">("id");
   const updateItemText = (e: any) => setItemText(e.target.value);
   const updateRecordId = (e: any) => {
     const value = e.target.value;
@@ -218,6 +222,67 @@ export const App = () => {
       });
   };
 
+  const addToCart = () => {
+    if (selectedItemId === "") {
+      updateResultText("Error: Please select an item");
+      return;
+    }
+
+    const selectedItem = allItems.find((item) => item.id === selectedItemId);
+    if (!selectedItem) {
+      updateResultText("Error: Item not found");
+      return;
+    }
+
+    const existingCartItem = cart.find((item) => item.id === selectedItemId);
+    if (existingCartItem) {
+      setCart(
+        cart.map((item) =>
+          item.id === selectedItemId
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        )
+      );
+      updateResultText(`Added another ${selectedItem.name} to cart`);
+    } else {
+      setCart([...cart, { ...selectedItem, quantity: 1 }]);
+      updateResultText(`Added ${selectedItem.name} to cart`);
+    }
+    setSelectedItemId("");
+  };
+
+  const removeFromCart = (id: number) => {
+    const item = cart.find((item) => item.id === id);
+    if (item && item.quantity > 1) {
+      setCart(
+        cart.map((item) =>
+          item.id === id ? { ...item, quantity: item.quantity - 1 } : item
+        )
+      );
+    } else {
+      setCart(cart.filter((item) => item.id !== id));
+    }
+  };
+
+  const clearCart = () => {
+    setCart([]);
+    updateResultText("Cart cleared");
+  };
+
+  const toggleCartSort = () => {
+    setCartSortBy(cartSortBy === "id" ? "name" : "id");
+  };
+
+  const getSortedCart = () => {
+    const sortedCart = [...cart];
+    if (cartSortBy === "id") {
+      sortedCart.sort((a, b) => a.id - b.id);
+    } else {
+      sortedCart.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return sortedCart;
+  };
+
   return (
     <>
       <button className="close-btn" onClick={() => Quit()}>
@@ -294,23 +359,69 @@ export const App = () => {
         )}
 
         {activeTab === "create" && createSubTab === "order" && (
-          <div id="order-controls" className="input-box">
-            <select
-              className="input"
-              value={selectedItemId}
-              onChange={(e: any) =>
-                setSelectedItemId(
-                  e.target.value === "" ? "" : Number(e.target.value)
-                )
-              }
-            >
-              <option value="">Select an item</option>
-              {allItems.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name} (ID: {item.id})
-                </option>
-              ))}
-            </select>
+          <div id="order-section">
+            <div className="cart-container">
+              <div className="cart-header">
+                <div className="cart-title">
+                  <h3>Shopping Cart</h3>
+                  <button className="btn btn-sort" onClick={toggleCartSort}>
+                    Sort: {cartSortBy === "id" ? "ID" : "A-Z"}
+                  </button>
+                </div>
+                {cart.length > 0 && (
+                  <button className="btn btn-secondary" onClick={clearCart}>
+                    Clear Cart
+                  </button>
+                )}
+              </div>
+              <div className="cart-items">
+                {cart.length > 0 ? (
+                  getSortedCart().map((item) => (
+                    <div key={item.id} className="cart-item">
+                      <div className="cart-item-info">
+                        <span className="cart-item-name">{item.name}</span>
+                        <span className="cart-item-id">ID: {item.id}</span>
+                      </div>
+                      <div className="cart-item-controls">
+                        <span className="cart-item-quantity">x{item.quantity}</span>
+                        <button
+                          className="btn btn-small btn-danger"
+                          onClick={() => removeFromCart(item.id)}
+                        >
+                          -
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="cart-empty">Cart is empty</div>
+                )}
+              </div>
+              <div className="cart-footer">
+                <select
+                  className="input cart-select"
+                  value={selectedItemId}
+                  onChange={(e: any) =>
+                    setSelectedItemId(
+                      e.target.value === "" ? "" : Number(e.target.value)
+                    )
+                  }
+                >
+                  <option value="">Select an item</option>
+                  {allItems.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} (ID: {item.id})
+                    </option>
+                  ))}
+                </select>
+                <button className="btn" onClick={addToCart}>
+                  Add to Cart
+                </button>
+                <button className="btn btn-primary">
+                  Create Order
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
