@@ -80,8 +80,8 @@ func (m *IndexManager) RebuildIndex() error {
 
 	reader := bufio.NewReader(file)
 
-	// Read header to get record count and nextID
-	count, _, err := serialization.ReadHeader(reader)
+	// Read header to get record count
+	count, err := serialization.ReadHeader(reader)
 	if err != nil {
 		return fmt.Errorf("failed to read header: %w", err)
 	}
@@ -220,8 +220,8 @@ func (m *IndexManager) sequentialSearchByID(recordID uint32) (*serialization.Ite
 
 	reader := bufio.NewReader(file)
 
-	// Read header to get record count and nextID
-	count, _, err := serialization.ReadHeader(reader)
+	// Read header to get record count
+	count, err := serialization.ReadHeader(reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read header: %w", err)
 	}
@@ -290,10 +290,10 @@ func (m *IndexManager) GetCurrentOffset() (int64, error) {
 	return fileInfo.Size(), nil
 }
 
-// UpdateHeader updates the record count and nextID in the data file header
+// UpdateHeader updates the record count in the data file header
 // Called after appending new records
 // Note: This function is currently unused as AppendEntry handles header updates directly
-func (m *IndexManager) UpdateHeader(count uint32, nextID uint32) error {
+func (m *IndexManager) UpdateHeader(count uint32) error {
 	file, err := os.OpenFile(m.dataFilename, os.O_RDWR, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open data file for header update: %w", err)
@@ -307,7 +307,7 @@ func (m *IndexManager) UpdateHeader(count uint32, nextID uint32) error {
 
 	// Write updated header using centralized writer
 	writer := bufio.NewWriter(file)
-	if err := serialization.WriteHeader(writer, count, nextID); err != nil {
+	if err := serialization.WriteHeader(writer, count); err != nil {
 		return fmt.Errorf("failed to write header: %w", err)
 	}
 

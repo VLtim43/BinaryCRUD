@@ -9,21 +9,11 @@ import (
 	"time"
 )
 
-// WriteHeader writes the file header with the given record count and next ID
-func WriteHeader(writer *bufio.Writer, count uint32, nextID uint32) error {
+// WriteHeader writes the file header with the given record count
+func WriteHeader(writer *bufio.Writer, count uint32) error {
 	// Write record count (4 bytes, little-endian)
 	if err := binary.Write(writer, binary.LittleEndian, count); err != nil {
 		return fmt.Errorf("failed to write header count: %w", err)
-	}
-
-	// Write unit separator
-	if err := writer.WriteByte(UnitSeparator); err != nil {
-		return fmt.Errorf("failed to write header unit separator: %w", err)
-	}
-
-	// Write next ID (4 bytes, little-endian)
-	if err := binary.Write(writer, binary.LittleEndian, nextID); err != nil {
-		return fmt.Errorf("failed to write header nextID: %w", err)
 	}
 
 	// Write record separator
@@ -34,37 +24,23 @@ func WriteHeader(writer *bufio.Writer, count uint32, nextID uint32) error {
 	return nil
 }
 
-// ReadHeader reads and returns the record count and next ID from the file header
-func ReadHeader(reader *bufio.Reader) (count uint32, nextID uint32, err error) {
+// ReadHeader reads and returns the record count from the file header
+func ReadHeader(reader *bufio.Reader) (count uint32, err error) {
 	// Read record count (4 bytes, little-endian)
 	if err := binary.Read(reader, binary.LittleEndian, &count); err != nil {
-		return 0, 0, fmt.Errorf("failed to read header count: %w", err)
-	}
-
-	// Read and verify unit separator
-	sep, err := reader.ReadByte()
-	if err != nil {
-		return 0, 0, fmt.Errorf("failed to read header unit separator: %w", err)
-	}
-	if sep != UnitSeparator {
-		return 0, 0, fmt.Errorf("invalid header unit separator: expected 0x%02X, got 0x%02X", UnitSeparator, sep)
-	}
-
-	// Read next ID (4 bytes, little-endian)
-	if err := binary.Read(reader, binary.LittleEndian, &nextID); err != nil {
-		return 0, 0, fmt.Errorf("failed to read header nextID: %w", err)
+		return 0, fmt.Errorf("failed to read header count: %w", err)
 	}
 
 	// Read and verify record separator
-	sep, err = reader.ReadByte()
+	sep, err := reader.ReadByte()
 	if err != nil {
-		return 0, 0, fmt.Errorf("failed to read header separator: %w", err)
+		return 0, fmt.Errorf("failed to read header separator: %w", err)
 	}
 	if sep != RecordSeparator {
-		return 0, 0, fmt.Errorf("invalid header separator: expected 0x%02X, got 0x%02X", RecordSeparator, sep)
+		return 0, fmt.Errorf("invalid header separator: expected 0x%02X, got 0x%02X", RecordSeparator, sep)
 	}
 
-	return count, nextID, nil
+	return count, nil
 }
 
 // WriteRecord writes a single record to the writer

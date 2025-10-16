@@ -20,7 +20,7 @@ func ReadAllEntries(filename string) ([]Item, error) {
 	reader := bufio.NewReader(file)
 
 	// Read header using centralized header reader
-	count, _, err := ReadHeader(reader)
+	count, err := ReadHeader(reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read header: %w", err)
 	}

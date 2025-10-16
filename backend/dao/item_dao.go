@@ -1,5 +1,19 @@
 package dao
 
+// Binary structure of item.bin:
+//
+// HEADER:
+//   [Count:4 bytes][0x1E]
+//
+// ITEM RECORD:
+//   [RecordID:4 bytes][0x1F][Tombstone:1 byte][0x1F][NameLength:4 bytes][0x1F][Name:N bytes][0x1F][Timestamp:8 bytes][0x1E]
+//
+// Notes:
+//   - All multi-byte integers are little-endian
+//   - Tombstone: 0=active, 1=deleted
+//   - RecordID is assigned from Count before incrementing
+//   - 0x1F = Unit Separator, 0x1E = Record Separator
+
 import (
 	"BinaryCRUD/backend/index"
 	"BinaryCRUD/backend/serialization"

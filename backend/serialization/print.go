@@ -33,12 +33,11 @@ func PrintBinaryFile(filename string) (string, error) {
 
 	// Read header
 	offset := 0
-	count, nextID, countBytes, nextIDBytes, err := readHeaderForPrint(reader)
+	count, countBytes, err := readHeaderForPrint(reader)
 	if err != nil {
 		return "", fmt.Errorf("failed to read header: %w", err)
 	}
 	output.WriteString(fmt.Sprintf("record count: %d [%s]\n", count, formatHexBytes(countBytes)))
-	output.WriteString(fmt.Sprintf("next ID: %d [%s]\n", nextID, formatHexBytes(nextIDBytes)))
 	output.WriteString("-------------------------\n")
 
 	offset += format.HeaderSize()
@@ -55,28 +54,17 @@ func PrintBinaryFile(filename string) (string, error) {
 	return output.String(), nil
 }
 
-// readHeaderForPrint reads the header and returns count, nextID and their bytes
-func readHeaderForPrint(reader *bufio.Reader) (uint32, uint32, []byte, []byte, error) {
+// readHeaderForPrint reads the header and returns count and its bytes
+func readHeaderForPrint(reader *bufio.Reader) (uint32, []byte, error) {
 	// Read count
 	var count uint32
 	if err := binary.Read(reader, binary.LittleEndian, &count); err != nil {
-		return 0, 0, nil, nil, err
-	}
-
-	// Read unit separator (skip it)
-	if _, err := reader.ReadByte(); err != nil {
-		return 0, 0, nil, nil, err
-	}
-
-	// Read nextID
-	var nextID uint32
-	if err := binary.Read(reader, binary.LittleEndian, &nextID); err != nil {
-		return 0, 0, nil, nil, err
+		return 0, nil, err
 	}
 
 	// Read record separator (skip it)
 	if _, err := reader.ReadByte(); err != nil {
-		return 0, 0, nil, nil, err
+		return 0, nil, err
 	}
 
 	// Format count bytes
@@ -87,15 +75,7 @@ func readHeaderForPrint(reader *bufio.Reader) (uint32, uint32, []byte, []byte, e
 		byte(count >> 24),
 	}
 
-	// Format nextID bytes
-	nextIDBytes := []byte{
-		byte(nextID),
-		byte(nextID >> 8),
-		byte(nextID >> 16),
-		byte(nextID >> 24),
-	}
-
-	return count, nextID, countBytes, nextIDBytes, nil
+	return count, countBytes, nil
 }
 
 // printRecordSimple reads and formats a single record in the simple format
