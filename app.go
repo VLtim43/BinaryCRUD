@@ -2,7 +2,7 @@ package main
 
 import (
 	"BinaryCRUD/backend/dao"
-	"BinaryCRUD/backend/serialization"
+	"BinaryCRUD/backend/persistence"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -202,9 +202,9 @@ func (a *App) CreateOrder(items []OrderItemDTO) error {
 	}
 
 	// Convert DTOs to domain objects
-	orderItems := make([]serialization.OrderItem, len(items))
+	orderItems := make([]persistence.OrderItem, len(items))
 	for i, item := range items {
-		orderItems[i] = serialization.OrderItem{
+		orderItems[i] = persistence.OrderItem{
 			ItemID:   item.ItemID,
 			Quantity: item.Quantity,
 		}

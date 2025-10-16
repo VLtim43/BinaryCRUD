@@ -1,4 +1,4 @@
-package serialization
+package persistence
 
 import (
 	"bufio"

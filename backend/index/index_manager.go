@@ -2,7 +2,7 @@ package index
 
 import (
 	"BinaryCRUD/backend/index/b_tree"
-	"BinaryCRUD/backend/serialization"
+	"BinaryCRUD/backend/persistence"
 	"bufio"
 	"fmt"
 	"io"
@@ -81,7 +81,7 @@ func (m *IndexManager) RebuildIndex() error {
 	reader := bufio.NewReader(file)
 
 	// Read header to get record count
-	count, err := serialization.ReadHeader(reader)
+	count, err := persistence.ReadHeader(reader)
 	if err != nil {
 		return fmt.Errorf("failed to read header: %w", err)
 	}
@@ -89,7 +89,7 @@ func (m *IndexManager) RebuildIndex() error {
 	fmt.Printf("[INDEX] Scanning %d records...\n", count)
 
 	// Track file position (starts after header)
-	format := serialization.GetFormat()
+	format := persistence.GetFormat()
 	currentOffset := int64(format.HeaderSize())
 
 	// Read each record and build index
@@ -98,7 +98,7 @@ func (m *IndexManager) RebuildIndex() error {
 		recordOffset := currentOffset
 
 		// Read the record
-		item, err := serialization.ReadRecord(reader)
+		item, err := persistence.ReadRecord(reader)
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -168,7 +168,7 @@ func (m *IndexManager) Save() error {
 // GetRecordByID reads a specific record from the data file using the index
 // Returns the item at the given record ID
 // If the index lookup fails, it falls back to sequential search
-func (m *IndexManager) GetRecordByID(recordID uint32) (*serialization.Item, error) {
+func (m *IndexManager) GetRecordByID(recordID uint32) (*persistence.Item, error) {
 	// Try to lookup offset in index first
 	offset, found := m.GetOffset(recordID)
 
@@ -190,7 +190,7 @@ func (m *IndexManager) GetRecordByID(recordID uint32) (*serialization.Item, erro
 
 		// Read the record
 		reader := bufio.NewReader(file)
-		item, err := serialization.ReadRecord(reader)
+		item, err := persistence.ReadRecord(reader)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read record at offset %d: %w", offset, err)
 		}
@@ -205,7 +205,7 @@ func (m *IndexManager) GetRecordByID(recordID uint32) (*serialization.Item, erro
 
 // sequentialSearchByID performs a sequential search through the data file to find a record by ID
 // This is used as a fallback when the index is not available or doesn't contain the record
-func (m *IndexManager) sequentialSearchByID(recordID uint32) (*serialization.Item, error) {
+func (m *IndexManager) sequentialSearchByID(recordID uint32) (*persistence.Item, error) {
 	// Check if data file exists
 	if _, err := os.Stat(m.dataFilename); os.IsNotExist(err) {
 		return nil, fmt.Errorf("data file does not exist")
@@ -221,7 +221,7 @@ func (m *IndexManager) sequentialSearchByID(recordID uint32) (*serialization.Ite
 	reader := bufio.NewReader(file)
 
 	// Read header to get record count
-	count, err := serialization.ReadHeader(reader)
+	count, err := persistence.ReadHeader(reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read header: %w", err)
 	}
@@ -230,7 +230,7 @@ func (m *IndexManager) sequentialSearchByID(recordID uint32) (*serialization.Ite
 
 	// Read records sequentially until we find the target ID
 	for i := uint32(0); i < count; i++ {
-		item, err := serialization.ReadRecord(reader)
+		item, err := persistence.ReadRecord(reader)
 		if err != nil {
 			if err == io.EOF {
 				return nil, fmt.Errorf("unexpected EOF while searching for record ID %d", recordID)
@@ -263,7 +263,7 @@ func (m *IndexManager) GetCurrentOffset() (int64, error) {
 	if err != nil {
 		// If file doesn't exist, offset is 0 (will be header size after init)
 		if os.IsNotExist(err) {
-			format := serialization.GetFormat()
+			format := persistence.GetFormat()
 			return int64(format.HeaderSize()), nil
 		}
 		return 0, fmt.Errorf("failed to open data file: %w", err)
@@ -296,7 +296,7 @@ func (m *IndexManager) UpdateHeader(count uint32) error {
 
 	// Write updated header using centralized writer
 	writer := bufio.NewWriter(file)
-	if err := serialization.WriteHeader(writer, count); err != nil {
+	if err := persistence.WriteHeader(writer, count); err != nil {
 		return fmt.Errorf("failed to write header: %w", err)
 	}
 

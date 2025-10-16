@@ -1,4 +1,4 @@
-package serialization
+package persistence
 
 type BinaryFormat struct {
 	// Header structure

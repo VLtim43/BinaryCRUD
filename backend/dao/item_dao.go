@@ -16,7 +16,7 @@ package dao
 
 import (
 	"BinaryCRUD/backend/index"
-	"BinaryCRUD/backend/serialization"
+	"BinaryCRUD/backend/persistence"
 	"fmt"
 	"os"
 )
@@ -43,7 +43,7 @@ func NewItemDAO(filename string) *ItemDAO {
 
 func (dao *ItemDAO) Write(text string) error {
 	// Append entry and get result with recordID and offset
-	result, err := serialization.AppendEntry(dao.filename, text)
+	result, err := persistence.AppendEntry(dao.filename, text)
 	if err != nil {
 		return err
 	}
@@ -61,16 +61,16 @@ func (dao *ItemDAO) Write(text string) error {
 	return nil
 }
 
-func (dao *ItemDAO) Read() ([]serialization.Item, error) {
-	return serialization.ReadAllEntries(dao.filename)
+func (dao *ItemDAO) Read() ([]persistence.Item, error) {
+	return persistence.ReadAllEntries(dao.filename)
 }
 
 func (dao *ItemDAO) Print() (string, error) {
-	return serialization.PrintBinaryFile(dao.filename)
+	return persistence.PrintBinaryFile(dao.filename)
 }
 
 // GetByID retrieves an item by its record ID using the index
-func (dao *ItemDAO) GetByID(recordID uint32) (*serialization.Item, error) {
+func (dao *ItemDAO) GetByID(recordID uint32) (*persistence.Item, error) {
 	return dao.indexManager.GetRecordByID(recordID)
 }
 

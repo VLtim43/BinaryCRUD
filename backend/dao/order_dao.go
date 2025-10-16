@@ -19,7 +19,7 @@ package dao
 //   - Items array is a sequence of ItemID/Quantity pairs, each followed by 0x1F
 
 import (
-	"BinaryCRUD/backend/serialization"
+	"BinaryCRUD/backend/persistence"
 	"fmt"
 )
 
@@ -33,9 +33,9 @@ func NewOrderDAO(filename string) *OrderDAO {
 	}
 }
 
-func (dao *OrderDAO) Write(items []serialization.OrderItem) error {
+func (dao *OrderDAO) Write(items []persistence.OrderItem) error {
 	// Append entry and get result with recordID and offset
-	_, err := serialization.AppendOrder(dao.filename, items)
+	_, err := persistence.AppendOrder(dao.filename, items)
 	if err != nil {
 		return err
 	}
@@ -43,18 +43,18 @@ func (dao *OrderDAO) Write(items []serialization.OrderItem) error {
 	return nil
 }
 
-func (dao *OrderDAO) Read() ([]serialization.Order, error) {
-	return serialization.ReadAllOrders(dao.filename)
+func (dao *OrderDAO) Read() ([]persistence.Order, error) {
+	return persistence.ReadAllOrders(dao.filename)
 }
 
 func (dao *OrderDAO) Print() (string, error) {
-	return serialization.PrintOrderBinaryFile(dao.filename)
+	return persistence.PrintOrderBinaryFile(dao.filename)
 }
 
 // GetByID retrieves an order by its record ID using sequential search
 // Note: Orders are not indexed, so this performs a sequential scan
-func (dao *OrderDAO) GetByID(recordID uint32) (*serialization.Order, error) {
-	orders, err := serialization.ReadAllOrders(dao.filename)
+func (dao *OrderDAO) GetByID(recordID uint32) (*persistence.Order, error) {
+	orders, err := persistence.ReadAllOrders(dao.filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read orders: %w", err)
 	}
