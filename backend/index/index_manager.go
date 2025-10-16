@@ -147,6 +147,13 @@ func (m *IndexManager) GetOffset(recordID uint32) (int64, bool) {
 		return 0, false
 	}
 
+	// Check if index file actually exists on disk
+	// If it was deleted, don't use the in-memory tree
+	if !b_tree.IndexFileExists(m.indexFilename) {
+		fmt.Printf("[INDEX] Index file no longer exists on disk\n")
+		return 0, false
+	}
+
 	return m.tree.Search(recordID)
 }
 
@@ -161,14 +168,49 @@ func (m *IndexManager) Save() error {
 
 // GetRecordByID reads a specific record from the data file using the index
 // Returns the item at the given record ID
+// If the index lookup fails, it falls back to sequential search
 func (m *IndexManager) GetRecordByID(recordID uint32) (*serialization.Item, error) {
-	// Lookup offset in index
+	// Try to lookup offset in index first
 	offset, found := m.GetOffset(recordID)
-	if !found {
-		return nil, fmt.Errorf("record ID %d not found in index", recordID)
+
+	if found {
+		// Index lookup succeeded - use direct file access
+		fmt.Printf("[INDEX] Found recordID=%d at offset=%d (via index)\n", recordID, offset)
+
+		// Open data file
+		file, err := os.Open(m.dataFilename)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open data file: %w", err)
+		}
+		defer file.Close()
+
+		// Seek to offset
+		if _, err := file.Seek(offset, io.SeekStart); err != nil {
+			return nil, fmt.Errorf("failed to seek to offset %d: %w", offset, err)
+		}
+
+		// Read the record
+		reader := bufio.NewReader(file)
+		item, err := serialization.ReadRecord(reader)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read record at offset %d: %w", offset, err)
+		}
+
+		return item, nil
 	}
 
-	fmt.Printf("[INDEX] Found recordID=%d at offset=%d\n", recordID, offset)
+	// Index lookup failed - fall back to sequential search
+	fmt.Printf("[INDEX] RecordID=%d not found in index, falling back to sequential search\n", recordID)
+	return m.sequentialSearchByID(recordID)
+}
+
+// sequentialSearchByID performs a sequential search through the data file to find a record by ID
+// This is used as a fallback when the index is not available or doesn't contain the record
+func (m *IndexManager) sequentialSearchByID(recordID uint32) (*serialization.Item, error) {
+	// Check if data file exists
+	if _, err := os.Stat(m.dataFilename); os.IsNotExist(err) {
+		return nil, fmt.Errorf("data file does not exist")
+	}
 
 	// Open data file
 	file, err := os.Open(m.dataFilename)
@@ -177,19 +219,40 @@ func (m *IndexManager) GetRecordByID(recordID uint32) (*serialization.Item, erro
 	}
 	defer file.Close()
 
-	// Seek to offset
-	if _, err := file.Seek(offset, io.SeekStart); err != nil {
-		return nil, fmt.Errorf("failed to seek to offset %d: %w", offset, err)
-	}
-
-	// Read the record
 	reader := bufio.NewReader(file)
-	item, err := serialization.ReadRecord(reader)
+
+	// Read header to get record count
+	count, err := serialization.ReadHeader(reader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read record at offset %d: %w", offset, err)
+		return nil, fmt.Errorf("failed to read header: %w", err)
 	}
 
-	return item, nil
+	// Check if recordID is within valid range
+	if recordID >= count {
+		return nil, fmt.Errorf("record ID %d out of range (total records: %d)", recordID, count)
+	}
+
+	fmt.Printf("[INDEX] Sequentially searching for recordID=%d among %d records\n", recordID, count)
+
+	// Read records sequentially until we find the target ID
+	for currentID := uint32(0); currentID < count; currentID++ {
+		item, err := serialization.ReadRecord(reader)
+		if err != nil {
+			if err == io.EOF {
+				return nil, fmt.Errorf("unexpected EOF while searching for record ID %d", recordID)
+			}
+			return nil, fmt.Errorf("failed to read record %d: %w", currentID, err)
+		}
+
+		// Found the target record
+		if currentID == recordID {
+			fmt.Printf("[INDEX] Found recordID=%d via sequential search\n", recordID)
+			return item, nil
+		}
+	}
+
+	// Should not reach here if recordID < count
+	return nil, fmt.Errorf("record ID %d not found after sequential search", recordID)
 }
 
 // GetNextRecordID returns the next available record ID

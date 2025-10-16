@@ -44,9 +44,9 @@ func PrintBinaryFile(filename string) (string, error) {
 
 	// Read and print all records
 	for i := uint32(0); i < count; i++ {
-		_, bytesRead, err := printRecordSimple(&output, reader, int(i+1), offset)
+		_, bytesRead, err := printRecordSimple(&output, reader, int(i), offset)
 		if err != nil {
-			return "", fmt.Errorf("failed to read record %d: %w", i+1, err)
+			return "", fmt.Errorf("failed to read record %d: %w", i, err)
 		}
 		offset += bytesRead
 	}

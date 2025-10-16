@@ -1,18 +1,51 @@
 import "./App.scss";
 import logo from "./assets/images/logo-universal.png";
-import { AddItem, PrintBinaryFile, DeleteAllFiles } from "../wailsjs/go/main/App";
+import {
+  AddItem,
+  PrintBinaryFile,
+  DeleteAllFiles,
+  GetItemByID,
+} from "../wailsjs/go/main/App";
 import { Quit } from "../wailsjs/runtime/runtime";
 import { useState } from "preact/hooks";
 import { h, Fragment } from "preact";
 
 export const App = () => {
-  const [activeTab, setActiveTab] = useState<"create" | "read" | "debug">("create");
+  const [activeTab, setActiveTab] = useState<"create" | "read" | "debug">(
+    "create"
+  );
   const [resultText, setResultText] = useState("Enter item text below 👇");
   const [itemText, setItemText] = useState("");
   const [recordId, setRecordId] = useState("");
   const updateItemText = (e: any) => setItemText(e.target.value);
-  const updateRecordId = (e: any) => setRecordId(e.target.value);
+  const updateRecordId = (e: any) => {
+    const value = e.target.value;
+    // Only allow empty string or non-negative integers
+    if (value === "" || /^\d+$/.test(value)) {
+      setRecordId(value);
+    }
+  };
   const updateResultText = (result: string) => setResultText(result);
+
+  // Get default text for each tab
+  const getDefaultText = (tab: "create" | "read" | "debug") => {
+    switch (tab) {
+      case "create":
+        return "Enter item text below 👇";
+      case "read":
+        return "Enter a record ID to fetch 👇";
+      case "debug":
+        return "Debug tools and utilities";
+      default:
+        return "";
+    }
+  };
+
+  // Handle tab changes
+  const handleTabChange = (tab: "create" | "read" | "debug") => {
+    setActiveTab(tab);
+    setResultText(getDefaultText(tab));
+  };
 
   const addItem = () => {
     // Validate input before sending to backend
@@ -42,8 +75,26 @@ export const App = () => {
   };
 
   const getRecordById = () => {
-    // TODO: Implement logic to fetch record by ID
-    updateResultText(`Getting record with ID: ${recordId}`);
+    // Validate input before sending to backend
+    if (!recordId || recordId.trim().length === 0) {
+      updateResultText("Error: Please enter a record ID");
+      return;
+    }
+
+    // Parse the record ID as a number
+    const id = parseInt(recordId, 10);
+    if (isNaN(id) || id < 0) {
+      updateResultText("Error: Record ID must be a valid non-negative number");
+      return;
+    }
+
+    GetItemByID(id)
+      .then((itemName: string) => {
+        updateResultText(`Record ${id}: ${itemName}`);
+      })
+      .catch((err: any) => {
+        updateResultText(`Error: ${err}`);
+      });
   };
 
   const deleteAllFiles = () => {
@@ -58,23 +109,25 @@ export const App = () => {
 
   return (
     <>
-      <button className="close-btn" onClick={() => Quit()}>×</button>
+      <button className="close-btn" onClick={() => Quit()}>
+        ×
+      </button>
       <div className="tabs">
         <button
           className={`tab ${activeTab === "create" ? "active" : ""}`}
-          onClick={() => setActiveTab("create")}
+          onClick={() => handleTabChange("create")}
         >
           Create
         </button>
         <button
           className={`tab ${activeTab === "read" ? "active" : ""}`}
-          onClick={() => setActiveTab("read")}
+          onClick={() => handleTabChange("read")}
         >
           Read
         </button>
         <button
           className={`tab ${activeTab === "debug" ? "active" : ""}`}
-          onClick={() => setActiveTab("debug")}
+          onClick={() => handleTabChange("debug")}
         >
           Debug
         </button>
@@ -113,7 +166,6 @@ export const App = () => {
               onChange={updateRecordId}
               autoComplete="off"
               name="record-id"
-              type="text"
               placeholder="Enter Record ID"
               value={recordId}
             />
@@ -133,4 +185,4 @@ export const App = () => {
       </div>
     </>
   );
-}
+};
