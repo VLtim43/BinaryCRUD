@@ -44,22 +44,14 @@ func PrintBinaryFile(filename string) (string, error) {
 
 	// Read and print all records
 	for i := uint32(0); i < count; i++ {
-		_, bytesRead, err := printRecordSimple(&output, reader, int(i+1), offset)
+		_, bytesRead, err := printRecordSimple(&output, reader, int(i), offset)
 		if err != nil {
-			return "", fmt.Errorf("failed to read record %d: %w", i+1, err)
+			return "", fmt.Errorf("failed to read record %d: %w", i, err)
 		}
 		offset += bytesRead
 	}
 
-	outputStr := output.String()
-
-	// Write to file
-	txtFilename := filename + ".print.txt"
-	if err := os.WriteFile(txtFilename, []byte(outputStr), 0644); err != nil {
-		return "", fmt.Errorf("failed to write output file: %w", err)
-	}
-
-	return outputStr, nil
+	return output.String(), nil
 }
 
 // readHeaderForPrint reads the header and returns count and count bytes
@@ -163,10 +155,10 @@ func printRecordSimple(output *strings.Builder, reader *bufio.Reader, index int,
 	timestampDate := time.Unix(timestamp, 0).Format("2006-01-02 15:04:05")
 
 	output.WriteString(fmt.Sprintf("record id: %d [%02X]\n", index, index))
-	output.WriteString(fmt.Sprintf("timestamp: %s [%s]\n", timestampDate, timestampHex))
-	output.WriteString(fmt.Sprintf("status: %s [%s]\n", status, tombstoneHex))
 	output.WriteString(fmt.Sprintf("record name: %s [%s]\n", string(nameBytes), nameHex))
 	output.WriteString(fmt.Sprintf("record total size: %d [%s]\n", totalSize, totalSizeHex))
+	output.WriteString(fmt.Sprintf("timestamp: %s [%s]\n", timestampDate, timestampHex))
+	output.WriteString(fmt.Sprintf("status: %s [%s]\n", status, tombstoneHex))
 	output.WriteString("-------------------------\n")
 
 	item := &Item{
