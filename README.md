@@ -3,7 +3,7 @@
 Download the binary from [Releases](https://github.com/YourUsername/BinaryCRUD/releases) and run:
 
 ```bash
-# Linux/macOS
+# Linux
 chmod +x BinaryCRUD
 ./BinaryCRUD
 
