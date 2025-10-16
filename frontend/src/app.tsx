@@ -6,18 +6,20 @@ import {
   DeleteAllFiles,
   GetItemByID,
   PopulateInventory,
+  DeleteItem,
 } from "../wailsjs/go/main/App";
 import { Quit } from "../wailsjs/runtime/runtime";
 import { useState } from "preact/hooks";
 import { h, Fragment } from "preact";
 
 export const App = () => {
-  const [activeTab, setActiveTab] = useState<"create" | "read" | "debug">(
-    "create"
-  );
+  const [activeTab, setActiveTab] = useState<
+    "create" | "read" | "delete" | "debug"
+  >("create");
   const [resultText, setResultText] = useState("Enter item text below 👇");
   const [itemText, setItemText] = useState("");
   const [recordId, setRecordId] = useState("");
+  const [deleteRecordId, setDeleteRecordId] = useState("");
   const [jsonFilePath, setJsonFilePath] = useState("inventory.json");
   const updateItemText = (e: any) => setItemText(e.target.value);
   const updateRecordId = (e: any) => {
@@ -27,16 +29,25 @@ export const App = () => {
       setRecordId(value);
     }
   };
+  const updateDeleteRecordId = (e: any) => {
+    const value = e.target.value;
+    // Only allow empty string or non-negative integers
+    if (value === "" || /^\d+$/.test(value)) {
+      setDeleteRecordId(value);
+    }
+  };
   const updateJsonFilePath = (e: any) => setJsonFilePath(e.target.value);
   const updateResultText = (result: string) => setResultText(result);
 
   // Get default text for each tab
-  const getDefaultText = (tab: "create" | "read" | "debug") => {
+  const getDefaultText = (tab: "create" | "read" | "delete" | "debug") => {
     switch (tab) {
       case "create":
         return "Enter item text below 👇";
       case "read":
         return "Enter a record ID to fetch 👇";
+      case "delete":
+        return "Enter a record ID to delete 👇";
       case "debug":
         return "Debug tools and utilities";
       default:
@@ -45,7 +56,7 @@ export const App = () => {
   };
 
   // Handle tab changes
-  const handleTabChange = (tab: "create" | "read" | "debug") => {
+  const handleTabChange = (tab: "create" | "read" | "delete" | "debug") => {
     setActiveTab(tab);
     setResultText(getDefaultText(tab));
   };
@@ -126,6 +137,30 @@ export const App = () => {
       });
   };
 
+  const deleteItem = () => {
+    // Validate input before sending to backend
+    if (!deleteRecordId || deleteRecordId.trim().length === 0) {
+      updateResultText("Error: Please enter a record ID");
+      return;
+    }
+
+    // Parse the record ID as a number
+    const id = parseInt(deleteRecordId, 10);
+    if (isNaN(id) || id < 0) {
+      updateResultText("Error: Record ID must be a valid non-negative number");
+      return;
+    }
+
+    DeleteItem(id)
+      .then((itemName: string) => {
+        updateResultText(`Record [${id}] [${itemName}] was deleted`);
+        setDeleteRecordId("");
+      })
+      .catch((err: any) => {
+        updateResultText(`Error: ${err}`);
+      });
+  };
+
   return (
     <>
       <button className="close-btn" onClick={() => Quit()}>
@@ -143,6 +178,12 @@ export const App = () => {
           onClick={() => handleTabChange("read")}
         >
           Read
+        </button>
+        <button
+          className={`tab ${activeTab === "delete" ? "active" : ""}`}
+          onClick={() => handleTabChange("delete")}
+        >
+          Delete
         </button>
         <button
           className={`tab ${activeTab === "debug" ? "active" : ""}`}
@@ -190,6 +231,23 @@ export const App = () => {
             </button>
             <button className="btn" onClick={printFile}>
               Print
+            </button>
+          </div>
+        )}
+
+        {activeTab === "delete" && (
+          <div id="delete-input" className="input-box">
+            <input
+              id="delete-record-id"
+              className="input"
+              onChange={updateDeleteRecordId}
+              autoComplete="off"
+              name="delete-record-id"
+              placeholder="Enter Record ID"
+              value={deleteRecordId}
+            />
+            <button className="btn btn-danger" onClick={deleteItem}>
+              Delete Record
             </button>
           </div>
         )}

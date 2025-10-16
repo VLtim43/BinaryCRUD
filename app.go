@@ -67,7 +67,18 @@ func (a *App) GetItemByID(recordID uint32) (string, error) {
 		return "", err
 	}
 
+	// Include deletion status in the response
+	if item.Tombstone {
+		return fmt.Sprintf("%s (deleted)", item.Name), nil
+	}
+
 	return item.Name, nil
+}
+
+// DeleteItem marks an item as deleted by setting its tombstone flag
+// Returns the name of the deleted item
+func (a *App) DeleteItem(recordID uint32) (string, error) {
+	return a.itemDAO.Delete(recordID)
 }
 
 // RebuildIndex rebuilds the B+ tree index from scratch

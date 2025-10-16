@@ -163,10 +163,10 @@ func printRecordSimple(output *strings.Builder, reader *bufio.Reader, index int,
 	timestampDate := time.Unix(timestamp, 0).Format("2006-01-02 15:04:05")
 
 	output.WriteString(fmt.Sprintf("record id: %d [%02X]\n", index, index))
-	output.WriteString(fmt.Sprintf("timestamp: %s [%s]\n", timestampDate, timestampHex))
-	output.WriteString(fmt.Sprintf("status: %s [%s]\n", status, tombstoneHex))
 	output.WriteString(fmt.Sprintf("record name: %s [%s]\n", string(nameBytes), nameHex))
 	output.WriteString(fmt.Sprintf("record total size: %d [%s]\n", totalSize, totalSizeHex))
+	output.WriteString(fmt.Sprintf("timestamp: %s [%s]\n", timestampDate, timestampHex))
+	output.WriteString(fmt.Sprintf("status: %s [%s]\n", status, tombstoneHex))
 	output.WriteString("-------------------------\n")
 
 	item := &Item{

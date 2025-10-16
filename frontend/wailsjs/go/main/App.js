@@ -10,6 +10,10 @@ export function DeleteAllFiles() {
   return window['go']['main']['App']['DeleteAllFiles']();
 }
 
+export function DeleteItem(arg1) {
+  return window['go']['main']['App']['DeleteItem'](arg1);
+}
+
 export function GetItemByID(arg1) {
   return window['go']['main']['App']['GetItemByID'](arg1);
 }
