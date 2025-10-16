@@ -52,6 +52,17 @@
     align-items: flex-start;
 }
 
+.sub_tabs {
+    display: flex;
+    gap: 0;
+    position: fixed;
+    top: 45px; /* Position below main tabs */
+    left: 0;
+    padding-top: 0;
+    z-index: 99;
+    align-items: flex-start;
+}
+
 .tab {
     padding: 0.75rem 1.75rem 0.75rem 1.25rem;
     border: none;

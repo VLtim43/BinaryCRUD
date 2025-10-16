@@ -7,20 +7,28 @@ import {
   GetItemByID,
   PopulateInventory,
   DeleteItem,
+  PrintIndex,
+  RebuildIndex,
+  GetItems,
 } from "../wailsjs/go/main/App";
 import { Quit } from "../wailsjs/runtime/runtime";
-import { useState } from "preact/hooks";
+import { useState, useEffect } from "preact/hooks";
 import { h, Fragment } from "preact";
 
 export const App = () => {
   const [activeTab, setActiveTab] = useState<
     "create" | "read" | "delete" | "debug"
   >("create");
+  const [createSubTab, setCreateSubTab] = useState<"item" | "order">("item");
   const [resultText, setResultText] = useState("Enter item text below 👇");
   const [itemText, setItemText] = useState("");
   const [recordId, setRecordId] = useState("");
   const [deleteRecordId, setDeleteRecordId] = useState("");
   const [jsonFilePath, setJsonFilePath] = useState("inventory.json");
+  const [allItems, setAllItems] = useState<Array<{ id: number; name: string }>>(
+    []
+  );
+  const [selectedItemId, setSelectedItemId] = useState<number | "">("");
   const updateItemText = (e: any) => setItemText(e.target.value);
   const updateRecordId = (e: any) => {
     const value = e.target.value;
@@ -40,9 +48,15 @@ export const App = () => {
   const updateResultText = (result: string) => setResultText(result);
 
   // Get default text for each tab
-  const getDefaultText = (tab: "create" | "read" | "delete" | "debug") => {
+  const getDefaultText = (
+    tab: "create" | "read" | "delete" | "debug",
+    subTab?: "item" | "order"
+  ) => {
     switch (tab) {
       case "create":
+        if (subTab === "order") {
+          return "Select items for your order";
+        }
         return "Enter item text below 👇";
       case "read":
         return "Enter a record ID to fetch 👇";
@@ -58,8 +72,31 @@ export const App = () => {
   // Handle tab changes
   const handleTabChange = (tab: "create" | "read" | "delete" | "debug") => {
     setActiveTab(tab);
-    setResultText(getDefaultText(tab));
+    if (tab === "create") {
+      setResultText(getDefaultText(tab, createSubTab));
+    } else {
+      setResultText(getDefaultText(tab));
+    }
   };
+
+  // Handle create subtab changes
+  const handleCreateSubTabChange = (subTab: "item" | "order") => {
+    setCreateSubTab(subTab);
+    setResultText(getDefaultText("create", subTab));
+  };
+
+  // Load all items when create order subtab becomes active
+  useEffect(() => {
+    if (activeTab === "create" && createSubTab === "order") {
+      GetItems()
+        .then((items: Array<{ id: number; name: string }>) => {
+          setAllItems(items);
+        })
+        .catch((err: any) => {
+          updateResultText(`Error loading items: ${err}`);
+        });
+    }
+  }, [activeTab, createSubTab]);
 
   const addItem = () => {
     // Validate input before sending to backend
@@ -137,6 +174,26 @@ export const App = () => {
       });
   };
 
+  const printIndex = () => {
+    PrintIndex()
+      .then(() => {
+        updateResultText("Index printed to application console!");
+      })
+      .catch((err: any) => {
+        updateResultText(`Error: ${err}`);
+      });
+  };
+
+  const rebuildIndex = () => {
+    RebuildIndex()
+      .then(() => {
+        updateResultText("Index rebuilt successfully!");
+      })
+      .catch((err: any) => {
+        updateResultText(`Error: ${err}`);
+      });
+  };
+
   const deleteItem = () => {
     // Validate input before sending to backend
     if (!deleteRecordId || deleteRecordId.trim().length === 0) {
@@ -192,13 +249,34 @@ export const App = () => {
           Debug
         </button>
       </div>
+
+      {activeTab === "create" && (
+        <div className="sub_tabs">
+          <button
+            className={`tab ${createSubTab === "item" ? "active" : ""}`}
+            onClick={() => handleCreateSubTabChange("item")}
+          >
+            Create Item
+          </button>
+          <button
+            className={`tab ${createSubTab === "order" ? "active" : ""}`}
+            onClick={() => handleCreateSubTabChange("order")}
+          >
+            Create Order
+          </button>
+        </div>
+      )}
+
       <div id="App">
-        <img src={logo} id="logo" alt="logo" />
+
+        {!(activeTab === "create" && createSubTab === "order") && (
+          <img src={logo} id="logo" alt="logo" />
+        )}
         <div id="result" className="result">
           {resultText}
         </div>
 
-        {activeTab === "create" && (
+        {activeTab === "create" && createSubTab === "item" && (
           <div id="input" className="input-box">
             <input
               id="name"
@@ -212,6 +290,27 @@ export const App = () => {
             <button className="btn" onClick={addItem}>
               Add Item
             </button>
+          </div>
+        )}
+
+        {activeTab === "create" && createSubTab === "order" && (
+          <div id="order-controls" className="input-box">
+            <select
+              className="input"
+              value={selectedItemId}
+              onChange={(e: any) =>
+                setSelectedItemId(
+                  e.target.value === "" ? "" : Number(e.target.value)
+                )
+              }
+            >
+              <option value="">Select an item</option>
+              {allItems.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} (ID: {item.id})
+                </option>
+              ))}
+            </select>
           </div>
         )}
 
@@ -257,6 +356,12 @@ export const App = () => {
             <div className="input-box">
               <button className="btn btn-warning" onClick={populateInventory}>
                 Populate Inventory
+              </button>
+              <button className="btn" onClick={printIndex}>
+                Print Index
+              </button>
+              <button className="btn" onClick={rebuildIndex}>
+                Rebuild Index
               </button>
               <button className="btn btn-danger" onClick={deleteAllFiles}>
                 Delete All Files

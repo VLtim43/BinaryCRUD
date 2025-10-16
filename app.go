@@ -14,6 +14,12 @@ type App struct {
 	itemDAO *dao.ItemDAO
 }
 
+// ItemDTO represents an item with its ID and name for frontend consumption
+type ItemDTO struct {
+	ID   uint32 `json:"id"`
+	Name string `json:"name"`
+}
+
 // NewApp creates a new App application struct
 func NewApp() *App {
 	return &App{
@@ -33,18 +39,21 @@ func (a *App) AddItem(text string) error {
 	return a.itemDAO.Write(text)
 }
 
-// GetItems reads items from the binary file
-func (a *App) GetItems() ([]string, error) {
+// GetItems reads items from the binary file and returns them with IDs
+func (a *App) GetItems() ([]ItemDTO, error) {
 	items, err := a.itemDAO.Read()
 	if err != nil {
 		return nil, err
 	}
 
-	names := make([]string, 0, len(items))
+	dtos := make([]ItemDTO, 0, len(items))
 	for _, item := range items {
-		names = append(names, item.Name)
+		dtos = append(dtos, ItemDTO{
+			ID:   item.RecordID,
+			Name: item.Name,
+		})
 	}
-	return names, nil
+	return dtos, nil
 }
 
 // PrintBinaryFile prints the binary file to the application console

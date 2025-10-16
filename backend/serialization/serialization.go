@@ -9,6 +9,7 @@ import (
 )
 
 type Item struct {
+	RecordID  uint32
 	Name      string
 	Tombstone bool
 	Timestamp int64 // Unix timestamp in seconds
