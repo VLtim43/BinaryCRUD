@@ -4,6 +4,7 @@ import (
 	"BinaryCRUD/backend/index"
 	"BinaryCRUD/backend/serialization"
 	"fmt"
+	"os"
 )
 
 type ItemDAO struct {
@@ -67,4 +68,21 @@ func (dao *ItemDAO) RebuildIndex() error {
 // PrintIndex prints the B+ tree structure for debugging
 func (dao *ItemDAO) PrintIndex() {
 	dao.indexManager.PrintTree()
+}
+
+// DeleteAllFiles deletes the data file and index file
+func (dao *ItemDAO) DeleteAllFiles() error {
+	// Delete data file
+	if err := os.Remove(dao.filename); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to delete data file: %w", err)
+	}
+
+	// Delete index file
+	indexFilename := dao.filename + ".idx"
+	if err := os.Remove(indexFilename); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to delete index file: %w", err)
+	}
+
+	fmt.Printf("[DAO] Deleted files: %s and %s\n", dao.filename, indexFilename)
+	return nil
 }

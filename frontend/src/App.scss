@@ -131,6 +131,17 @@
     color: #333333;
 }
 
+.input-box .btn-danger {
+    background-color: #dc3545;
+    color: white;
+}
+
+.input-box .btn-danger:hover {
+    background-color: #c82333;
+    background-image: none;
+    color: white;
+}
+
 .input-box .input {
     border: 1px solid #ddd;
     border-radius: 5px;

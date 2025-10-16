@@ -77,3 +77,8 @@ func (a *App) RebuildIndex() error {
 func (a *App) PrintIndex() {
 	a.itemDAO.PrintIndex()
 }
+
+// DeleteAllFiles deletes all generated files (data/*.bin and *.idx files)
+func (a *App) DeleteAllFiles() error {
+	return a.itemDAO.DeleteAllFiles()
+}

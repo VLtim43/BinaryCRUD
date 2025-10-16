@@ -6,6 +6,10 @@ export function AddItem(arg1) {
   return window['go']['main']['App']['AddItem'](arg1);
 }
 
+export function DeleteAllFiles() {
+  return window['go']['main']['App']['DeleteAllFiles']();
+}
+
 export function GetItemByID(arg1) {
   return window['go']['main']['App']['GetItemByID'](arg1);
 }

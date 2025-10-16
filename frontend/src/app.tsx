@@ -1,12 +1,12 @@
 import "./App.scss";
 import logo from "./assets/images/logo-universal.png";
-import { AddItem, PrintBinaryFile } from "../wailsjs/go/main/App";
+import { AddItem, PrintBinaryFile, DeleteAllFiles } from "../wailsjs/go/main/App";
 import { Quit } from "../wailsjs/runtime/runtime";
 import { useState } from "preact/hooks";
 import { h, Fragment } from "preact";
 
 export const App = () => {
-  const [activeTab, setActiveTab] = useState<"create" | "read">("create");
+  const [activeTab, setActiveTab] = useState<"create" | "read" | "debug">("create");
   const [resultText, setResultText] = useState("Enter item text below 👇");
   const [itemText, setItemText] = useState("");
   const [recordId, setRecordId] = useState("");
@@ -46,6 +46,16 @@ export const App = () => {
     updateResultText(`Getting record with ID: ${recordId}`);
   };
 
+  const deleteAllFiles = () => {
+    DeleteAllFiles()
+      .then(() => {
+        updateResultText("All generated files deleted successfully!");
+      })
+      .catch((err: any) => {
+        updateResultText(`Error: ${err}`);
+      });
+  };
+
   return (
     <>
       <button className="close-btn" onClick={() => Quit()}>×</button>
@@ -61,6 +71,12 @@ export const App = () => {
           onClick={() => setActiveTab("read")}
         >
           Read
+        </button>
+        <button
+          className={`tab ${activeTab === "debug" ? "active" : ""}`}
+          onClick={() => setActiveTab("debug")}
+        >
+          Debug
         </button>
       </div>
       <div id="App">
@@ -103,6 +119,14 @@ export const App = () => {
             />
             <button className="btn" onClick={getRecordById}>
               Get Record
+            </button>
+          </div>
+        )}
+
+        {activeTab === "debug" && (
+          <div id="debug-controls" className="input-box">
+            <button className="btn btn-danger" onClick={deleteAllFiles}>
+              Delete All Files
             </button>
           </div>
         )}
