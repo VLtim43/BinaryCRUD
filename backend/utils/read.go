@@ -79,14 +79,14 @@ func PrintBinaryFile(filePath string) (string, error) {
 	// Entry Count
 	entryCountBytes := make([]byte, 4)
 	binary.LittleEndian.PutUint32(entryCountBytes, header.EntryCount)
-	output.WriteString(fmt.Sprintf("Entries Count: %d  %s\n\n", header.EntryCount, FormatBytes(entryCountBytes)))
+	output.WriteString(fmt.Sprintf("Entries Count: %d  %s\n", header.EntryCount, FormatBytes(entryCountBytes)))
 
 	// Tombstone Count
 	tombstoneBytes := make([]byte, 4)
 	binary.LittleEndian.PutUint32(tombstoneBytes, header.TombstoneCount)
 	output.WriteString(fmt.Sprintf("Tombstone Count: %d  %s\n", header.TombstoneCount, FormatBytes(tombstoneBytes)))
 
-	output.WriteString("\n════════════════════════════════════════════\n")
+	output.WriteString("════════════════════════════════════════════\n")
 
 	// Read and print records
 	if header.EntryCount == 0 {
@@ -103,7 +103,7 @@ func PrintBinaryFile(filePath string) (string, error) {
 			// Get the item name bytes for display
 			itemBytes := []byte(itemName)
 
-			output.WriteString(fmt.Sprintf("\nItem Name: \"%s\"  %s\n", itemName, FormatBytes(itemBytes)))
+			output.WriteString(fmt.Sprintf("Item Name: \"%s\"  %s\n", itemName, FormatBytes(itemBytes)))
 
 			// Read record separator
 			sep := make([]byte, 1)

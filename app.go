@@ -52,7 +52,7 @@ func (a *App) PrintBinaryFile() error {
 	}
 
 	// Print to application console (same as debug logs)
-	fmt.Println("\n" + output)
+	fmt.Println(output)
 
 	return nil
 }
