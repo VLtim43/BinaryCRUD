@@ -1,4 +1,17 @@
-# BinaryCRUD — Relatório Técnico
+# BinaryCRUD
+
+**BinaryCRUD** is a restaurant manager application built with Wails and Preact-TypeScript that implements custom binary file-based CRUD operations. It manages items (products) and orders using binary serialization with B+ Tree indexing, logical deletion with tombstones, and 1:N relationships stored inline.
+
+## To compile it locally
+
+- Install Go <https://go.dev/doc/install>
+- Install Wails <https://wails.io/docs/gettingstarted/installation/>
+- May need to install some libs like libwebkit. Perhpas node and npm too
+- run with ./run.sh
+
+---
+
+## Relatório Técnico
 
 ## a) Estrutura de Registro
 
