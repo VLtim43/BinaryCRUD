@@ -6,7 +6,7 @@ package dao
 //   [Count:4 bytes][0x1E]
 //
 // ORDER RECORD:
-//   [Tombstone:1 byte][0x1F][ItemCount:4 bytes][0x1F][Items...][0x1F][Timestamp:8 bytes][0x1E]
+//   [RecordID:4 bytes][0x1F][Tombstone:1 byte][0x1F][ItemCount:4 bytes][0x1F][Items...][0x1F][Timestamp:8 bytes][0x1E]
 //
 // EACH ITEM IN ITEMS:
 //   [ItemID:4 bytes][0x1F][Quantity:4 bytes][0x1F]
@@ -14,7 +14,7 @@ package dao
 // Notes:
 //   - All multi-byte integers are little-endian
 //   - Tombstone: 0=active, 1=deleted
-//   - RecordID is assigned from Count before incrementing
+//   - RecordID is stored in the record body (set from Count before incrementing)
 //   - 0x1F = Unit Separator, 0x1E = Record Separator
 //   - Items array is a sequence of ItemID/Quantity pairs, each followed by 0x1F
 

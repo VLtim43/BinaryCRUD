@@ -98,7 +98,7 @@ func (m *IndexManager) RebuildIndex() error {
 		recordOffset := currentOffset
 
 		// Read the record
-		item, err := persistence.ReadRecord(reader)
+		item, err := persistence.ReadItemRecord(reader)
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -190,7 +190,7 @@ func (m *IndexManager) GetRecordByID(recordID uint32) (*persistence.Item, error)
 
 		// Read the record
 		reader := bufio.NewReader(file)
-		item, err := persistence.ReadRecord(reader)
+		item, err := persistence.ReadItemRecord(reader)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read record at offset %d: %w", offset, err)
 		}
@@ -230,7 +230,7 @@ func (m *IndexManager) sequentialSearchByID(recordID uint32) (*persistence.Item,
 
 	// Read records sequentially until we find the target ID
 	for i := uint32(0); i < count; i++ {
-		item, err := persistence.ReadRecord(reader)
+		item, err := persistence.ReadItemRecord(reader)
 		if err != nil {
 			if err == io.EOF {
 				return nil, fmt.Errorf("unexpected EOF while searching for record ID %d", recordID)
@@ -281,7 +281,7 @@ func (m *IndexManager) GetCurrentOffset() (int64, error) {
 
 // UpdateHeader updates the record count in the data file header
 // Called after appending new records
-// Note: This function is currently unused as AppendEntry handles header updates directly
+// Note: This function is currently unused as AppendItem handles header updates directly
 func (m *IndexManager) UpdateHeader(count uint32) error {
 	file, err := os.OpenFile(m.dataFilename, os.O_RDWR, 0644)
 	if err != nil {

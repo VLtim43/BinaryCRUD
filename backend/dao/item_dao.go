@@ -43,7 +43,7 @@ func NewItemDAO(filename string) *ItemDAO {
 
 func (dao *ItemDAO) Write(text string) error {
 	// Append entry and get result with recordID and offset
-	result, err := persistence.AppendEntry(dao.filename, text)
+	result, err := persistence.AppendItem(dao.filename, text)
 	if err != nil {
 		return err
 	}
@@ -62,11 +62,11 @@ func (dao *ItemDAO) Write(text string) error {
 }
 
 func (dao *ItemDAO) Read() ([]persistence.Item, error) {
-	return persistence.ReadAllEntries(dao.filename)
+	return persistence.ReadAllItems(dao.filename)
 }
 
 func (dao *ItemDAO) Print() (string, error) {
-	return persistence.PrintBinaryFile(dao.filename)
+	return persistence.PrintItemBinaryFile(dao.filename)
 }
 
 // GetByID retrieves an item by its record ID using the index

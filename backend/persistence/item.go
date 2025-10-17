@@ -17,43 +17,9 @@ type Item struct {
 	Timestamp int64 // Unix timestamp in seconds
 }
 
-// WriteHeader writes the file header with the given record count
-func WriteHeader(writer *bufio.Writer, count uint32) error {
-	// Write record count (4 bytes, little-endian)
-	if err := binary.Write(writer, binary.LittleEndian, count); err != nil {
-		return fmt.Errorf("failed to write header count: %w", err)
-	}
-
-	// Write record separator
-	if err := writer.WriteByte(RecordSeparator); err != nil {
-		return fmt.Errorf("failed to write header separator: %w", err)
-	}
-
-	return nil
-}
-
-// ReadHeader reads and returns the record count from the file header
-func ReadHeader(reader *bufio.Reader) (count uint32, err error) {
-	// Read record count (4 bytes, little-endian)
-	if err := binary.Read(reader, binary.LittleEndian, &count); err != nil {
-		return 0, fmt.Errorf("failed to read header count: %w", err)
-	}
-
-	// Read and verify record separator
-	sep, err := reader.ReadByte()
-	if err != nil {
-		return 0, fmt.Errorf("failed to read header separator: %w", err)
-	}
-	if sep != RecordSeparator {
-		return 0, fmt.Errorf("invalid header separator: expected 0x%02X, got 0x%02X", RecordSeparator, sep)
-	}
-
-	return count, nil
-}
-
-// WriteRecord writes a single record to the writer
-// This is the single source of truth for record format during writes
-func WriteRecord(writer *bufio.Writer, item Item, debug bool) error {
+// WriteItemRecord writes a single item record to the writer.
+// This is the single source of truth for item record format during writes.
+func WriteItemRecord(writer *bufio.Writer, item Item, debug bool) error {
 	nameBytes := []byte(item.Name)
 	size := uint32(len(nameBytes))
 
@@ -151,9 +117,9 @@ func WriteRecord(writer *bufio.Writer, item Item, debug bool) error {
 	return nil
 }
 
-// ReadRecord reads a single record from the reader
-// This is the single source of truth for record format during reads
-func ReadRecord(reader *bufio.Reader) (*Item, error) {
+// ReadItemRecord reads a single item record from the reader.
+// This is the single source of truth for item record format during reads.
+func ReadItemRecord(reader *bufio.Reader) (*Item, error) {
 	// Read ID
 	var recordID uint32
 	if err := binary.Read(reader, binary.LittleEndian, &recordID); err != nil {

@@ -1,46 +1,14 @@
 package persistence
 
-import (
-	"bufio"
-	"fmt"
-	"os"
-)
-
-func ReadAllEntries(filename string) ([]Item, error) {
-	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		return []Item{}, nil
-	}
-
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	reader := bufio.NewReader(file)
-
-	// Read header using centralized header reader
-	count, err := ReadHeader(reader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read header: %w", err)
-	}
-
-	items := make([]Item, 0, count)
-
-	// Read all records using centralized record reader
-	for i := uint32(0); i < count; i++ {
-		item, err := ReadRecord(reader)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read record %d: %w", i+1, err)
-		}
-
-		// RecordID is now read from the file, no need to assign it
-
-		// Only include active records (not tombstoned)
-		if !item.Tombstone {
-			items = append(items, *item)
-		}
-	}
-
-	return items, nil
+// ReadAllItems reads all active item records from the binary file.
+func ReadAllItems(filename string) ([]Item, error) {
+	return readRecords(
+		filename,
+		"item record",
+		ReadItemRecord,
+		nil,
+		func(item *Item) bool {
+			return !item.Tombstone
+		},
+	)
 }

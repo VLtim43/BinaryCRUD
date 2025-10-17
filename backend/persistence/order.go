@@ -29,86 +29,59 @@ func AppendOrder(filename string, items []OrderItem) (*AppendResult, error) {
 		return nil, fmt.Errorf("cannot create empty order: items are required")
 	}
 
-	if err := InitFile(filename); err != nil {
-		return nil, err
-	}
-
 	fmt.Printf("\n[DEBUG] === Appending Order with %d items ===\n", len(items))
 
-	file, err := os.OpenFile(filename, os.O_RDWR, 0644)
+	result, currentCount, err := appendBinaryRecord(
+		filename,
+		"order record",
+		true,
+		func(nextID uint32) (Order, error) {
+			return Order{
+				RecordID:  nextID,
+				Items:     items,
+				Tombstone: false,
+				Timestamp: time.Now().Unix(),
+			}, nil
+		},
+		WriteOrderRecord,
+		func(count uint32, offset int64) {
+			fmt.Printf("[DEBUG] Current order count: %d\n", count)
+			fmt.Printf("[DEBUG] Writing order at offset: %d\n", offset)
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
 
-	// Read current record count from header
-	reader := bufio.NewReader(file)
-	count, err := ReadHeader(reader)
-	if err != nil {
-		return nil, err
-	}
-
-	fmt.Printf("[DEBUG] Current order count: %d\n", count)
-
-	// Seek to end of file for appending and capture offset
-	offset, err := file.Seek(0, 2)
-	if err != nil {
-		return nil, err
-	}
-
-	fmt.Printf("[DEBUG] Writing order at offset: %d\n", offset)
-
-	// Create the order record with current timestamp
-	order := Order{
-		Items:     items,
-		Tombstone: false,
-		Timestamp: time.Now().Unix(),
-	}
-
-	// Write the order record
-	writer := bufio.NewWriter(file)
-	if err := WriteOrderRecord(writer, order, true); err != nil {
-		return nil, fmt.Errorf("failed to write order record: %w", err)
-	}
-
-	if err := writer.Flush(); err != nil {
-		return nil, err
-	}
-
-	// Seek back to start to update header
-	if _, err := file.Seek(0, 0); err != nil {
-		return nil, err
-	}
-
-	// Update record count in header
-	// RecordID is assigned from the current count (before incrementing)
-	recordID := count
-	count++
-
-	writer = bufio.NewWriter(file)
-	if err := WriteHeader(writer, count); err != nil {
-		return nil, fmt.Errorf("failed to update header: %w", err)
-	}
-
-	if err := writer.Flush(); err != nil {
-		return nil, err
-	}
-
-	fmt.Printf("[DEBUG] Updated header count to: %d\n", count)
-	fmt.Printf("[DEBUG] Assigned orderID: %d at offset: %d\n", recordID, offset)
+	fmt.Printf("[DEBUG] Updated header count to: %d\n", currentCount+1)
+	fmt.Printf("[DEBUG] Assigned orderID: %d at offset: %d\n", result.RecordID, result.Offset)
 	fmt.Printf("[DEBUG] === Order successfully written ===\n\n")
 
-	return &AppendResult{
-		RecordID: recordID,
-		Offset:   offset,
-	}, nil
+	return result, nil
 }
 
-// WriteOrderRecord writes a single order record to the writer
-// Format: [Tombstone:1] [US:1] [ItemCount:4] [US:1] [Items...] [US:1] [Timestamp:8] [RS:1]
+// WriteOrderRecord writes a single order record to the writer.
+// Format: [RecordID:4] [US:1] [Tombstone:1] [US:1] [ItemCount:4] [US:1] [Items...] [US:1] [Timestamp:8] [RS:1]
 // Each item: [ItemID:4] [US:1] [Quantity:4] [US:1]
 func WriteOrderRecord(writer *bufio.Writer, order Order, debug bool) error {
 	itemCount := uint32(len(order.Items))
+
+	// Write record ID (4 bytes, little-endian)
+	if err := binary.Write(writer, binary.LittleEndian, order.RecordID); err != nil {
+		return fmt.Errorf("failed to write record ID: %w", err)
+	}
+	if debug {
+		fmt.Printf("[DEBUG] Wrote order record ID: [%02X %02X %02X %02X] (%d)\n",
+			byte(order.RecordID), byte(order.RecordID>>8), byte(order.RecordID>>16), byte(order.RecordID>>24), order.RecordID)
+	}
+
+	// Write unit separator
+	if err := writer.WriteByte(UnitSeparator); err != nil {
+		return fmt.Errorf("failed to write unit separator: %w", err)
+	}
+	if debug {
+		fmt.Printf("[DEBUG] Wrote unit separator: [%02X]\n", UnitSeparator)
+	}
 
 	// Write tombstone (0 = active, 1 = deleted)
 	tombstone := uint8(0)
@@ -218,6 +191,21 @@ func WriteOrderRecord(writer *bufio.Writer, order Order, debug bool) error {
 
 // ReadOrderRecord reads a single order record from the reader
 func ReadOrderRecord(reader *bufio.Reader) (*Order, error) {
+	// Read record ID
+	var recordID uint32
+	if err := binary.Read(reader, binary.LittleEndian, &recordID); err != nil {
+		return nil, fmt.Errorf("failed to read record ID: %w", err)
+	}
+
+	// Read and verify unit separator
+	sep, err := reader.ReadByte()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read unit separator after ID: %w", err)
+	}
+	if sep != UnitSeparator {
+		return nil, fmt.Errorf("invalid unit separator after ID: expected 0x%02X, got 0x%02X", UnitSeparator, sep)
+	}
+
 	// Read tombstone
 	var tombstone uint8
 	if err := binary.Read(reader, binary.LittleEndian, &tombstone); err != nil {
@@ -225,7 +213,7 @@ func ReadOrderRecord(reader *bufio.Reader) (*Order, error) {
 	}
 
 	// Read and verify unit separator
-	sep, err := reader.ReadByte()
+	sep, err = reader.ReadByte()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read unit separator after tombstone: %w", err)
 	}
@@ -317,6 +305,7 @@ func ReadOrderRecord(reader *bufio.Reader) (*Order, error) {
 	}
 
 	return &Order{
+		RecordID:  recordID,
 		Items:     items,
 		Tombstone: tombstone != 0,
 		Timestamp: timestamp,
@@ -325,43 +314,15 @@ func ReadOrderRecord(reader *bufio.Reader) (*Order, error) {
 
 // ReadAllOrders reads all orders from the binary file
 func ReadAllOrders(filename string) ([]Order, error) {
-	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		return []Order{}, nil
-	}
-
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	reader := bufio.NewReader(file)
-
-	// Read header
-	count, err := ReadHeader(reader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read header: %w", err)
-	}
-
-	orders := make([]Order, 0, count)
-
-	// Read all records
-	for i := uint32(0); i < count; i++ {
-		order, err := ReadOrderRecord(reader)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read order %d: %w", i+1, err)
-		}
-
-		// Assign the RecordID based on the position in the file
-		order.RecordID = i
-
-		// Only include active records (not tombstoned)
-		if !order.Tombstone {
-			orders = append(orders, *order)
-		}
-	}
-
-	return orders, nil
+	return readRecords(
+		filename,
+		"order record",
+		ReadOrderRecord,
+		nil,
+		func(order *Order) bool {
+			return !order.Tombstone
+		},
+	)
 }
 
 // PrintOrderBinaryFile prints the orders binary file in a human-readable format
@@ -395,8 +356,6 @@ func PrintOrderBinaryFile(filename string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("failed to read order %d: %w", i, err)
 		}
-
-		order.RecordID = i
 
 		status := "active"
 		if order.Tombstone {

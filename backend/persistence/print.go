@@ -9,9 +9,9 @@ import (
 	"time"
 )
 
-// PrintBinaryFile reads and prints the entire binary file in a human-readable format
-// This is like "printing to paper" - showing all the binary structure as formatted text
-func PrintBinaryFile(filename string) (string, error) {
+// PrintItemBinaryFile reads and prints the entire item binary file in a human-readable format.
+// This is like "printing to paper" - showing all the binary structure as formatted text.
+func PrintItemBinaryFile(filename string) (string, error) {
 	// Check if file exists
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
 		return "", fmt.Errorf("file does not exist: %s", filename)
