@@ -6,7 +6,7 @@
 
 - Install Go <https://go.dev/doc/install>
 - Install Wails <https://wails.io/docs/gettingstarted/installation/>
-- May need to install some libs like libwebkit. Perhpas node and npm too
+- May need to install some libs like libwebkit. Perhaps node and npm too
 - run with ./run.sh
 
 ## Relatório Técnico
