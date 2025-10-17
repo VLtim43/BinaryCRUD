@@ -6,10 +6,6 @@ export function AddItem(arg1) {
   return window['go']['main']['App']['AddItem'](arg1);
 }
 
-export function CreateOrder(arg1) {
-  return window['go']['main']['App']['CreateOrder'](arg1);
-}
-
 export function DeleteAllFiles() {
   return window['go']['main']['App']['DeleteAllFiles']();
 }
@@ -26,10 +22,6 @@ export function GetItems() {
   return window['go']['main']['App']['GetItems']();
 }
 
-export function GetOrderByID(arg1) {
-  return window['go']['main']['App']['GetOrderByID'](arg1);
-}
-
 export function PopulateInventory(arg1) {
   return window['go']['main']['App']['PopulateInventory'](arg1);
 }
@@ -40,10 +32,6 @@ export function PrintBinaryFile() {
 
 export function PrintIndex() {
   return window['go']['main']['App']['PrintIndex']();
-}
-
-export function PrintOrderBinaryFile() {
-  return window['go']['main']['App']['PrintOrderBinaryFile']();
 }
 
 export function RebuildIndex() {
