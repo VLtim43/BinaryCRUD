@@ -1,99 +1,78 @@
 package utils
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"os"
 )
 
-// WriteFixed writes a fixed-size value with a unit separator
-// size: number of bytes to write (1, 2, 4, or 8)
-// value: the value to write (will be converted to uint of appropriate size)
-// Example: WriteFixed(file, 2, 27) writes [00 1B][1F] (27 as 2-byte little-endian + separator)
-func WriteFixed(file *os.File, size int, value uint64) error {
+// BuildFixed builds bytes for a fixed-size value with a unit separator
+// size: number of bytes (1, 2, 4, or 8)
+// value: the value to encode
+// Example: BuildFixed(4, 6) returns [06 00 00 00][1F]
+func BuildFixed(size int, value uint64) ([]byte, error) {
+	buf := new(bytes.Buffer)
+
 	// Write the value based on size
 	switch size {
 	case 1:
-		if err := binary.Write(file, binary.LittleEndian, uint8(value)); err != nil {
-			return fmt.Errorf("failed to write 1-byte value: %w", err)
+		if err := binary.Write(buf, binary.LittleEndian, uint8(value)); err != nil {
+			return nil, fmt.Errorf("failed to write 1-byte value: %w", err)
 		}
 	case 2:
-		if err := binary.Write(file, binary.LittleEndian, uint16(value)); err != nil {
-			return fmt.Errorf("failed to write 2-byte value: %w", err)
+		if err := binary.Write(buf, binary.LittleEndian, uint16(value)); err != nil {
+			return nil, fmt.Errorf("failed to write 2-byte value: %w", err)
 		}
 	case 4:
-		if err := binary.Write(file, binary.LittleEndian, uint32(value)); err != nil {
-			return fmt.Errorf("failed to write 4-byte value: %w", err)
+		if err := binary.Write(buf, binary.LittleEndian, uint32(value)); err != nil {
+			return nil, fmt.Errorf("failed to write 4-byte value: %w", err)
 		}
 	case 8:
-		if err := binary.Write(file, binary.LittleEndian, value); err != nil {
-			return fmt.Errorf("failed to write 8-byte value: %w", err)
+		if err := binary.Write(buf, binary.LittleEndian, value); err != nil {
+			return nil, fmt.Errorf("failed to write 8-byte value: %w", err)
 		}
 	default:
-		return fmt.Errorf("invalid size: %d (must be 1, 2, 4, or 8)", size)
+		return nil, fmt.Errorf("invalid size: %d (must be 1, 2, 4, or 8)", size)
 	}
 
-	// Write unit separator
-	if _, err := file.Write([]byte{UnitSeparator}); err != nil {
-		return fmt.Errorf("failed to write unit separator: %w", err)
-	}
+	// Add unit separator
+	buf.WriteByte(UnitSeparator)
 
-	return nil
+	return buf.Bytes(), nil
 }
 
-// WriteVariable writes a variable-length string with its size prefix and unit separator
-// Format: [StringLength(4 bytes)][StringContent][UnitSeparator]
-// Example: WriteVariable(file, "banana") writes [06 00 00 00][62 61 6E 61 6E 61][1F]
-func WriteVariable(file *os.File, value string) error {
-	// Get string bytes
+// BuildVariable builds bytes for a variable-length string with size prefix and separators
+// Format: [StringLength(4 bytes)][UnitSeparator][StringContent][UnitSeparator]
+// Example: BuildVariable("banana") returns [06 00 00 00][1F][62 61 6E 61 6E 61][1F]
+func BuildVariable(value string) ([]byte, error) {
 	data := []byte(value)
-	length := uint32(len(data))
+	length := uint64(len(data))
 
-	// Write length (4 bytes, little-endian)
-	if err := binary.Write(file, binary.LittleEndian, length); err != nil {
-		return fmt.Errorf("failed to write string length: %w", err)
+	// Build length bytes using BuildFixed (4 bytes + separator)
+	lengthBytes, err := BuildFixed(2, length)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build length: %w", err)
 	}
 
-	// Write string content
-	if _, err := file.Write(data); err != nil {
-		return fmt.Errorf("failed to write string content: %w", err)
-	}
+	buf := new(bytes.Buffer)
 
-	// Write unit separator
-	if _, err := file.Write([]byte{UnitSeparator}); err != nil {
-		return fmt.Errorf("failed to write unit separator: %w", err)
-	}
+	// Add length part [06 00][1F]
+	buf.Write(lengthBytes)
 
-	return nil
+	// Add content [62 61 6E 61 6E 61]
+	buf.Write(data)
+
+	// Add separator after content [1F]
+	buf.WriteByte(UnitSeparator)
+
+	return buf.Bytes(), nil
 }
 
-// WriteRecordSeparator writes a record separator to mark the end of a record
-func WriteRecordSeparator(file *os.File) error {
-	if _, err := file.Write([]byte{RecordSeparator}); err != nil {
-		return fmt.Errorf("failed to write record separator: %w", err)
-	}
-	return nil
-}
-
-// RecordWriter is a function type that writes record data to a file
-// The function should write all record fields but NOT the final RecordSeparator
-type RecordWriter func(file *os.File) error
-
-// AppendRecord is a generic function that handles the full write flow:
-// 1. Initialize file if needed
-// 2. Open file and seek to end
-// 3. Call the custom writer function to write record data
-// 4. Write record separator
-// 5. Increment entry count in header
-//
-// Example usage:
-//   utils.AppendRecord("data/items.bin", func(file *os.File) error {
-//       if err := utils.WriteVariable(file, "banana"); err != nil {
-//           return err
-//       }
-//       return nil
-//   })
-func AppendRecord(filePath string, writer RecordWriter) error {
+// AppendRecord appends pre-built record bytes to the binary file
+// recordBytes should contain the complete record data (fields + separators)
+// This function will add the final record separator and update the header
+func AppendRecord(filePath string, recordBytes []byte) error {
 	// Initialize the binary file if it doesn't exist
 	if err := InitializeBinaryFile(filePath); err != nil {
 		return fmt.Errorf("failed to initialize binary file: %w", err)
@@ -111,14 +90,14 @@ func AppendRecord(filePath string, writer RecordWriter) error {
 		return fmt.Errorf("failed to seek to end of file: %w", err)
 	}
 
-	// Call the custom writer function to write record data
-	if err := writer(file); err != nil {
+	// Write the record bytes
+	if _, err := file.Write(recordBytes); err != nil {
 		return fmt.Errorf("failed to write record data: %w", err)
 	}
 
 	// Write record separator to mark end of record
-	if err := WriteRecordSeparator(file); err != nil {
-		return err
+	if _, err := file.Write([]byte{RecordSeparator}); err != nil {
+		return fmt.Errorf("failed to write record separator: %w", err)
 	}
 
 	// Increment entry count in header

@@ -3,7 +3,6 @@ package dao
 import (
 	"BinaryCRUD/backend/utils"
 	"fmt"
-	"os"
 )
 
 // ItemDAO handles data access operations for items
@@ -24,16 +23,22 @@ func NewItemDAO(filePath string) *ItemDAO {
 func (dao *ItemDAO) Write(itemName string) error {
 	fmt.Printf("[ItemDAO] Writing item: %s\n", itemName)
 
-	// Use the generic AppendRecord function
-	err := utils.AppendRecord(dao.filePath, func(file *os.File) error {
-		// Write item name (variable-length with size prefix and unit separator)
-		return utils.WriteVariable(file, itemName)
-	})
-
+	// Build the record bytes using BuildVariable
+	recordBytes, err := utils.BuildVariable(itemName)
 	if err != nil {
+		return fmt.Errorf("failed to build item record: %w", err)
+	}
+
+	// Append the record to the file
+	if err := utils.AppendRecord(dao.filePath, recordBytes); err != nil {
 		return fmt.Errorf("failed to append item record: %w", err)
 	}
 
 	fmt.Printf("[ItemDAO] Successfully wrote item: %s\n", itemName)
 	return nil
+}
+
+// Print returns a formatted string representation of the binary file contents
+func (dao *ItemDAO) Print() (string, error) {
+	return utils.PrintBinaryFile(dao.filePath)
 }

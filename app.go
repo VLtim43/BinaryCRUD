@@ -46,8 +46,14 @@ func (a *App) GetItems() ([]ItemDTO, error) {
 
 // PrintBinaryFile prints the binary file to the application console
 func (a *App) PrintBinaryFile() error {
-	// TODO: Implement when Print method is added to ItemDAO
-	fmt.Println("[PrintBinaryFile] Not yet implemented")
+	output, err := a.itemDAO.Print()
+	if err != nil {
+		return err
+	}
+
+	// Print to application console (same as debug logs)
+	fmt.Println("\n" + output)
+
 	return nil
 }
 
