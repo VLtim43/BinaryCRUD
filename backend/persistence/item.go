@@ -9,6 +9,14 @@ import (
 	"time"
 )
 
+// Item represents a single item record
+type Item struct {
+	RecordID  uint32
+	Name      string
+	Tombstone bool
+	Timestamp int64 // Unix timestamp in seconds
+}
+
 // WriteHeader writes the file header with the given record count
 func WriteHeader(writer *bufio.Writer, count uint32) error {
 	// Write record count (4 bytes, little-endian)

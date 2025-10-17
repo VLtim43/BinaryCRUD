@@ -8,13 +8,6 @@ import (
 	"path/filepath"
 )
 
-type Item struct {
-	RecordID  uint32
-	Name      string
-	Tombstone bool
-	Timestamp int64 // Unix timestamp in seconds
-}
-
 const (
 	HeaderSize      = 4
 	RecordSeparator = 0x1E
