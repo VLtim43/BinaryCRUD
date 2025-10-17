@@ -1,7 +1,5 @@
 # BinaryCRUD — Relatório Técnico
 
-Este documento resume como os dados binários, índices e módulos do projeto estão estruturados na etapa atual.
-
 ## a) Estrutura de Registro
 
 - `backend/persistence/item.go`: struct `Item` (`RecordID`, `Name`, `Tombstone`, `Timestamp`) representa cada produto; o `RecordID` é o identificador lógico.
@@ -10,7 +8,6 @@ Este documento resume como os dados binários, índices e módulos do projeto es
 ## b) Atributos multivalorados de string
 
 - O único campo textual persistido é `Item.Name`. Cada nome é gravado como `[NameLength:uint32][NameBytes]`, ladeado por separadores 0x1F para preservar integridade e permitir comprimentos variáveis (`backend/persistence/item.go`).
-- Não há atributos string multivalorados nesta fase; o tratamento de comprimento + payload cobre todos os casos.
 
 ## c) Exclusão lógica
 
@@ -20,7 +17,6 @@ Este documento resume como os dados binários, índices e módulos do projeto es
 ## d) Chaves utilizadas
 
 - A chave primária lógica é o `RecordID` sequencial atribuído no append.
-- Não existem outras chaves de pesquisa ativas nesta etapa; buscas e índices operam exclusivamente sobre o `RecordID`.
 
 ## e) Estruturas de índice
 
