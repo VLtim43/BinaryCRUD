@@ -9,8 +9,6 @@
 - May need to install some libs like libwebkit. Perhpas node and npm too
 - run with ./run.sh
 
----
-
 ## Relatório Técnico
 
 ## a) Estrutura de Registro
