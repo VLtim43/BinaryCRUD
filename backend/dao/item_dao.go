@@ -21,7 +21,7 @@ func NewItemDAO(filePath string) *ItemDAO {
 // Creates and initializes the file if it doesn't exist
 // Item record format: [ItemName(variable)][RecordSeparator]
 func (dao *ItemDAO) Write(itemName string) error {
-	fmt.Printf("[ItemDAO] Writing item: %s\n", itemName)
+	utils.DebugPrint("Writing item", itemName)
 
 	// Build the record bytes using BuildVariable
 	recordBytes, err := utils.BuildVariable(itemName)
@@ -34,7 +34,7 @@ func (dao *ItemDAO) Write(itemName string) error {
 		return fmt.Errorf("failed to append item record: %w", err)
 	}
 
-	fmt.Printf("[ItemDAO] Successfully wrote item: %s\n", itemName)
+	utils.DebugPrint("Successfully wrote item", itemName)
 	return nil
 }
 

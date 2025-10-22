@@ -4,13 +4,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"os"
 )
 
 // BuildFixed builds bytes for a fixed-size value with a unit separator
-// size: number of bytes (1, 2, 4, or 8)
-// value: the value to encode
-// Example: BuildFixed(4, 6) returns [06 00 00 00][1F]
 func BuildFixed(size int, value uint64) ([]byte, error) {
 	buf := new(bytes.Buffer)
 
@@ -44,12 +40,12 @@ func BuildFixed(size int, value uint64) ([]byte, error) {
 
 // BuildVariable builds bytes for a variable-length string with size prefix and separators
 // Format: [StringLength(4 bytes)][UnitSeparator][StringContent][UnitSeparator]
-// Example: BuildVariable("banana") returns [06 00 00 00][1F][62 61 6E 61 6E 61][1F]
+// Example: BuildVariable("banana") returns [06 00][1F][62 61 6E 61 6E 61][1F]
 func BuildVariable(value string) ([]byte, error) {
 	data := []byte(value)
 	length := uint64(len(data))
 
-	// Build length bytes using BuildFixed (4 bytes + separator)
+	// Build length bytes using BuildFixed (2 bytes + separator)
 	lengthBytes, err := BuildFixed(2, length)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build length: %w", err)
@@ -67,43 +63,4 @@ func BuildVariable(value string) ([]byte, error) {
 	buf.WriteByte(UnitSeparator)
 
 	return buf.Bytes(), nil
-}
-
-// AppendRecord appends pre-built record bytes to the binary file
-// recordBytes should contain the complete record data (fields + separators)
-// This function will add the final record separator and update the header
-func AppendRecord(filePath string, recordBytes []byte) error {
-	// Initialize the binary file if it doesn't exist
-	if err := InitializeBinaryFile(filePath); err != nil {
-		return fmt.Errorf("failed to initialize binary file: %w", err)
-	}
-
-	// Open file in read-write mode
-	file, err := os.OpenFile(filePath, os.O_RDWR, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to open file: %w", err)
-	}
-	defer file.Close()
-
-	// Seek to end of file to append the new record
-	if _, err := file.Seek(0, 2); err != nil {
-		return fmt.Errorf("failed to seek to end of file: %w", err)
-	}
-
-	// Write the record bytes
-	if _, err := file.Write(recordBytes); err != nil {
-		return fmt.Errorf("failed to write record data: %w", err)
-	}
-
-	// Write record separator to mark end of record
-	if _, err := file.Write([]byte{RecordSeparator}); err != nil {
-		return fmt.Errorf("failed to write record separator: %w", err)
-	}
-
-	// Increment entry count in header
-	if err := IncrementEntryCount(filePath); err != nil {
-		return fmt.Errorf("failed to increment entry count: %w", err)
-	}
-
-	return nil
 }

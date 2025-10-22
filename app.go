@@ -2,6 +2,7 @@ package main
 
 import (
 	"BinaryCRUD/backend/dao"
+	"BinaryCRUD/backend/utils"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -73,14 +74,14 @@ func (a *App) DeleteItem(recordID uint32) (string, error) {
 // RebuildIndex rebuilds the B+ tree index from scratch
 func (a *App) RebuildIndex() error {
 	// TODO: Implement when index functionality is added
-	fmt.Println("[RebuildIndex] Not yet implemented")
+	utils.DebugPrint("RebuildIndex: Not yet implemented")
 	return nil
 }
 
 // PrintIndex prints the B+ tree structure to the console (for debugging)
 func (a *App) PrintIndex() {
 	// TODO: Implement when index functionality is added
-	fmt.Println("[PrintIndex] Not yet implemented")
+	utils.DebugPrint("PrintIndex: Not yet implemented")
 }
 
 // DeleteAllFiles deletes all files in the data folder
@@ -89,7 +90,7 @@ func (a *App) DeleteAllFiles() error {
 
 	// Check if data directory exists
 	if _, err := os.Stat(dataDir); os.IsNotExist(err) {
-		fmt.Printf("[DeleteAllFiles] Data directory does not exist: %s\n", dataDir)
+		utils.DebugPrint("Data directory does not exist: %s", dataDir)
 		return nil
 	}
 
@@ -105,15 +106,15 @@ func (a *App) DeleteAllFiles() error {
 		if !entry.IsDir() {
 			filePath := fmt.Sprintf("%s/%s", dataDir, entry.Name())
 			if err := os.Remove(filePath); err != nil {
-				fmt.Printf("[DeleteAllFiles] Failed to delete %s: %v\n", filePath, err)
+				utils.DebugPrint("Failed to delete %s: %v", filePath, err)
 			} else {
-				fmt.Printf("[DeleteAllFiles] Deleted: %s\n", filePath)
+				utils.DebugPrint("Deleted", filePath)
 				deletedCount++
 			}
 		}
 	}
 
-	fmt.Printf("[DeleteAllFiles] Deleted %d files from %s\n", deletedCount, dataDir)
+	utils.DebugPrint("Deleted %d files from %s", deletedCount, dataDir)
 	return nil
 }
 
@@ -152,7 +153,7 @@ func (a *App) PopulateInventory(filePath string) (string, error) {
 		}
 
 		if err := a.itemDAO.Write(itemName); err != nil {
-			fmt.Printf("Failed to add item '%s': %v\n", itemName, err)
+			utils.DebugPrint("Failed to add item '%s': %v", itemName, err)
 			errorCount++
 		} else {
 			successCount++
