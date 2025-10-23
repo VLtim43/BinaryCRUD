@@ -322,6 +322,7 @@ Multi-valued string attributes (items in orders/promotions) are stored using:
 3. **Sequential storage**: Strings stored one after another
 
 **Example** (Order with 3 items):
+
 ```
 [ItemCount: 03 00][0x1F][Item1][Item2][Item3]
 ```
@@ -363,6 +364,7 @@ Logical deletion using tombstone flags preserves data while marking records as d
 Each file maintains independent ID sequence in header's `NextID` field.
 
 **Item ID** is indexed using a B+ tree (order 4) stored in `items.bin.idx`:
+
 - Maps Item ID (uint32) → File Offset (int64)
 - O(log n) search complexity
 - Automatic index updates on Write operations
@@ -375,10 +377,12 @@ Each file maintains independent ID sequence in header's `NextID` field.
 **✅ Implemented: B+ Tree Index for Items**
 
 **Location**: `backend/index/`
+
 - `bplustree.go` - Core B+ tree implementation
 - `item_index.go` - Integration with ItemDAO
 
 **Specifications**:
+
 - **Type**: B+ Tree with order 4
 - **Key**: Item ID (uint32)
 - **Value**: File offset in items.bin (int64)
@@ -386,6 +390,7 @@ Each file maintains independent ID sequence in header's `NextID` field.
 - **Format**: `[TreeOrder(4)][EntryCount(4)][Key(4)+Offset(8)]...`
 
 **Features**:
+
 - **Insert**: O(log n) with automatic node splitting
 - **Search**: O(log n) with binary search in nodes
 - **Persistence**: Automatic save after each insert
@@ -393,6 +398,7 @@ Each file maintains independent ID sequence in header's `NextID` field.
 - **Debugging**: Print tree structure command
 
 **Node Structure**:
+
 - **Internal nodes**: Keys + child pointers for navigation
 - **Leaf nodes**: Keys + file offsets, linked for sequential traversal
 - **Max keys per node**: 3 (order - 1)
@@ -412,6 +418,7 @@ dao.RebuildIndex()  // Scans entire data file
 ```
 
 **UI Integration**:
+
 - Checkbox in Item → Read tab: "Use B+ Tree Index"
 - Enabled by default for optimal performance
 - Shows search method used in result message
@@ -419,6 +426,7 @@ dao.RebuildIndex()  // Scans entire data file
 **Orders and Promotions**: Currently use `utils.SequentialRead()` (O(n))
 
 **Planned Structures**:
+
 - **Hash Index**: For exact-match searches on item names
 - **Extensible Hashing**: For dynamic scaling
 - **B+ Tree for Orders/Promotions**: Extend indexing to other entities
@@ -430,6 +438,7 @@ See `backend/index/README.md` for complete B+ tree documentation.
 **Current Approach**: Embedded collection (denormalized)
 
 Orders and Promotions store item **names** (not IDs) as embedded collections:
+
 - **Navigation**: Direct - items are embedded in order/promotion records
 - **Referential Integrity**: None currently enforced (items stored by name, not FK)
 - **Trade-offs**:
@@ -448,6 +457,7 @@ Orders and Promotions store item **names** (not IDs) as embedded collections:
 **File Format**: `items.bin.idx`
 
 **Structure**:
+
 ```
 [TreeOrder(4)][EntryCount(4)][Entry1][Entry2]...[EntryN]
 
@@ -460,6 +470,7 @@ All fields stored in **little-endian** format.
 **Persistence Strategy**:
 
 1. **On Write Operation**:
+
    - Get current file size (record offset)
    - Write record to data file
    - Load index from disk
@@ -467,6 +478,7 @@ All fields stored in **little-endian** format.
    - Save index to disk
 
 2. **On Read with Index**:
+
    - Load index from disk (cached in memory)
    - Search B+ tree for offset
    - Seek directly to offset in data file
@@ -493,6 +505,7 @@ dao.RebuildIndex()
 ```
 
 Process:
+
 1. Scans entire `items.bin` file
 2. Parses each record to extract ID and offset
 3. Builds new B+ tree from scratch
@@ -552,6 +565,7 @@ See [Project Structure](#project-structure) section for detailed folder organiza
 ```
 
 **Layered Architecture**:
+
 - **Presentation**: Preact components (frontend/)
 - **Application**: Wails bindings (app.go)
 - **Business**: DAO layer (backend/dao/)
@@ -560,11 +574,3 @@ See [Project Structure](#project-structure) section for detailed folder organiza
 - **Storage**: Binary files (data/)
 
 See [Architecture](#architecture) section for data flow diagram.
-
-## License
-
-[Add your license here]
-
-## Contributing
-
-[Add contribution guidelines here]
