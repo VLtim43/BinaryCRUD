@@ -19,21 +19,21 @@ BinaryCRUD is a restaurant manager application that implements a custom database
 
 - **Create**: Add new items to the inventory
 - **Read**: Retrieve items by record ID or view all items
-- **Delete**: Mark items as deleted using tombstone flags (planned)
+- **Delete**: Mark items as deleted using tombstone flags (logical deletion)
 - **Print**: View the complete binary file structure
 
 ### Order Management
 
 - **Create**: Build orders by selecting multiple items with quantities
 - **Read**: Retrieve orders by ID or view all orders
-- **Delete**: Mark orders as deleted using tombstone flags (planned)
+- **Delete**: Mark orders as deleted using tombstone flags (logical deletion)
 - **Print**: View the complete orders binary file
 
 ### Promotion Management
 
 - **Create**: Create named promotions (collections of items)
 - **Read**: Retrieve promotions by ID or view all promotions
-- **Delete**: Mark promotions as deleted using tombstone flags (planned)
+- **Delete**: Mark promotions as deleted using tombstone flags (logical deletion)
 - **Print**: View the complete promotions binary file
 
 ### Debug Tools
@@ -60,24 +60,28 @@ All three files (`items.bin`, `orders.bin`, `promotions.bin`) share the same hea
 ### Item Record Format
 
 ```
-[ID(4)][0x1F][StringLength(2)][0x1F][StringContent][0x1F][0x1E]
+[ID(4)][0x1F][Tombstone(1)][0x1F][StringLength(2)][0x1F][StringContent][0x1F][0x1E]
 ```
+
+- **Tombstone**: `0x00` = active, `0x01` = deleted
 
 ### Order Record Format
 
 ```
-[ID(4)][0x1F][ItemCount(2)][0x1F][Item1Name][Item2Name]...[0x1E]
+[ID(4)][0x1F][Tombstone(1)][0x1F][ItemCount(2)][0x1F][Item1Name][Item2Name]...[0x1E]
 ```
 
-Each item name uses variable-length format: `[Length(2)][0x1F][Content][0x1F]`
+- **Tombstone**: `0x00` = active, `0x01` = deleted
+- Each item name uses variable-length format: `[Length(2)][0x1F][Content][0x1F]`
 
 ### Promotion Record Format
 
 ```
-[ID(4)][0x1F][NameLength(2)][0x1F][Name][0x1F][ItemCount(2)][0x1F][Item1Name][Item2Name]...[0x1E]
+[ID(4)][0x1F][Tombstone(1)][0x1F][NameLength(2)][0x1F][Name][0x1F][ItemCount(2)][0x1F][Item1Name][Item2Name]...[0x1E]
 ```
 
-Each item name uses variable-length format: `[Length(2)][0x1F][Content][0x1F]`
+- **Tombstone**: `0x00` = active, `0x01` = deleted
+- Each item name uses variable-length format: `[Length(2)][0x1F][Content][0x1F]`
 
 ### Separators
 
@@ -180,7 +184,7 @@ The compiled application will be in the `build/bin` directory.
 
 1. Navigate to **Item** → **Delete** tab
 2. Enter the record ID to delete
-3. Click **Delete Record** (not yet implemented)
+3. Click **Delete Record** to mark the item as deleted (tombstone flag)
 
 ### Order Management
 
@@ -202,7 +206,7 @@ The compiled application will be in the `build/bin` directory.
 
 1. Navigate to **Order** → **Delete** tab
 2. Enter the order ID to delete
-3. Click **Delete Order** (not yet implemented)
+3. Click **Delete Order** to mark the order as deleted (tombstone flag)
 
 ### Promotion Management
 
@@ -225,7 +229,7 @@ The compiled application will be in the `build/bin` directory.
 
 1. Navigate to **Promotion** → **Delete** tab
 2. Enter the promotion ID to delete
-3. Click **Delete Promotion** (not yet implemented)
+3. Click **Delete Promotion** to mark the promotion as deleted (tombstone flag)
 
 ### Populating Test Data
 
@@ -280,14 +284,14 @@ UI (Preact) → Wails Bindings → App Layer (app.go) → DAO Layer → Utils La
 - **B+ Tree Indexing for Items**: O(log n) fast lookups with automatic index maintenance
 - **Create Operations**: Add items, orders, and promotions with auto-increment IDs
 - **Read Operations**: Retrieve records by ID (sequential or indexed for items)
+- **Delete Operations**: Logical deletion using tombstone flags for items, orders, and promotions
 - **Index Persistence**: Automatic save/load of B+ tree to `.idx` files
 - **Index Rebuilding**: Reconstruct index from data file
 - **Debug Tools**: Print binary files, print index structure, rebuild index
 
 ### 🚧 Planned Features
 
-- **Delete Operations**: Implement tombstone-based logical deletion for items, orders, and promotions
-- **Update Operations**: Modify existing records (currently only create and read are implemented)
+- **Update Operations**: Modify existing records (currently only create, read, and delete are implemented)
 - **B+ Tree for Orders/Promotions**: Extend indexing to other entities
 - **Secondary Indexes**: Index on names, dates, and composite keys
 - **Search Functionality**: Search items, orders, and promotions by various criteria
@@ -326,12 +330,25 @@ See Order and Promotion record formats in [Binary File Format](#binary-file-form
 
 ### c) Logical Deletion Implementation (Exclusão Lógica)
 
-**Current Status**: Structure in place, implementation planned.
+**Current Status**: ✅ Fully Implemented
 
-- **Header tracking**: `TombstoneCount` field in file header (see [Header Structure](#header-structure-14-bytes))
-- **Planned approach**: Tombstone flag in record to mark as deleted
-- **Benefits**: Preserves data for recovery, maintains referential integrity
-- **UI**: Delete tabs exist in all sections (Item, Order, Promotion) showing "not yet implemented"
+Logical deletion using tombstone flags preserves data while marking records as deleted:
+
+- **Tombstone flag**: Each record has a 1-byte tombstone field (0x00 = active, 0x01 = deleted)
+- **Header tracking**: `TombstoneCount` field in file header tracks total deleted records
+- **Write operations**: New records created with tombstone = 0x00 (active)
+- **Read operations**: Automatically skip records where tombstone = 0x01
+- **Delete operations**:
+  - Items: Use B+ tree index for O(log n) deletion
+  - Orders/Promotions: Use sequential search to locate record
+  - Flip tombstone byte from 0x00 to 0x01
+  - Increment `TombstoneCount` in header
+- **Benefits**:
+  - Preserves data for recovery
+  - Maintains referential integrity
+  - No physical file reorganization needed
+  - Fast deletion (single byte write)
+- **API**: `DeleteItem(id)`, `DeleteOrder(id)`, `DeletePromotion(id)`
 
 ### d) Search Keys (Chaves de Pesquisa)
 
