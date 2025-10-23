@@ -11,8 +11,9 @@ import (
 
 // App struct
 type App struct {
-	ctx     context.Context
-	itemDAO *dao.ItemDAO
+	ctx      context.Context
+	itemDAO  *dao.ItemDAO
+	orderDAO *dao.OrderDAO
 }
 
 // ItemDTO represents an item with its ID and name for frontend consumption
@@ -24,7 +25,8 @@ type ItemDTO struct {
 // NewApp creates a new App application struct
 func NewApp() *App {
 	return &App{
-		itemDAO: dao.NewItemDAO("data/items.bin"),
+		itemDAO:  dao.NewItemDAO("data/items.bin"),
+		orderDAO: dao.NewOrderDAO("data/orders.bin"),
 	}
 }
 
@@ -37,6 +39,11 @@ func (a *App) startup(ctx context.Context) {
 // AddItem writes an item to the binary file
 func (a *App) AddItem(text string) error {
 	return a.itemDAO.Write(text)
+}
+
+// AddOrder writes an order to the binary file with an array of item names
+func (a *App) AddOrder(itemNames []string) error {
+	return a.orderDAO.Write(itemNames)
 }
 
 // GetItems reads items from the binary file and returns them with IDs

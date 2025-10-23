@@ -4,6 +4,8 @@ import {main} from '../models';
 
 export function AddItem(arg1:string):Promise<void>;
 
+export function AddOrder(arg1:Array<string>):Promise<void>;
+
 export function DeleteAllFiles():Promise<void>;
 
 export function DeleteItem(arg1:number):Promise<string>;

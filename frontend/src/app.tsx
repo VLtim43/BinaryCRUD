@@ -2,6 +2,7 @@ import "./App.scss";
 import logo from "./assets/images/logo-universal.png";
 import {
   AddItem,
+  AddOrder,
   PrintBinaryFile,
   DeleteAllFiles,
   GetItemByID,
@@ -255,15 +256,29 @@ export const App = () => {
     }
   };
 
-  // Submit order (placeholder - does nothing)
+  // Submit order - writes order to orders.bin
   const submitOrder = () => {
     if (cart.length === 0) {
       updateResultText("Error: Cart is empty");
       return;
     }
 
-    updateResultText(`Order submitted with ${cart.length} item(s)!`);
-    // TODO: Implement actual order submission
+    // Build array of item names based on quantities
+    const itemNames: string[] = [];
+    cart.forEach(item => {
+      for (let i = 0; i < item.quantity; i++) {
+        itemNames.push(item.name);
+      }
+    });
+
+    AddOrder(itemNames)
+      .then(() => {
+        updateResultText(`Order submitted with ${cart.length} unique item(s) (${itemNames.length} total)!`);
+        setCart([]);
+      })
+      .catch((err: any) => {
+        updateResultText(`Error: ${err}`);
+      });
   };
 
   return (
