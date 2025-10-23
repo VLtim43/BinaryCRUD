@@ -24,20 +24,13 @@ func PrintBinaryFile(filePath string) (string, error) {
 		return "", fmt.Errorf("file does not exist: %s", filePath)
 	}
 
-	// Open file
-	file, err := os.Open(filePath)
-	if err != nil {
-		return "", fmt.Errorf("failed to open file: %w", err)
-	}
-	defer file.Close()
-
 	var output strings.Builder
 
 	// Print filename
 	output.WriteString(fmt.Sprintf("Filename: %s\n\n", filePath))
 
-	// Read and print header
-	header, err := ReadHeader(file)
+	// Read header info
+	header, err := GetHeaderInfo(filePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read header: %w", err)
 	}
@@ -54,30 +47,52 @@ func PrintBinaryFile(filePath string) (string, error) {
 
 	output.WriteString("════════════════════════════════════════════\n")
 
-	// Read and print records
+	// Read and print records using SequentialRead
 	if header.EntryCount == 0 {
 		output.WriteString("(No records)\n")
 	} else {
+		records, err := SequentialRead(filePath)
+		if err != nil {
+			return "", fmt.Errorf("failed to read records: %w", err)
+		}
+
+		// Print records in order
 		for i := uint32(0); i < header.EntryCount; i++ {
-			// Read the item name
-			itemName, err := ReadVariable(file)
-			if err != nil {
-				output.WriteString(fmt.Sprintf("ERROR: %v\n", err))
+			recordBytes, exists := records[i]
+			if !exists {
+				output.WriteString(fmt.Sprintf("ERROR: Missing record at index %d\n", i))
 				break
 			}
 
-			// Get the item name bytes for display
+			// Parse the variable-length string from the record bytes
+			// Format: [Length(2)][UnitSeparator][Content][UnitSeparator]
+			if len(recordBytes) < 4 {
+				output.WriteString(fmt.Sprintf("ERROR: Invalid record at index %d: too short\n", i))
+				break
+			}
+
+			// Extract length (first 2 bytes, little-endian)
+			length := uint16(recordBytes[0]) | uint16(recordBytes[1])<<8
+
+			// Verify first unit separator at position 2
+			if recordBytes[2] != UnitSeparator {
+				output.WriteString(fmt.Sprintf("ERROR: Invalid record at index %d: missing first unit separator\n", i))
+				break
+			}
+
+			// Extract content
+			contentStart := 3
+			contentEnd := contentStart + int(length)
+
+			if contentEnd > len(recordBytes) {
+				output.WriteString(fmt.Sprintf("ERROR: Invalid record at index %d: content length mismatch\n", i))
+				break
+			}
+
+			itemName := string(recordBytes[contentStart:contentEnd])
 			itemBytes := []byte(itemName)
 
 			output.WriteString(fmt.Sprintf("Item Name: \"%s\"  %s\n", itemName, FormatBytes(itemBytes)))
-
-			// Read record separator
-			sep := make([]byte, 1)
-			if _, err := file.Read(sep); err != nil {
-				output.WriteString(fmt.Sprintf("ERROR reading record separator: %v\n", err))
-				break
-			}
-
 			output.WriteString("────────────────────────────────────────────\n")
 		}
 	}

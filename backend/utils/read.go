@@ -45,3 +45,47 @@ func ReadVariable(file *os.File) (string, error) {
 
 	return result, nil
 }
+
+// SequentialRead reads all entries from a binary file sequentially
+// Returns a map of record ID to record bytes (the raw bytes between record separators)
+// This is file-structure agnostic - it just reads records separated by RecordSeparator
+func SequentialRead(filePath string) (map[uint32][]byte, error) {
+	records := make(map[uint32][]byte)
+
+	// Open the binary file
+	file, err := OpenBinaryFile(filePath)
+	if err != nil {
+		return records, err
+	}
+	defer file.Close()
+
+	// Read header to get entry count
+	header, err := ReadHeader(file)
+	if err != nil {
+		return records, fmt.Errorf("failed to read header: %w", err)
+	}
+
+	// Read each record
+	for i := uint32(0); i < header.EntryCount; i++ {
+		// Read all bytes until we hit a record separator
+		var recordBytes []byte
+		buf := make([]byte, 1)
+
+		for {
+			if _, err := file.Read(buf); err != nil {
+				return records, fmt.Errorf("failed to read byte at record %d: %w", i, err)
+			}
+
+			// Check if we hit the record separator
+			if buf[0] == RecordSeparator {
+				break
+			}
+
+			recordBytes = append(recordBytes, buf[0])
+		}
+
+		records[i] = recordBytes
+	}
+
+	return records, nil
+}

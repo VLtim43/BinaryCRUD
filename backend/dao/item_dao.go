@@ -40,33 +40,38 @@ func (dao *ItemDAO) Write(itemName string) error {
 func (dao *ItemDAO) Read() (map[uint32]string, error) {
 	items := make(map[uint32]string)
 
-	// Check if file exists
-	file, err := utils.OpenBinaryFile(dao.filePath)
+	// Use generic sequential read to get raw record bytes
+	records, err := utils.SequentialRead(dao.filePath)
 	if err != nil {
 		return items, err
 	}
-	defer file.Close()
 
-	// Read header to get entry count
-	header, err := utils.ReadHeader(file)
-	if err != nil {
-		return items, fmt.Errorf("failed to read header: %w", err)
-	}
-
-	// Read each item
-	for i := uint32(0); i < header.EntryCount; i++ {
-		itemName, err := utils.ReadVariable(file)
-		if err != nil {
-			return items, fmt.Errorf("failed to read item at index %d: %w", i, err)
+	// Parse each record's bytes to extract the item name
+	for id, recordBytes := range records {
+		// Parse the variable-length string from the record bytes
+		// Format: [Length(2)][UnitSeparator][Content][UnitSeparator]
+		if len(recordBytes) < 4 { // Minimum: 2 bytes length + 2 separators
+			return items, fmt.Errorf("invalid record at index %d: too short", id)
 		}
 
-		// Read record separator
-		sep := make([]byte, 1)
-		if _, err := file.Read(sep); err != nil {
-			return items, fmt.Errorf("failed to read record separator at index %d: %w", i, err)
+		// Extract length (first 2 bytes, little-endian)
+		length := uint16(recordBytes[0]) | uint16(recordBytes[1])<<8
+
+		// Verify first unit separator at position 2
+		if recordBytes[2] != utils.UnitSeparator {
+			return items, fmt.Errorf("invalid record at index %d: missing first unit separator", id)
 		}
 
-		items[i] = itemName
+		// Extract content (after length and separator, before final separator)
+		contentStart := 3
+		contentEnd := contentStart + int(length)
+
+		if contentEnd > len(recordBytes) {
+			return items, fmt.Errorf("invalid record at index %d: content length mismatch", id)
+		}
+
+		itemName := string(recordBytes[contentStart:contentEnd])
+		items[id] = itemName
 	}
 
 	return items, nil
