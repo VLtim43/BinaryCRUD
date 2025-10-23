@@ -41,8 +41,5 @@ func AppendRecord(filePath string, recordBytes []byte) error {
 		return fmt.Errorf("failed to increment entry count: %w", err)
 	}
 
-	// Debug print the appended record
-	DebugPrint("Wrote", string(recordBytes))
-
 	return nil
 }
