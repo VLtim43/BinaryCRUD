@@ -39,8 +39,6 @@ BinaryCRUD is a restaurant manager application that implements a custom database
 ### Debug Tools
 
 - **Populate Inventory**: Bulk import items from `inventory.json`
-- **Print Index**: Display B+ tree index structure (planned feature)
-- **Rebuild Index**: Reconstruct the B+ tree index from scratch (planned feature)
 - **Delete All Files**: Clear all generated data files (`items.bin`, `orders.bin`, `promotions.bin`)
 
 ## Binary File Format
@@ -50,7 +48,7 @@ All three files (`items.bin`, `orders.bin`, `promotions.bin`) share the same hea
 ### Header Structure (14 bytes)
 
 ```
-[EntryCount(4)][UnitSep][TombstoneCount(4)][UnitSep][NextID(4)][RecordSep]
+[EntryCount(4)][0x1F][TombstoneCount(4)][0x1F][NextID(4)][0x1E]
 ```
 
 - **EntryCount**: Number of active records
@@ -60,46 +58,29 @@ All three files (`items.bin`, `orders.bin`, `promotions.bin`) share the same hea
 ### Item Record Format
 
 ```
-[ID(4)][UnitSep][StringLength(2)][UnitSep][StringContent][UnitSep][RecordSep]
+[ID(4)][0x1F][StringLength(2)][0x1F][StringContent][0x1F][0x1E]
 ```
 
 ### Order Record Format
 
 ```
-[ID(4)][UnitSep][ItemCount(2)][UnitSep][Item1Name][Item2Name]...[RecordSep]
+[ID(4)][0x1F][ItemCount(2)][0x1F][Item1Name][Item2Name]...[0x1E]
 ```
 
-Each item name uses variable-length format: `[Length(2)][UnitSep][Content][UnitSep]`
+Each item name uses variable-length format: `[Length(2)][0x1F][Content][0x1F]`
 
 ### Promotion Record Format
 
 ```
-[ID(4)][UnitSep][NameLength(2)][UnitSep][Name][UnitSep][ItemCount(2)][UnitSep][Item1Name][Item2Name]...[RecordSep]
+[ID(4)][0x1F][NameLength(2)][0x1F][Name][0x1F][ItemCount(2)][0x1F][Item1Name][Item2Name]...[0x1E]
 ```
 
-Each item name uses variable-length format: `[Length(2)][UnitSep][Content][UnitSep]`
+Each item name uses variable-length format: `[Length(2)][0x1F][Content][0x1F]`
 
 ### Separators
 
 - **Unit Separator**: `0x1F` (U+001F) - Separates fields within a record
 - **Record Separator**: `0x1E` (U+001E) - Marks the end of a record
-
-### Examples
-
-**Item Record** - Storing item "banana" with ID 0:
-```
-01 00 00 00 1F 06 00 1F 62 61 6E 61 6E 61 1F 1E
-```
-
-**Order Record** - Order ID 0 with 2 items (Pizza, Burrito):
-```
-00 00 00 00 1F 02 00 1F 05 00 1F 50 69 7A 7A 61 1F 07 00 1F 42 75 72 72 69 74 6F 1F 1E
-```
-
-**Promotion Record** - "combo supremo 1" with 3 items:
-```
-01 00 00 00 1F 0F 00 1F 63 6F 6D 62 6F 20 73 75 70 72 65 6D 6F 20 31 1F 03 00 1F [items...]
-```
 
 ## Project Structure
 
@@ -163,7 +144,7 @@ wails build
 Run in development mode with hot reload:
 
 ```bash
-wails dev
+.\run.sh
 ```
 
 ### Building
@@ -262,11 +243,13 @@ The compiled application will be in the `build/bin` directory.
 ### Backend (Go)
 
 **DAO Layer:**
+
 - **ItemDAO**: Handles item persistence (Create, Read, Print)
 - **OrderDAO**: Handles order persistence (Create, Read by ID, Print)
 - **PromotionDAO**: Handles promotion persistence (Create, Read by ID, Print)
 
 **Utils Package:**
+
 - Header management (EntryCount, TombstoneCount, NextID)
 - Variable-length string encoding/decoding
 - Fixed-length field encoding (IDs, counts)
