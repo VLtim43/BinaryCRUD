@@ -39,7 +39,9 @@ BinaryCRUD is a restaurant manager application that implements a custom database
 ### Debug Tools
 
 - **Populate Inventory**: Bulk import items from `inventory.json`
-- **Delete All Files**: Clear all generated data files (`items.bin`, `orders.bin`, `promotions.bin`)
+- **Print Index**: Display B+ tree structure in console (shows keys, offsets, tree levels)
+- **Rebuild Index**: Reconstruct B+ tree index from `items.bin` data file
+- **Delete All Files**: Clear all generated data files (`items.bin`, `items.bin.idx`, `orders.bin`, `promotions.bin`)
 
 ## Binary File Format
 
@@ -271,16 +273,29 @@ The compiled application will be in the `build/bin` directory.
 UI (Preact) → Wails Bindings → App Layer (app.go) → DAO Layer → Utils Layer → Binary Files
 ```
 
-## Planned Features
+## Features Status
+
+### ✅ Implemented
+
+- **B+ Tree Indexing for Items**: O(log n) fast lookups with automatic index maintenance
+- **Create Operations**: Add items, orders, and promotions with auto-increment IDs
+- **Read Operations**: Retrieve records by ID (sequential or indexed for items)
+- **Index Persistence**: Automatic save/load of B+ tree to `.idx` files
+- **Index Rebuilding**: Reconstruct index from data file
+- **Debug Tools**: Print binary files, print index structure, rebuild index
+
+### 🚧 Planned Features
 
 - **Delete Operations**: Implement tombstone-based logical deletion for items, orders, and promotions
-- **B+ Tree Indexing**: Fast lookups using B+ tree index structure
 - **Update Operations**: Modify existing records (currently only create and read are implemented)
+- **B+ Tree for Orders/Promotions**: Extend indexing to other entities
+- **Secondary Indexes**: Index on names, dates, and composite keys
 - **Search Functionality**: Search items, orders, and promotions by various criteria
 - **Export/Import**: Export data to JSON/CSV formats
 - **File Compaction**: Remove tombstoned records to reduce file size
 - **Order History**: View and analyze order patterns
 - **Promotion Analytics**: Track promotion usage and effectiveness
+- **Concurrent Access**: Add read-write locks for thread safety
 
 ## Technical Implementation Details
 
@@ -321,24 +336,77 @@ See Order and Promotion record formats in [Binary File Format](#binary-file-form
 ### d) Search Keys (Chaves de Pesquisa)
 
 **Primary Keys (PKs):**
-- Item ID (auto-increment per `items.bin`)
-- Order ID (auto-increment per `orders.bin`)
-- Promotion ID (auto-increment per `promotions.bin`)
 
-**Current Status**: Only primary keys implemented. Each file maintains independent ID sequence in header's `NextID` field.
+- **Item ID** (auto-increment per `items.bin`) - ✅ **Indexed with B+ Tree**
+- **Order ID** (auto-increment per `orders.bin`) - Sequential search only
+- **Promotion ID** (auto-increment per `promotions.bin`) - Sequential search only
 
-**Planned**: Secondary indexes for names, dates, and composite keys.
+**Implementation Details:**
+
+Each file maintains independent ID sequence in header's `NextID` field.
+
+**Item ID** is indexed using a B+ tree (order 4) stored in `items.bin.idx`:
+- Maps Item ID (uint32) → File Offset (int64)
+- O(log n) search complexity
+- Automatic index updates on Write operations
+- User-selectable in UI: "Use B+ Tree Index" checkbox
+
+**Planned**: Secondary indexes for names, dates, and composite keys for orders/promotions.
 
 ### e) Index Structures (Estruturas de Índice)
 
-**Current Implementation**: Sequential search using `utils.SequentialRead()`
+**✅ Implemented: B+ Tree Index for Items**
+
+**Location**: `backend/index/`
+- `bplustree.go` - Core B+ tree implementation
+- `item_index.go` - Integration with ItemDAO
+
+**Specifications**:
+- **Type**: B+ Tree with order 4
+- **Key**: Item ID (uint32)
+- **Value**: File offset in items.bin (int64)
+- **File**: `items.bin.idx` (separate index file)
+- **Format**: `[TreeOrder(4)][EntryCount(4)][Key(4)+Offset(8)]...`
+
+**Features**:
+- **Insert**: O(log n) with automatic node splitting
+- **Search**: O(log n) with binary search in nodes
+- **Persistence**: Automatic save after each insert
+- **Rebuild**: Can reconstruct entire index from data file
+- **Debugging**: Print tree structure command
+
+**Node Structure**:
+- **Internal nodes**: Keys + child pointers for navigation
+- **Leaf nodes**: Keys + file offsets, linked for sequential traversal
+- **Max keys per node**: 3 (order - 1)
+
+**Usage Example**:
+
+```go
+// Automatic on Write
+dao.Write("Pizza")  // Creates record + updates index
+
+// Fast lookup
+offset, found := index.Search(itemID)  // O(log n)
+// vs sequential: O(n)
+
+// Rebuild if needed
+dao.RebuildIndex()  // Scans entire data file
+```
+
+**UI Integration**:
+- Checkbox in Item → Read tab: "Use B+ Tree Index"
+- Enabled by default for optimal performance
+- Shows search method used in result message
+
+**Orders and Promotions**: Currently use `utils.SequentialRead()` (O(n))
 
 **Planned Structures**:
-- **B+ Tree**: For primary key lookups (referenced in Debug tools - Print Index, Rebuild Index)
-- **Hash Index**: For exact-match searches on names
+- **Hash Index**: For exact-match searches on item names
 - **Extensible Hashing**: For dynamic scaling
+- **B+ Tree for Orders/Promotions**: Extend indexing to other entities
 
-See [Planned Features](#planned-features) for B+ tree indexing roadmap.
+See `backend/index/README.md` for complete B+ tree documentation.
 
 ### f) 1:N Relationship Implementation
 
@@ -358,16 +426,81 @@ Orders and Promotions store item **names** (not IDs) as embedded collections:
 
 ### g) Index Persistence (Persistência de Índices)
 
-**Current Status**: Not yet implemented.
+**✅ Implemented for Items**
 
-**Planned Design**:
-- **Format**: Separate `.idx` files (e.g., `items.idx`, `orders.idx`)
-- **Structure**: B+ tree nodes serialized to disk
-- **Updates**: Write-ahead approach - update data file, then rebuild/update index
-- **Synchronization**: Index rebuild command available in Debug tab
-- **Recovery**: Rebuild Index function to reconstruct from data files
+**File Format**: `items.bin.idx`
 
-See Debug Tools section for index management commands (planned).
+**Structure**:
+```
+[TreeOrder(4)][EntryCount(4)][Entry1][Entry2]...[EntryN]
+
+Each entry:
+[Key(4)][Offset(8)]  // 12 bytes per entry
+```
+
+All fields stored in **little-endian** format.
+
+**Persistence Strategy**:
+
+1. **On Write Operation**:
+   - Get current file size (record offset)
+   - Write record to data file
+   - Load index from disk
+   - Insert new entry: `index.Insert(itemID, offset)`
+   - Save index to disk
+
+2. **On Read with Index**:
+   - Load index from disk (cached in memory)
+   - Search B+ tree for offset
+   - Seek directly to offset in data file
+   - Read single record
+
+3. **Index Synchronization**:
+   - Index saved after every Write operation
+   - Atomic operation: data write + index update
+   - If index update fails, logged as warning (data still written)
+
+**Index Lifecycle**:
+
+- **Creation**: Automatically created on first Write
+- **Updates**: Real-time updates on every item insert
+- **Loading**: Lazy loading - read from disk on first operation
+- **Rebuilding**: Manual rebuild command available
+
+**Recovery Mechanism**:
+
+If index becomes corrupted or out of sync:
+
+```go
+dao.RebuildIndex()
+```
+
+Process:
+1. Scans entire `items.bin` file
+2. Parses each record to extract ID and offset
+3. Builds new B+ tree from scratch
+4. Saves reconstructed index
+
+**Consistency Guarantees**:
+
+- ✅ Index always reflects latest data (updated on Write)
+- ✅ Rebuild available if corruption occurs
+- ✅ Index operations logged for debugging
+- ⚠️ No transaction support - write may succeed but index update fail
+
+**Performance**:
+
+- **Index file size**: ~12 bytes per item
+- **Load time**: O(n) to rebuild tree from flat file
+- **Save time**: O(n) to serialize all entries
+- **Memory**: O(n) for in-memory tree structure
+
+**UI Commands**:
+
+- **Print Index**: Debug → Print Index (shows tree structure in console)
+- **Rebuild Index**: Debug → Rebuild Index (reconstructs from data file)
+
+See `backend/index/README.md` for implementation details.
 
 ### h) Project Structure (Estrutura do Projeto)
 
@@ -376,29 +509,36 @@ See [Project Structure](#project-structure) section for detailed folder organiza
 **Key Architecture Patterns**:
 
 ```
-├── backend/dao/          # Data Access Objects (one per entity)
-│   ├── item_dao.go       # CRUD for items
-│   ├── order_dao.go      # CRUD for orders
-│   └── promotion_dao.go  # CRUD for promotions
-├── backend/utils/        # Shared binary file utilities
-│   ├── header.go         # Header read/write/update
-│   ├── read.go           # Sequential record reading
-│   ├── write.go          # Field encoding (fixed/variable)
-│   ├── append.go         # Record appending
-│   └── print.go          # Debug printing
+├── backend/
+│   ├── dao/              # Data Access Objects (one per entity)
+│   │   ├── item_dao.go       # CRUD + B+ tree index integration
+│   │   ├── order_dao.go      # CRUD for orders
+│   │   └── promotion_dao.go  # CRUD for promotions
+│   ├── index/            # B+ tree index implementation
+│   │   ├── bplustree.go      # Core B+ tree (insert, search, persist)
+│   │   ├── item_index.go     # Index manager for items
+│   │   └── README.md         # Complete index documentation
+│   └── utils/            # Shared binary file utilities
+│       ├── header.go         # Header read/write/update
+│       ├── read.go           # Sequential record reading
+│       ├── write.go          # Field encoding (fixed/variable)
+│       ├── append.go         # Record appending
+│       └── print.go          # Debug printing
 ├── frontend/src/         # Preact UI components
-│   ├── app.tsx           # Main component with tabs
+│   ├── app.tsx           # Main UI with index toggle
 │   └── main.tsx          # Entry point
-└── data/                 # Runtime-generated binary files
-    ├── items.bin
-    ├── orders.bin
-    └── promotions.bin
+└── data/                 # Runtime-generated files
+    ├── items.bin         # Item data file
+    ├── items.bin.idx     # B+ tree index for items ✨
+    ├── orders.bin        # Order data file
+    └── promotions.bin    # Promotion data file
 ```
 
 **Layered Architecture**:
 - **Presentation**: Preact components (frontend/)
 - **Application**: Wails bindings (app.go)
 - **Business**: DAO layer (backend/dao/)
+- **Indexing**: B+ tree layer (backend/index/) - **New!**
 - **Data Access**: Utils layer (backend/utils/)
 - **Storage**: Binary files (data/)
 
