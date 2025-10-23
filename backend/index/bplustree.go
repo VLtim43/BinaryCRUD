@@ -120,6 +120,14 @@ func (tree *BPlusTree) splitChild(parent *BPlusNode, childIndex int) {
 	child := parent.children[childIndex]
 	mid := len(child.keys) / 2
 
+	// Save the key that will be promoted to parent BEFORE modifying child
+	var promotionKey uint32
+	if child.isLeaf {
+		promotionKey = child.keys[mid]
+	} else {
+		promotionKey = child.keys[mid]
+	}
+
 	// Create new node for the right half
 	var newNode *BPlusNode
 	if child.isLeaf {
@@ -141,7 +149,7 @@ func (tree *BPlusTree) splitChild(parent *BPlusNode, childIndex int) {
 	// Insert new key into parent
 	parent.keys = append(parent.keys, 0)
 	copy(parent.keys[childIndex+1:], parent.keys[childIndex:])
-	parent.keys[childIndex] = child.keys[mid]
+	parent.keys[childIndex] = promotionKey
 
 	// Insert new child into parent
 	parent.children = append(parent.children, nil)
