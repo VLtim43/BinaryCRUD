@@ -27,7 +27,7 @@ func NewItemDAO(filePath string) *ItemDAO {
 // Write adds a new item to the binary file with auto-increment ID
 // Creates and initializes the file if it doesn't exist
 // Also updates the B+ tree index with the new item
-// Item record format: [ID(4)][UnitSeparator][StringLength(2)][UnitSeparator][StringContent][UnitSeparator][RecordSeparator]
+// Item record format: [ID(4)][UnitSeparator][Tombstone(1)][UnitSeparator][StringLength(2)][UnitSeparator][StringContent][UnitSeparator][RecordSeparator]
 func (dao *ItemDAO) Write(itemName string) error {
 	// Initialize file if it doesn't exist
 	if err := utils.InitializeBinaryFile(dao.filePath); err != nil {
@@ -58,14 +58,21 @@ func (dao *ItemDAO) Write(itemName string) error {
 		return fmt.Errorf("failed to build ID field: %w", err)
 	}
 
+	// Build the tombstone field: [Tombstone(1)][UnitSeparator] - 0x00 = active
+	tombstoneBytes, err := utils.BuildFixed(1, 0x00)
+	if err != nil {
+		return fmt.Errorf("failed to build tombstone field: %w", err)
+	}
+
 	// Build the item name field: [StringLength(2)][UnitSeparator][StringContent][UnitSeparator]
 	nameBytes, err := utils.BuildVariable(itemName)
 	if err != nil {
 		return fmt.Errorf("failed to build item name: %w", err)
 	}
 
-	// Combine ID and name bytes
-	recordBytes := append(idBytes, nameBytes...)
+	// Combine ID, tombstone, and name bytes
+	recordBytes := append(idBytes, tombstoneBytes...)
+	recordBytes = append(recordBytes, nameBytes...)
 
 	// Append the record to the file
 	if err := utils.AppendRecord(dao.filePath, recordBytes); err != nil {
@@ -87,6 +94,7 @@ func (dao *ItemDAO) Write(itemName string) error {
 }
 
 // Read reads all items from the binary file and returns them with their IDs
+// Skips records marked as deleted (tombstone = 0x01)
 func (dao *ItemDAO) Read() (map[uint32]string, error) {
 	items := make(map[uint32]string)
 
@@ -97,9 +105,9 @@ func (dao *ItemDAO) Read() (map[uint32]string, error) {
 	}
 
 	// Parse each record's bytes to extract the ID and item name
-	// Format: [ID(4)][UnitSeparator][StringLength(2)][UnitSeparator][StringContent][UnitSeparator]
+	// Format: [ID(4)][UnitSeparator][Tombstone(1)][UnitSeparator][StringLength(2)][UnitSeparator][StringContent][UnitSeparator]
 	for _, recordBytes := range records {
-		if len(recordBytes) < 8 { // Minimum: 4 bytes ID + 1 sep + 2 bytes length + 1 sep
+		if len(recordBytes) < 11 { // Minimum: 4 bytes ID + 1 sep + 1 tombstone + 1 sep + 2 bytes length + 1 sep + 0 content + 1 sep
 			return items, fmt.Errorf("invalid record: too short")
 		}
 
@@ -111,16 +119,29 @@ func (dao *ItemDAO) Read() (map[uint32]string, error) {
 			return items, fmt.Errorf("invalid record ID %d: missing unit separator after ID", itemID)
 		}
 
-		// Extract length (bytes 5-6, little-endian)
-		length := uint16(recordBytes[5]) | uint16(recordBytes[6])<<8
+		// Extract tombstone flag (byte 5)
+		tombstone := recordBytes[5]
 
-		// Verify unit separator after length at position 7
-		if recordBytes[7] != utils.UnitSeparator {
+		// Verify unit separator after tombstone at position 6
+		if recordBytes[6] != utils.UnitSeparator {
+			return items, fmt.Errorf("invalid record ID %d: missing unit separator after tombstone", itemID)
+		}
+
+		// Skip deleted records
+		if tombstone == 0x01 {
+			continue
+		}
+
+		// Extract length (bytes 7-8, little-endian)
+		length := uint16(recordBytes[7]) | uint16(recordBytes[8])<<8
+
+		// Verify unit separator after length at position 9
+		if recordBytes[9] != utils.UnitSeparator {
 			return items, fmt.Errorf("invalid record ID %d: missing unit separator after length", itemID)
 		}
 
-		// Extract content (after second separator)
-		contentStart := 8
+		// Extract content (after third separator)
+		contentStart := 10
 		contentEnd := contentStart + int(length)
 
 		if contentEnd > len(recordBytes) {
@@ -184,7 +205,7 @@ func (dao *ItemDAO) ReadByIDWithIndex(itemID uint32) (string, error) {
 	}
 
 	// Parse the record
-	if len(recordBytes) < 8 {
+	if len(recordBytes) < 11 {
 		return "", fmt.Errorf("invalid record: too short")
 	}
 
@@ -199,16 +220,29 @@ func (dao *ItemDAO) ReadByIDWithIndex(itemID uint32) (string, error) {
 		return "", fmt.Errorf("invalid record: missing separator after ID")
 	}
 
+	// Extract tombstone flag
+	tombstone := recordBytes[5]
+
+	// Verify unit separator after tombstone
+	if recordBytes[6] != utils.UnitSeparator {
+		return "", fmt.Errorf("invalid record: missing separator after tombstone")
+	}
+
+	// Check if record is deleted
+	if tombstone == 0x01 {
+		return "", fmt.Errorf("item with ID %d has been deleted", itemID)
+	}
+
 	// Extract length
-	length := uint16(recordBytes[5]) | uint16(recordBytes[6])<<8
+	length := uint16(recordBytes[7]) | uint16(recordBytes[8])<<8
 
 	// Verify unit separator after length
-	if recordBytes[7] != utils.UnitSeparator {
+	if recordBytes[9] != utils.UnitSeparator {
 		return "", fmt.Errorf("invalid record: missing separator after length")
 	}
 
 	// Extract content
-	contentStart := 8
+	contentStart := 10
 	contentEnd := contentStart + int(length)
 
 	if contentEnd > len(recordBytes) {
@@ -217,6 +251,107 @@ func (dao *ItemDAO) ReadByIDWithIndex(itemID uint32) (string, error) {
 
 	itemName := string(recordBytes[contentStart:contentEnd])
 	utils.DebugPrint("Found item [ID:%d] using index: \"%s\"", itemID, itemName)
+	return itemName, nil
+}
+
+// Delete marks an item as deleted by setting its tombstone flag to 0x01
+// Uses the B+ tree index to locate the record efficiently
+func (dao *ItemDAO) Delete(itemID uint32) (string, error) {
+	// Load index
+	if err := dao.index.Load(); err != nil {
+		return "", fmt.Errorf("failed to load index: %w", err)
+	}
+
+	// Search for offset in index
+	offset, found := dao.index.Search(itemID)
+	if !found {
+		return "", fmt.Errorf("item with ID %d not found in index", itemID)
+	}
+
+	// Open file for reading and writing
+	file, err := os.OpenFile(dao.filePath, os.O_RDWR, 0644)
+	if err != nil {
+		return "", fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	// Seek to the record offset
+	if _, err := file.Seek(offset, 0); err != nil {
+		return "", fmt.Errorf("failed to seek to offset %d: %w", offset, err)
+	}
+
+	// Read record until record separator to get full record
+	recordBytes := []byte{}
+	buf := make([]byte, 1)
+	for {
+		n, err := file.Read(buf)
+		if err != nil {
+			return "", fmt.Errorf("failed to read record: %w", err)
+		}
+		if n == 0 {
+			return "", fmt.Errorf("unexpected EOF while reading record")
+		}
+
+		if buf[0] == utils.RecordSeparator {
+			break
+		}
+
+		recordBytes = append(recordBytes, buf[0])
+	}
+
+	// Parse the record to validate and extract item name
+	if len(recordBytes) < 11 {
+		return "", fmt.Errorf("invalid record: too short")
+	}
+
+	// Verify ID matches
+	recordID := uint32(recordBytes[0]) | uint32(recordBytes[1])<<8 | uint32(recordBytes[2])<<16 | uint32(recordBytes[3])<<24
+	if recordID != itemID {
+		return "", fmt.Errorf("ID mismatch: expected %d, got %d", itemID, recordID)
+	}
+
+	// Verify unit separator after ID
+	if recordBytes[4] != utils.UnitSeparator {
+		return "", fmt.Errorf("invalid record: missing separator after ID")
+	}
+
+	// Check current tombstone status
+	tombstone := recordBytes[5]
+	if tombstone == 0x01 {
+		return "", fmt.Errorf("item with ID %d is already deleted", itemID)
+	}
+
+	// Verify unit separator after tombstone
+	if recordBytes[6] != utils.UnitSeparator {
+		return "", fmt.Errorf("invalid record: missing separator after tombstone")
+	}
+
+	// Extract item name before deletion
+	length := uint16(recordBytes[7]) | uint16(recordBytes[8])<<8
+	contentStart := 10
+	contentEnd := contentStart + int(length)
+	if contentEnd > len(recordBytes) {
+		return "", fmt.Errorf("invalid record: content length mismatch")
+	}
+	itemName := string(recordBytes[contentStart:contentEnd])
+
+	// Seek to the tombstone byte position (offset + 4 bytes ID + 1 byte separator = offset + 5)
+	tombstoneOffset := offset + 5
+	if _, err := file.Seek(tombstoneOffset, 0); err != nil {
+		return "", fmt.Errorf("failed to seek to tombstone position: %w", err)
+	}
+
+	// Write 0x01 to mark as deleted
+	if _, err := file.Write([]byte{0x01}); err != nil {
+		return "", fmt.Errorf("failed to write tombstone flag: %w", err)
+	}
+
+	// Increment tombstone count in header
+	if err := utils.IncrementTombstoneCount(dao.filePath); err != nil {
+		utils.DebugPrint("Warning: failed to increment tombstone count: %v", err)
+	}
+
+	utils.DebugPrint("Successfully deleted item [ID:%d]: \"%s\"", itemID, itemName)
 	return itemName, nil
 }
 

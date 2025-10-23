@@ -22,6 +22,14 @@ export function DeleteItem(arg1) {
   return window['go']['main']['App']['DeleteItem'](arg1);
 }
 
+export function DeleteOrder(arg1) {
+  return window['go']['main']['App']['DeleteOrder'](arg1);
+}
+
+export function DeletePromotion(arg1) {
+  return window['go']['main']['App']['DeletePromotion'](arg1);
+}
+
 export function GetItemByID(arg1) {
   return window['go']['main']['App']['GetItemByID'](arg1);
 }

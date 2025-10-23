@@ -151,8 +151,17 @@ func (a *App) GetItemByID(recordID uint32) (string, error) {
 // DeleteItem marks an item as deleted by setting its tombstone flag
 // Returns the name of the deleted item
 func (a *App) DeleteItem(recordID uint32) (string, error) {
-	// TODO: Implement when Delete method is added to ItemDAO
-	return "", fmt.Errorf("not yet implemented")
+	return a.itemDAO.Delete(recordID)
+}
+
+// DeleteOrder marks an order as deleted by setting its tombstone flag
+func (a *App) DeleteOrder(orderID uint32) error {
+	return a.orderDAO.Delete(orderID)
+}
+
+// DeletePromotion marks a promotion as deleted by setting its tombstone flag
+func (a *App) DeletePromotion(promotionID uint32) error {
+	return a.promotionDAO.Delete(promotionID)
 }
 
 // RebuildIndex rebuilds the B+ tree index from scratch

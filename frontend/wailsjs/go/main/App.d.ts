@@ -13,6 +13,10 @@ export function DeleteAllFiles():Promise<void>;
 
 export function DeleteItem(arg1:number):Promise<string>;
 
+export function DeleteOrder(arg1:number):Promise<void>;
+
+export function DeletePromotion(arg1:number):Promise<void>;
+
 export function GetItemByID(arg1:number):Promise<string>;
 
 export function GetItemByIDWithIndex(arg1:number):Promise<string>;
