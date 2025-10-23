@@ -73,6 +73,8 @@ func (a *App) PrintBinaryFile() error {
 
 // GetItemByID retrieves an item by its record ID
 func (a *App) GetItemByID(recordID uint32) (string, error) {
+	utils.DebugPrint("Searching ID: %d", recordID)
+
 	// Read all items
 	items, err := a.itemDAO.Read()
 	if err != nil {
@@ -82,9 +84,11 @@ func (a *App) GetItemByID(recordID uint32) (string, error) {
 	// Look up the item by ID
 	itemName, exists := items[recordID]
 	if !exists {
+		utils.DebugPrint("No ID found")
 		return "", fmt.Errorf("item with ID %d not found", recordID)
 	}
 
+	utils.DebugPrint("Found entry: \"%s\"", itemName)
 	return itemName, nil
 }
 
