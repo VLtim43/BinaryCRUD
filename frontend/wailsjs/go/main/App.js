@@ -10,6 +10,10 @@ export function AddOrder(arg1) {
   return window['go']['main']['App']['AddOrder'](arg1);
 }
 
+export function AddPromotion(arg1, arg2) {
+  return window['go']['main']['App']['AddPromotion'](arg1, arg2);
+}
+
 export function DeleteAllFiles() {
   return window['go']['main']['App']['DeleteAllFiles']();
 }
@@ -26,6 +30,22 @@ export function GetItems() {
   return window['go']['main']['App']['GetItems']();
 }
 
+export function GetOrderByID(arg1) {
+  return window['go']['main']['App']['GetOrderByID'](arg1);
+}
+
+export function GetOrders() {
+  return window['go']['main']['App']['GetOrders']();
+}
+
+export function GetPromotionByID(arg1) {
+  return window['go']['main']['App']['GetPromotionByID'](arg1);
+}
+
+export function GetPromotions() {
+  return window['go']['main']['App']['GetPromotions']();
+}
+
 export function PopulateInventory(arg1) {
   return window['go']['main']['App']['PopulateInventory'](arg1);
 }
@@ -36,6 +56,14 @@ export function PrintBinaryFile() {
 
 export function PrintIndex() {
   return window['go']['main']['App']['PrintIndex']();
+}
+
+export function PrintOrdersFile() {
+  return window['go']['main']['App']['PrintOrdersFile']();
+}
+
+export function PrintPromotionsFile() {
+  return window['go']['main']['App']['PrintPromotionsFile']();
 }
 
 export function RebuildIndex() {

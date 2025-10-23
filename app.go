@@ -11,9 +11,10 @@ import (
 
 // App struct
 type App struct {
-	ctx      context.Context
-	itemDAO  *dao.ItemDAO
-	orderDAO *dao.OrderDAO
+	ctx          context.Context
+	itemDAO      *dao.ItemDAO
+	orderDAO     *dao.OrderDAO
+	promotionDAO *dao.PromotionDAO
 }
 
 // ItemDTO represents an item with its ID and name for frontend consumption
@@ -25,8 +26,9 @@ type ItemDTO struct {
 // NewApp creates a new App application struct
 func NewApp() *App {
 	return &App{
-		itemDAO:  dao.NewItemDAO("data/items.bin"),
-		orderDAO: dao.NewOrderDAO("data/orders.bin"),
+		itemDAO:      dao.NewItemDAO("data/items.bin"),
+		orderDAO:     dao.NewOrderDAO("data/orders.bin"),
+		promotionDAO: dao.NewPromotionDAO("data/promotions.bin"),
 	}
 }
 
@@ -46,6 +48,11 @@ func (a *App) AddOrder(itemNames []string) error {
 	return a.orderDAO.Write(itemNames)
 }
 
+// AddPromotion writes a promotion to the binary file with a name and an array of item names
+func (a *App) AddPromotion(promotionName string, itemNames []string) error {
+	return a.promotionDAO.Write(promotionName, itemNames)
+}
+
 // GetItems reads items from the binary file and returns them with IDs
 func (a *App) GetItems() ([]ItemDTO, error) {
 	items, err := a.itemDAO.Read()
@@ -63,6 +70,48 @@ func (a *App) GetItems() ([]ItemDTO, error) {
 	}
 
 	return result, nil
+}
+
+// GetOrders reads all orders from the binary file
+func (a *App) GetOrders() ([]dao.OrderDTO, error) {
+	return a.orderDAO.Read()
+}
+
+// GetOrderByID reads a single order by its ID
+func (a *App) GetOrderByID(orderID uint32) (*dao.OrderDTO, error) {
+	return a.orderDAO.ReadByID(orderID)
+}
+
+// PrintOrdersFile prints the orders binary file to the application console
+func (a *App) PrintOrdersFile() error {
+	output, err := a.orderDAO.Print()
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(output)
+	return nil
+}
+
+// GetPromotions reads all promotions from the binary file
+func (a *App) GetPromotions() ([]dao.PromotionDTO, error) {
+	return a.promotionDAO.Read()
+}
+
+// GetPromotionByID reads a single promotion by its ID
+func (a *App) GetPromotionByID(promotionID uint32) (*dao.PromotionDTO, error) {
+	return a.promotionDAO.ReadByID(promotionID)
+}
+
+// PrintPromotionsFile prints the promotions binary file to the application console
+func (a *App) PrintPromotionsFile() error {
+	output, err := a.promotionDAO.Print()
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(output)
+	return nil
 }
 
 // PrintBinaryFile prints the binary file to the application console
