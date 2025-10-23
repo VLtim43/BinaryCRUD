@@ -282,6 +282,128 @@ UI (Preact) → Wails Bindings → App Layer (app.go) → DAO Layer → Utils La
 - **Order History**: View and analyze order patterns
 - **Promotion Analytics**: Track promotion usage and effectiveness
 
+## Technical Implementation Details
+
+### a) Record Structure (Estrutura de Registros)
+
+All records use a combination of **fixed-length** and **variable-length** fields with separators:
+
+- **Fixed-length fields**: IDs (4 bytes), counts (2 bytes) stored in little-endian format
+- **Variable-length fields**: Strings encoded as `[Length(2)][0x1F][Content][0x1F]`
+- **Separators**: Unit Separator (0x1F) between fields, Record Separator (0x1E) at record end
+
+See [Binary File Format](#binary-file-format) section for detailed format specifications.
+
+### b) Multi-valued String Attributes (Atributos Multivalorados)
+
+Multi-valued string attributes (items in orders/promotions) are stored using:
+
+1. **Count field**: 2-byte field indicating number of strings
+2. **Variable-length encoding**: Each string uses `[Length(2)][0x1F][Content][0x1F]`
+3. **Sequential storage**: Strings stored one after another
+
+**Example** (Order with 3 items):
+```
+[ItemCount: 03 00][0x1F][Item1][Item2][Item3]
+```
+
+See Order and Promotion record formats in [Binary File Format](#binary-file-format).
+
+### c) Logical Deletion Implementation (Exclusão Lógica)
+
+**Current Status**: Structure in place, implementation planned.
+
+- **Header tracking**: `TombstoneCount` field in file header (see [Header Structure](#header-structure-14-bytes))
+- **Planned approach**: Tombstone flag in record to mark as deleted
+- **Benefits**: Preserves data for recovery, maintains referential integrity
+- **UI**: Delete tabs exist in all sections (Item, Order, Promotion) showing "not yet implemented"
+
+### d) Search Keys (Chaves de Pesquisa)
+
+**Primary Keys (PKs):**
+- Item ID (auto-increment per `items.bin`)
+- Order ID (auto-increment per `orders.bin`)
+- Promotion ID (auto-increment per `promotions.bin`)
+
+**Current Status**: Only primary keys implemented. Each file maintains independent ID sequence in header's `NextID` field.
+
+**Planned**: Secondary indexes for names, dates, and composite keys.
+
+### e) Index Structures (Estruturas de Índice)
+
+**Current Implementation**: Sequential search using `utils.SequentialRead()`
+
+**Planned Structures**:
+- **B+ Tree**: For primary key lookups (referenced in Debug tools - Print Index, Rebuild Index)
+- **Hash Index**: For exact-match searches on names
+- **Extensible Hashing**: For dynamic scaling
+
+See [Planned Features](#planned-features) for B+ tree indexing roadmap.
+
+### f) 1:N Relationship Implementation
+
+**Current Approach**: Embedded collection (denormalized)
+
+Orders and Promotions store item **names** (not IDs) as embedded collections:
+- **Navigation**: Direct - items are embedded in order/promotion records
+- **Referential Integrity**: None currently enforced (items stored by name, not FK)
+- **Trade-offs**:
+  - ✓ Fast read (no joins needed)
+  - ✗ Data duplication (item names repeated)
+  - ✗ No cascade updates if item names change
+
+**Example**: Order contains `["Pizza", "Burrito"]` - full names stored, not references to items.bin.
+
+**Future Enhancement**: Could store item IDs instead and implement join logic for referential integrity.
+
+### g) Index Persistence (Persistência de Índices)
+
+**Current Status**: Not yet implemented.
+
+**Planned Design**:
+- **Format**: Separate `.idx` files (e.g., `items.idx`, `orders.idx`)
+- **Structure**: B+ tree nodes serialized to disk
+- **Updates**: Write-ahead approach - update data file, then rebuild/update index
+- **Synchronization**: Index rebuild command available in Debug tab
+- **Recovery**: Rebuild Index function to reconstruct from data files
+
+See Debug Tools section for index management commands (planned).
+
+### h) Project Structure (Estrutura do Projeto)
+
+See [Project Structure](#project-structure) section for detailed folder organization.
+
+**Key Architecture Patterns**:
+
+```
+├── backend/dao/          # Data Access Objects (one per entity)
+│   ├── item_dao.go       # CRUD for items
+│   ├── order_dao.go      # CRUD for orders
+│   └── promotion_dao.go  # CRUD for promotions
+├── backend/utils/        # Shared binary file utilities
+│   ├── header.go         # Header read/write/update
+│   ├── read.go           # Sequential record reading
+│   ├── write.go          # Field encoding (fixed/variable)
+│   ├── append.go         # Record appending
+│   └── print.go          # Debug printing
+├── frontend/src/         # Preact UI components
+│   ├── app.tsx           # Main component with tabs
+│   └── main.tsx          # Entry point
+└── data/                 # Runtime-generated binary files
+    ├── items.bin
+    ├── orders.bin
+    └── promotions.bin
+```
+
+**Layered Architecture**:
+- **Presentation**: Preact components (frontend/)
+- **Application**: Wails bindings (app.go)
+- **Business**: DAO layer (backend/dao/)
+- **Data Access**: Utils layer (backend/utils/)
+- **Storage**: Binary files (data/)
+
+See [Architecture](#architecture) section for data flow diagram.
+
 ## License
 
 [Add your license here]
