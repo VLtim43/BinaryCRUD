@@ -17,11 +17,12 @@ const (
 type BinaryFileHeader struct {
 	EntryCount     uint32 // Number of entries in the file
 	TombstoneCount uint32 // Number of deleted entries (tombstones)
+	NextID         uint32 // Next auto-increment ID to assign
 }
 
 // HeaderSize is the size of the binary file header in bytes
-// Format: [EntryCount(4)][UnitSeparator(1)][TombstoneCount(4)][RecordSeparator(1)]
-const HeaderSize = 10 // 4 + 1 + 4 + 1 = 10 bytes
+// Format: [EntryCount(4)][UnitSeparator(1)][TombstoneCount(4)][UnitSeparator(1)][NextID(4)][RecordSeparator(1)]
+const HeaderSize = 14 // 4 + 1 + 4 + 1 + 4 + 1 = 14 bytes
 
 // InitializeBinaryFile creates the data directory and initializes a binary file with header
 func InitializeBinaryFile(filePath string) error {
@@ -46,10 +47,11 @@ func InitializeBinaryFile(filePath string) error {
 	}
 	defer file.Close()
 
-	// Write initial header (all zeros)
+	// Write initial header (all zeros, NextID starts at 0)
 	header := BinaryFileHeader{
 		EntryCount:     0,
 		TombstoneCount: 0,
+		NextID:         0,
 	}
 
 	if err := WriteHeader(file, header); err != nil {
@@ -60,7 +62,7 @@ func InitializeBinaryFile(filePath string) error {
 }
 
 // WriteHeader writes the header to the beginning of the file
-// Format: [EntryCount(4)][UnitSeparator(1)][TombstoneCount(4)][RecordSeparator(1)]
+// Format: [EntryCount(4)][UnitSeparator(1)][TombstoneCount(4)][UnitSeparator(1)][NextID(4)][RecordSeparator(1)]
 func WriteHeader(file *os.File, header BinaryFileHeader) error {
 	// Seek to beginning of file
 	if _, err := file.Seek(0, 0); err != nil {
@@ -82,6 +84,16 @@ func WriteHeader(file *os.File, header BinaryFileHeader) error {
 		return fmt.Errorf("failed to write tombstone count: %w", err)
 	}
 
+	// Write Unit Separator
+	if _, err := file.Write([]byte{UnitSeparator}); err != nil {
+		return fmt.Errorf("failed to write unit separator: %w", err)
+	}
+
+	// Write NextID (4 bytes, little-endian)
+	if err := binary.Write(file, binary.LittleEndian, header.NextID); err != nil {
+		return fmt.Errorf("failed to write next ID: %w", err)
+	}
+
 	// Write Record Separator
 	if _, err := file.Write([]byte{RecordSeparator}); err != nil {
 		return fmt.Errorf("failed to write record separator: %w", err)
@@ -91,7 +103,7 @@ func WriteHeader(file *os.File, header BinaryFileHeader) error {
 }
 
 // ReadHeader reads the header from the beginning of the file
-// Format: [EntryCount(4)][UnitSeparator(1)][TombstoneCount(4)][RecordSeparator(1)]
+// Format: [EntryCount(4)][UnitSeparator(1)][TombstoneCount(4)][UnitSeparator(1)][NextID(4)][RecordSeparator(1)]
 func ReadHeader(file *os.File) (BinaryFileHeader, error) {
 	var header BinaryFileHeader
 
@@ -117,6 +129,19 @@ func ReadHeader(file *os.File) (BinaryFileHeader, error) {
 	// Read TombstoneCount (4 bytes, little-endian)
 	if err := binary.Read(file, binary.LittleEndian, &header.TombstoneCount); err != nil {
 		return header, fmt.Errorf("failed to read tombstone count: %w", err)
+	}
+
+	// Read and verify Unit Separator
+	if _, err := file.Read(sep); err != nil {
+		return header, fmt.Errorf("failed to read unit separator after tombstone: %w", err)
+	}
+	if sep[0] != UnitSeparator {
+		return header, fmt.Errorf("invalid unit separator after tombstone: expected 0x1F, got 0x%X", sep[0])
+	}
+
+	// Read NextID (4 bytes, little-endian)
+	if err := binary.Read(file, binary.LittleEndian, &header.NextID); err != nil {
+		return header, fmt.Errorf("failed to read next ID: %w", err)
 	}
 
 	// Read and verify Record Separator
@@ -175,6 +200,34 @@ func IncrementTombstoneCount(filePath string) error {
 	header.TombstoneCount++
 
 	return WriteHeader(file, header)
+}
+
+// GetNextIDAndIncrement atomically gets the current NextID and increments it
+// Returns the ID that should be used for the new record
+func GetNextIDAndIncrement(filePath string) (uint32, error) {
+	file, err := os.OpenFile(filePath, os.O_RDWR, 0644)
+	if err != nil {
+		return 0, fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	header, err := ReadHeader(file)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read header: %w", err)
+	}
+
+	// Store the current NextID to return
+	currentID := header.NextID
+
+	// Increment NextID for next time
+	header.NextID++
+
+	// Write updated header
+	if err := WriteHeader(file, header); err != nil {
+		return 0, fmt.Errorf("failed to write header: %w", err)
+	}
+
+	return currentID, nil
 }
 
 // GetHeaderInfo returns the header information from a binary file

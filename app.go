@@ -71,10 +71,21 @@ func (a *App) PrintBinaryFile() error {
 	return nil
 }
 
-// GetItemByID retrieves an item by its record ID using the B+ tree index
+// GetItemByID retrieves an item by its record ID
 func (a *App) GetItemByID(recordID uint32) (string, error) {
-	// TODO: Implement when GetByID method is added to ItemDAO
-	return "", fmt.Errorf("not yet implemented")
+	// Read all items
+	items, err := a.itemDAO.Read()
+	if err != nil {
+		return "", fmt.Errorf("failed to read items: %w", err)
+	}
+
+	// Look up the item by ID
+	itemName, exists := items[recordID]
+	if !exists {
+		return "", fmt.Errorf("item with ID %d not found", recordID)
+	}
+
+	return itemName, nil
 }
 
 // DeleteItem marks an item as deleted by setting its tombstone flag

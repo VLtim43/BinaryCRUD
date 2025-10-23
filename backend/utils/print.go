@@ -45,6 +45,11 @@ func PrintBinaryFile(filePath string) (string, error) {
 	binary.LittleEndian.PutUint32(tombstoneBytes, header.TombstoneCount)
 	output.WriteString(fmt.Sprintf("Tombstone Count: %d  %s\n", header.TombstoneCount, FormatBytes(tombstoneBytes)))
 
+	// Next ID
+	nextIDBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(nextIDBytes, header.NextID)
+	output.WriteString(fmt.Sprintf("Next ID: %d  %s\n", header.NextID, FormatBytes(nextIDBytes)))
+
 	output.WriteString("════════════════════════════════════════════\n")
 
 	// Read and print records using SequentialRead
@@ -64,24 +69,34 @@ func PrintBinaryFile(filePath string) (string, error) {
 				break
 			}
 
-			// Parse the variable-length string from the record bytes
-			// Format: [Length(2)][UnitSeparator][Content][UnitSeparator]
-			if len(recordBytes) < 4 {
+			// Parse the record bytes
+			// Format: [ID(4)][UnitSeparator][StringLength(2)][UnitSeparator][StringContent][UnitSeparator]
+			if len(recordBytes) < 8 { // Minimum: 4 bytes ID + 1 sep + 2 bytes length + 1 sep
 				output.WriteString(fmt.Sprintf("ERROR: Invalid record at index %d: too short\n", i))
 				break
 			}
 
-			// Extract length (first 2 bytes, little-endian)
-			length := uint16(recordBytes[0]) | uint16(recordBytes[1])<<8
+			// Extract ID (first 4 bytes, little-endian)
+			itemID := uint32(recordBytes[0]) | uint32(recordBytes[1])<<8 | uint32(recordBytes[2])<<16 | uint32(recordBytes[3])<<24
+			idBytes := recordBytes[0:4]
 
-			// Verify first unit separator at position 2
-			if recordBytes[2] != UnitSeparator {
-				output.WriteString(fmt.Sprintf("ERROR: Invalid record at index %d: missing first unit separator\n", i))
+			// Verify unit separator after ID
+			if recordBytes[4] != UnitSeparator {
+				output.WriteString(fmt.Sprintf("ERROR: Invalid record at index %d: missing separator after ID\n", i))
+				break
+			}
+
+			// Extract length (bytes 5-6, little-endian)
+			length := uint16(recordBytes[5]) | uint16(recordBytes[6])<<8
+
+			// Verify unit separator after length
+			if recordBytes[7] != UnitSeparator {
+				output.WriteString(fmt.Sprintf("ERROR: Invalid record at index %d: missing separator after length\n", i))
 				break
 			}
 
 			// Extract content
-			contentStart := 3
+			contentStart := 8
 			contentEnd := contentStart + int(length)
 
 			if contentEnd > len(recordBytes) {
@@ -92,6 +107,7 @@ func PrintBinaryFile(filePath string) (string, error) {
 			itemName := string(recordBytes[contentStart:contentEnd])
 			itemBytes := []byte(itemName)
 
+			output.WriteString(fmt.Sprintf("Item ID: %d  %s\n", itemID, FormatBytes(idBytes)))
 			output.WriteString(fmt.Sprintf("Item Name: \"%s\"  %s\n", itemName, FormatBytes(itemBytes)))
 			output.WriteString("────────────────────────────────────────────\n")
 		}
