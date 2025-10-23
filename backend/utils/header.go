@@ -187,3 +187,19 @@ func GetHeaderInfo(filePath string) (BinaryFileHeader, error) {
 
 	return ReadHeader(file)
 }
+
+// OpenBinaryFile opens a binary file for reading
+func OpenBinaryFile(filePath string) (*os.File, error) {
+	// Check if file exists
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("file does not exist: %s", filePath)
+	}
+
+	// Open file for reading
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file: %w", err)
+	}
+
+	return file, nil
+}

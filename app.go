@@ -41,8 +41,21 @@ func (a *App) AddItem(text string) error {
 
 // GetItems reads items from the binary file and returns them with IDs
 func (a *App) GetItems() ([]ItemDTO, error) {
-	// TODO: Implement when Read method is added to ItemDAO
-	return []ItemDTO{}, nil
+	items, err := a.itemDAO.Read()
+	if err != nil {
+		return []ItemDTO{}, err
+	}
+
+	// Convert map to slice of DTOs
+	result := make([]ItemDTO, 0, len(items))
+	for id, name := range items {
+		result = append(result, ItemDTO{
+			ID:   id,
+			Name: name,
+		})
+	}
+
+	return result, nil
 }
 
 // PrintBinaryFile prints the binary file to the application console

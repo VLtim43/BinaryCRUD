@@ -5,6 +5,7 @@ import {
   PrintBinaryFile,
   DeleteAllFiles,
   GetItemByID,
+  GetItems,
   PopulateInventory,
   DeleteItem,
   PrintIndex,
@@ -15,12 +16,15 @@ import { useState } from "preact/hooks";
 import { h, Fragment } from "preact";
 
 export const App = () => {
-  const [activeTab, setActiveTab] = useState<"item" | "debug">("item");
+  const [activeTab, setActiveTab] = useState<"item" | "order" | "debug">("item");
   const [itemSubTab, setItemSubTab] = useState<"create" | "read" | "delete">("create");
   const [resultText, setResultText] = useState("Enter item text below 👇");
   const [itemText, setItemText] = useState("");
   const [recordId, setRecordId] = useState("");
   const [deleteRecordId, setDeleteRecordId] = useState("");
+  const [availableItems, setAvailableItems] = useState<Array<{id: number, name: string}>>([]);
+  const [cart, setCart] = useState<Array<{id: number, name: string, quantity: number}>>([]);
+  const [selectedItemId, setSelectedItemId] = useState<string>("");
   const updateItemText = (e: any) => setItemText(e.target.value);
   const updateRecordId = (e: any) => {
     const value = e.target.value;
@@ -40,11 +44,15 @@ export const App = () => {
 
   // Get default text for each tab/subtab combination
   const getDefaultText = (
-    tab: "item" | "debug",
+    tab: "item" | "order" | "debug",
     subTab?: "create" | "read" | "delete"
   ) => {
     if (tab === "debug") {
       return "Debug tools and utilities";
+    }
+
+    if (tab === "order") {
+      return "Select items to add to your order";
     }
 
     if (tab === "item") {
@@ -64,10 +72,14 @@ export const App = () => {
   };
 
   // Handle main tab changes
-  const handleTabChange = (tab: "item" | "debug") => {
+  const handleTabChange = (tab: "item" | "order" | "debug") => {
     setActiveTab(tab);
     if (tab === "item") {
       setResultText(getDefaultText(tab, itemSubTab));
+    } else if (tab === "order") {
+      setResultText(getDefaultText(tab));
+      // Load items when entering order tab
+      loadItems();
     } else {
       setResultText(getDefaultText(tab));
     }
@@ -193,6 +205,67 @@ export const App = () => {
       });
   };
 
+  // Load all items for order tab
+  const loadItems = () => {
+    GetItems()
+      .then((items: Array<{id: number, name: string}>) => {
+        setAvailableItems(items);
+      })
+      .catch((err: any) => {
+        updateResultText(`Error loading items: ${err}`);
+      });
+  };
+
+  // Add item to cart
+  const addToCart = () => {
+    if (!selectedItemId) {
+      updateResultText("Error: Please select an item");
+      return;
+    }
+
+    const itemId = parseInt(selectedItemId, 10);
+    const item = availableItems.find(i => i.id === itemId);
+
+    if (!item) {
+      updateResultText("Error: Item not found");
+      return;
+    }
+
+    // Check if item already in cart
+    const existingItem = cart.find(c => c.id === itemId);
+    if (existingItem) {
+      // Increment quantity
+      setCart(cart.map(c =>
+        c.id === itemId ? { ...c, quantity: c.quantity + 1 } : c
+      ));
+    } else {
+      // Add new item to cart
+      setCart([...cart, { id: item.id, name: item.name, quantity: 1 }]);
+    }
+
+    updateResultText(`Added ${item.name} to cart`);
+  };
+
+  // Remove item from cart
+  const removeFromCart = (itemId: number) => {
+    const item = cart.find(c => c.id === itemId);
+    if (item) {
+      setCart(cart.filter(c => c.id !== itemId));
+      updateResultText(`Removed ${item.name} from cart`);
+    }
+  };
+
+  // Submit order (placeholder - does nothing)
+  const submitOrder = () => {
+    if (cart.length === 0) {
+      updateResultText("Error: Cart is empty");
+      return;
+    }
+
+    updateResultText(`Order submitted with ${cart.length} item(s)!`);
+    // TODO: Implement actual order submission
+  };
+
   return (
     <>
       <button className="close-btn" onClick={() => Quit()}>
@@ -204,6 +277,12 @@ export const App = () => {
           onClick={() => handleTabChange("item")}
         >
           Item
+        </button>
+        <button
+          className={`tab ${activeTab === "order" ? "active" : ""}`}
+          onClick={() => handleTabChange("order")}
+        >
+          Order
         </button>
         <button
           className={`tab ${activeTab === "debug" ? "active" : ""}`}
@@ -237,7 +316,7 @@ export const App = () => {
       )}
 
       <div id="App">
-        <img src={logo} id="logo" alt="logo" />
+        {activeTab !== "order" && <img src={logo} id="logo" alt="logo" />}
         <div id="result" className="result">
           {resultText}
         </div>
@@ -293,6 +372,63 @@ export const App = () => {
             <button className="btn btn-danger" onClick={deleteItem}>
               Delete Record
             </button>
+          </div>
+        )}
+
+        {activeTab === "order" && (
+          <div id="order-section">
+            <div className="cart-container">
+              <div className="cart-header">
+                <h3>Cart</h3>
+                {cart.length > 0 && (
+                  <button className="btn btn-primary" onClick={submitOrder}>
+                    Submit Order
+                  </button>
+                )}
+              </div>
+
+              <div className="cart-items">
+                {cart.length === 0 ? (
+                  <div className="cart-empty">Cart is empty</div>
+                ) : (
+                  cart.map((item) => (
+                    <div key={item.id} className="cart-item">
+                      <div className="cart-item-info">
+                        <div className="cart-item-name">{item.name}</div>
+                        <div className="cart-item-id">ID: {item.id}</div>
+                      </div>
+                      <div className="cart-item-controls">
+                        <div className="cart-item-quantity">x{item.quantity}</div>
+                        <button
+                          className="btn btn-danger btn-small"
+                          onClick={() => removeFromCart(item.id)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="cart-footer">
+                <select
+                  className="cart-select"
+                  value={selectedItemId}
+                  onChange={(e: any) => setSelectedItemId(e.target.value)}
+                >
+                  <option value="">Select an item...</option>
+                  {availableItems.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      [{item.id}] {item.name}
+                    </option>
+                  ))}
+                </select>
+                <button className="btn" onClick={addToCart}>
+                  Add
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
