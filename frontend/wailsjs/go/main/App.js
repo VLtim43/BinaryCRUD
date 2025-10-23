@@ -26,6 +26,10 @@ export function GetItemByID(arg1) {
   return window['go']['main']['App']['GetItemByID'](arg1);
 }
 
+export function GetItemByIDWithIndex(arg1) {
+  return window['go']['main']['App']['GetItemByIDWithIndex'](arg1);
+}
+
 export function GetItems() {
   return window['go']['main']['App']['GetItems']();
 }

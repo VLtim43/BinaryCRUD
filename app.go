@@ -157,15 +157,21 @@ func (a *App) DeleteItem(recordID uint32) (string, error) {
 
 // RebuildIndex rebuilds the B+ tree index from scratch
 func (a *App) RebuildIndex() error {
-	// TODO: Implement when index functionality is added
-	utils.DebugPrint("RebuildIndex: Not yet implemented")
-	return nil
+	utils.DebugPrint("Rebuilding B+ tree index...")
+	return a.itemDAO.RebuildIndex()
 }
 
 // PrintIndex prints the B+ tree structure to the console (for debugging)
 func (a *App) PrintIndex() {
-	// TODO: Implement when index functionality is added
-	utils.DebugPrint("PrintIndex: Not yet implemented")
+	utils.DebugPrint("B+ Tree Index Structure:")
+	indexStr := a.itemDAO.PrintIndex()
+	fmt.Println(indexStr)
+}
+
+// GetItemByIDWithIndex retrieves an item by its ID using the B+ tree index
+func (a *App) GetItemByIDWithIndex(recordID uint32) (string, error) {
+	utils.DebugPrint("Searching ID: %d using B+ tree index", recordID)
+	return a.itemDAO.ReadByIDWithIndex(recordID)
 }
 
 // DeleteAllFiles deletes all files in the data folder

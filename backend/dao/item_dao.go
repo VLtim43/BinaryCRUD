@@ -1,30 +1,50 @@
 package dao
 
 import (
+	"BinaryCRUD/backend/index"
 	"BinaryCRUD/backend/utils"
 	"fmt"
+	"os"
 )
 
 // ItemDAO handles data access operations for items
 type ItemDAO struct {
-	filePath string
+	filePath  string
+	index     *index.ItemIndex
+	indexPath string
 }
 
 // NewItemDAO creates a new ItemDAO instance
 func NewItemDAO(filePath string) *ItemDAO {
+	indexPath := filePath + ".idx"
 	return &ItemDAO{
-		filePath: filePath,
+		filePath:  filePath,
+		indexPath: indexPath,
+		index:     index.NewItemIndex(indexPath, filePath),
 	}
 }
 
 // Write adds a new item to the binary file with auto-increment ID
 // Creates and initializes the file if it doesn't exist
+// Also updates the B+ tree index with the new item
 // Item record format: [ID(4)][UnitSeparator][StringLength(2)][UnitSeparator][StringContent][UnitSeparator][RecordSeparator]
 func (dao *ItemDAO) Write(itemName string) error {
 	// Initialize file if it doesn't exist
 	if err := utils.InitializeBinaryFile(dao.filePath); err != nil {
 		return fmt.Errorf("failed to initialize file: %w", err)
 	}
+
+	// Load index
+	if err := dao.index.Load(); err != nil {
+		utils.DebugPrint("Warning: failed to load index: %v", err)
+	}
+
+	// Get current file size to know where record will be written
+	fileInfo, err := os.Stat(dao.filePath)
+	if err != nil {
+		return fmt.Errorf("failed to stat file: %w", err)
+	}
+	recordOffset := fileInfo.Size()
 
 	// Get the next ID and increment it atomically
 	itemID, err := utils.GetNextIDAndIncrement(dao.filePath)
@@ -50,6 +70,16 @@ func (dao *ItemDAO) Write(itemName string) error {
 	// Append the record to the file
 	if err := utils.AppendRecord(dao.filePath, recordBytes); err != nil {
 		return fmt.Errorf("failed to append item record: %w", err)
+	}
+
+	// Update index
+	if err := dao.index.Insert(itemID, recordOffset); err != nil {
+		utils.DebugPrint("Warning: failed to insert into index: %v", err)
+	}
+
+	// Save index
+	if err := dao.index.Save(); err != nil {
+		utils.DebugPrint("Warning: failed to save index: %v", err)
 	}
 
 	utils.DebugPrint("Successfully wrote item [ID:%d]: \"%s\"", itemID, itemName)
@@ -107,6 +137,101 @@ func (dao *ItemDAO) Read() (map[uint32]string, error) {
 	}
 
 	return items, nil
+}
+
+// ReadByIDWithIndex reads a single item by ID using the B+ tree index
+func (dao *ItemDAO) ReadByIDWithIndex(itemID uint32) (string, error) {
+	// Load index
+	if err := dao.index.Load(); err != nil {
+		return "", fmt.Errorf("failed to load index: %w", err)
+	}
+
+	// Search for offset in index
+	offset, found := dao.index.Search(itemID)
+	if !found {
+		return "", fmt.Errorf("item with ID %d not found in index", itemID)
+	}
+
+	// Open file
+	file, err := os.Open(dao.filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	// Seek to the record offset
+	if _, err := file.Seek(offset, 0); err != nil {
+		return "", fmt.Errorf("failed to seek to offset %d: %w", offset, err)
+	}
+
+	// Read record until record separator
+	recordBytes := []byte{}
+	buf := make([]byte, 1)
+	for {
+		n, err := file.Read(buf)
+		if err != nil {
+			return "", fmt.Errorf("failed to read record: %w", err)
+		}
+		if n == 0 {
+			return "", fmt.Errorf("unexpected EOF while reading record")
+		}
+
+		if buf[0] == utils.RecordSeparator {
+			break
+		}
+
+		recordBytes = append(recordBytes, buf[0])
+	}
+
+	// Parse the record
+	if len(recordBytes) < 8 {
+		return "", fmt.Errorf("invalid record: too short")
+	}
+
+	// Verify ID matches
+	recordID := uint32(recordBytes[0]) | uint32(recordBytes[1])<<8 | uint32(recordBytes[2])<<16 | uint32(recordBytes[3])<<24
+	if recordID != itemID {
+		return "", fmt.Errorf("ID mismatch: expected %d, got %d", itemID, recordID)
+	}
+
+	// Verify unit separator after ID
+	if recordBytes[4] != utils.UnitSeparator {
+		return "", fmt.Errorf("invalid record: missing separator after ID")
+	}
+
+	// Extract length
+	length := uint16(recordBytes[5]) | uint16(recordBytes[6])<<8
+
+	// Verify unit separator after length
+	if recordBytes[7] != utils.UnitSeparator {
+		return "", fmt.Errorf("invalid record: missing separator after length")
+	}
+
+	// Extract content
+	contentStart := 8
+	contentEnd := contentStart + int(length)
+
+	if contentEnd > len(recordBytes) {
+		return "", fmt.Errorf("invalid record: content length mismatch")
+	}
+
+	itemName := string(recordBytes[contentStart:contentEnd])
+	utils.DebugPrint("Found item [ID:%d] using index: \"%s\"", itemID, itemName)
+	return itemName, nil
+}
+
+// RebuildIndex rebuilds the B+ tree index from the data file
+func (dao *ItemDAO) RebuildIndex() error {
+	utils.DebugPrint("Rebuilding index for %s", dao.filePath)
+	return dao.index.RebuildFromFile()
+}
+
+// PrintIndex returns a string representation of the B+ tree index structure
+func (dao *ItemDAO) PrintIndex() string {
+	if err := dao.index.Load(); err != nil {
+		return fmt.Sprintf("Failed to load index: %v", err)
+	}
+	return dao.index.Print()
 }
 
 // Print returns a formatted string representation of the binary file contents

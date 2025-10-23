@@ -9,6 +9,7 @@ import {
   PrintPromotionsFile,
   DeleteAllFiles,
   GetItemByID,
+  GetItemByIDWithIndex,
   GetOrderByID,
   GetPromotionByID,
   GetItems,
@@ -42,6 +43,7 @@ export const App = () => {
   const [orderDeleteId, setOrderDeleteId] = useState("");
   const [promotionReadId, setPromotionReadId] = useState("");
   const [promotionDeleteId, setPromotionDeleteId] = useState("");
+  const [useIndex, setUseIndex] = useState(true);
   const updateItemText = (e: any) => setItemText(e.target.value);
   const updateRecordId = (e: any) => {
     const value = e.target.value;
@@ -223,9 +225,13 @@ export const App = () => {
       return;
     }
 
-    GetItemByID(id)
+    // Use index or sequential search based on checkbox
+    const searchMethod = useIndex ? GetItemByIDWithIndex : GetItemByID;
+    const methodName = useIndex ? "B+ Tree Index" : "Sequential Search";
+
+    searchMethod(id)
       .then((itemName: string) => {
-        updateResultText(`Record ${id}: ${itemName}`);
+        updateResultText(`Record ${id}: ${itemName} (using ${methodName})`);
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -654,6 +660,16 @@ export const App = () => {
               placeholder="Enter Record ID"
               value={recordId}
             />
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <input
+                  type="checkbox"
+                  checked={useIndex}
+                  onChange={(e: any) => setUseIndex(e.target.checked)}
+                />
+                Use B+ Tree Index
+              </label>
+            </div>
             <button className="btn" onClick={getRecordById}>
               Get Record
             </button>

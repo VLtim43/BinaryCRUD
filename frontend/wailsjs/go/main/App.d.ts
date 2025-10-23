@@ -15,6 +15,8 @@ export function DeleteItem(arg1:number):Promise<string>;
 
 export function GetItemByID(arg1:number):Promise<string>;
 
+export function GetItemByIDWithIndex(arg1:number):Promise<string>;
+
 export function GetItems():Promise<Array<main.ItemDTO>>;
 
 export function GetOrderByID(arg1:number):Promise<dao.OrderDTO>;

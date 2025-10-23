@@ -9,5 +9,6 @@ claude
 .claude
 
 *.bin
+*.idx
 *.txt
 /data
