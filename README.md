@@ -44,10 +44,11 @@ All three files (`items.bin`, `orders.bin`, `promotions.bin`) share the same hea
 ### Item Record Format
 
 ```
-[ID(4)][0x1F][Tombstone(1)][0x1F][StringLength(2)][0x1F][StringContent][0x1F][0x1E]
+[ID(4)][0x1F][Tombstone(1)][0x1F][StringLength(2)][0x1F][StringContent][0x1F][PriceInCents(4)][0x1F][0x1E]
 ```
 
 - **Tombstone**: `0x00` = active, `0x01` = deleted
+- **PriceInCents**: 4-byte integer storing price in cents (e.g., 100 = $1.00)
 
 ### Order Record Format
 
@@ -126,7 +127,7 @@ The compiled application will be in the `build/bin` directory.
 **Creating Items:**
 
 1. Navigate to **Item** → **Create** tab
-2. Enter item name in the input field
+2. Enter item name and price in the input fields
 3. Click **Add Item**
 
 **Reading Items:**
@@ -148,8 +149,9 @@ The compiled application will be in the `build/bin` directory.
 
 1. Navigate to **Order** → **Create** tab
 2. Select items from the dropdown and click **Add**
-3. Adjust quantities as needed
-4. Click **Submit Order** when ready
+3. Adjust quantities as needed (each item shows unit price and total)
+4. View the cart total at the top
+5. Click **Submit Order** when ready
 
 **Reading Orders:**
 
@@ -171,8 +173,9 @@ The compiled application will be in the `build/bin` directory.
 1. Navigate to **Promotion** → **Create** tab
 2. Enter a promotion name
 3. Select items from the dropdown and click **Add**
-4. Adjust quantities as needed
-5. Click **Create Promotion** when ready
+4. Adjust quantities as needed (each item shows unit price and total)
+5. View the promotion total at the top
+6. Click **Create Promotion** when ready
 
 **Reading Promotions:**
 
@@ -193,7 +196,13 @@ The compiled application will be in the `build/bin` directory.
 
 ```json
 {
-  "items": ["Pizza", "Burger", "Chicken Wrap", "Burrito", "Salad"]
+  "items": [
+    {"name": "Pizza", "priceInCents": 1200},
+    {"name": "Burger", "priceInCents": 899},
+    {"name": "Chicken Wrap", "priceInCents": 750},
+    {"name": "Burrito", "priceInCents": 950},
+    {"name": "Salad", "priceInCents": 650}
+  ]
 }
 ```
 
