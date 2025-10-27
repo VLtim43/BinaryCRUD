@@ -25,21 +25,36 @@ import { useState } from "preact/hooks";
 import { h, Fragment } from "preact";
 
 export const App = () => {
-  const [activeTab, setActiveTab] = useState<"item" | "order" | "promotion" | "debug">("item");
-  const [itemSubTab, setItemSubTab] = useState<"create" | "read" | "delete">("create");
-  const [orderSubTab, setOrderSubTab] = useState<"create" | "read" | "delete">("create");
-  const [promotionSubTab, setPromotionSubTab] = useState<"create" | "read" | "delete">("create");
+  const [activeTab, setActiveTab] = useState<
+    "item" | "order" | "promotion" | "debug"
+  >("item");
+  const [itemSubTab, setItemSubTab] = useState<"create" | "read" | "delete">(
+    "create"
+  );
+  const [orderSubTab, setOrderSubTab] = useState<"create" | "read" | "delete">(
+    "create"
+  );
+  const [promotionSubTab, setPromotionSubTab] = useState<
+    "create" | "read" | "delete"
+  >("create");
   const [resultText, setResultText] = useState("Enter item text below 👇");
   const [itemText, setItemText] = useState("");
   const [itemPrice, setItemPrice] = useState("");
   const [recordId, setRecordId] = useState("");
   const [deleteRecordId, setDeleteRecordId] = useState("");
-  const [availableItems, setAvailableItems] = useState<Array<{id: number, name: string, priceInCents: number}>>([]);
-  const [cart, setCart] = useState<Array<{id: number, name: string, quantity: number, priceInCents: number}>>([]);
+  const [availableItems, setAvailableItems] = useState<
+    Array<{ id: number; name: string; priceInCents: number }>
+  >([]);
+  const [cart, setCart] = useState<
+    Array<{ id: number; name: string; quantity: number; priceInCents: number }>
+  >([]);
   const [selectedItemId, setSelectedItemId] = useState<string>("");
   const [promotionName, setPromotionName] = useState("");
-  const [promotionCart, setPromotionCart] = useState<Array<{id: number, name: string, quantity: number, priceInCents: number}>>([]);
-  const [promotionSelectedItemId, setPromotionSelectedItemId] = useState<string>("");
+  const [promotionCart, setPromotionCart] = useState<
+    Array<{ id: number; name: string; quantity: number; priceInCents: number }>
+  >([]);
+  const [promotionSelectedItemId, setPromotionSelectedItemId] =
+    useState<string>("");
   const [orderReadId, setOrderReadId] = useState("");
   const [orderDeleteId, setOrderDeleteId] = useState("");
   const [promotionReadId, setPromotionReadId] = useState("");
@@ -183,7 +198,9 @@ export const App = () => {
   };
 
   // Handle promotion subtab changes
-  const handlePromotionSubTabChange = (subTab: "create" | "read" | "delete") => {
+  const handlePromotionSubTabChange = (
+    subTab: "create" | "read" | "delete"
+  ) => {
     setPromotionSubTab(subTab);
     setResultText(getDefaultText("promotion", subTab));
     // Load items when switching to create subtab
@@ -253,7 +270,9 @@ export const App = () => {
     searchMethod(id)
       .then((item: any) => {
         const price = (item.priceInCents / 100).toFixed(2);
-        updateResultText(`Record ${id}: ${item.name} - $${price} (using ${methodName})`);
+        updateResultText(
+          `Record ${id}: ${item.name} - $${price} (using ${methodName})`
+        );
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -327,9 +346,11 @@ export const App = () => {
   // Load all items for order tab
   const loadItems = () => {
     GetItems()
-      .then((items: Array<{id: number, name: string, priceInCents: number}>) => {
-        setAvailableItems(items);
-      })
+      .then(
+        (items: Array<{ id: number; name: string; priceInCents: number }>) => {
+          setAvailableItems(items);
+        }
+      )
       .catch((err: any) => {
         updateResultText(`Error loading items: ${err}`);
       });
@@ -343,7 +364,7 @@ export const App = () => {
     }
 
     const itemId = parseInt(selectedItemId, 10);
-    const item = availableItems.find(i => i.id === itemId);
+    const item = availableItems.find((i) => i.id === itemId);
 
     if (!item) {
       updateResultText("Error: Item not found");
@@ -351,15 +372,25 @@ export const App = () => {
     }
 
     // Check if item already in cart
-    const existingItem = cart.find(c => c.id === itemId);
+    const existingItem = cart.find((c) => c.id === itemId);
     if (existingItem) {
       // Increment quantity
-      setCart(cart.map(c =>
-        c.id === itemId ? { ...c, quantity: c.quantity + 1 } : c
-      ));
+      setCart(
+        cart.map((c) =>
+          c.id === itemId ? { ...c, quantity: c.quantity + 1 } : c
+        )
+      );
     } else {
       // Add new item to cart
-      setCart([...cart, { id: item.id, name: item.name, quantity: 1, priceInCents: item.priceInCents }]);
+      setCart([
+        ...cart,
+        {
+          id: item.id,
+          name: item.name,
+          quantity: 1,
+          priceInCents: item.priceInCents,
+        },
+      ]);
     }
 
     updateResultText(`Added ${item.name} to cart`);
@@ -367,9 +398,9 @@ export const App = () => {
 
   // Remove item from cart
   const removeFromCart = (itemId: number) => {
-    const item = cart.find(c => c.id === itemId);
+    const item = cart.find((c) => c.id === itemId);
     if (item) {
-      setCart(cart.filter(c => c.id !== itemId));
+      setCart(cart.filter((c) => c.id !== itemId));
       updateResultText(`Removed ${item.name} from cart`);
     }
   };
@@ -383,7 +414,7 @@ export const App = () => {
 
     // Build array of item names based on quantities
     const itemNames: string[] = [];
-    cart.forEach(item => {
+    cart.forEach((item) => {
       for (let i = 0; i < item.quantity; i++) {
         itemNames.push(item.name);
       }
@@ -391,7 +422,9 @@ export const App = () => {
 
     AddOrder(itemNames)
       .then(() => {
-        updateResultText(`Order submitted with ${cart.length} unique item(s) (${itemNames.length} total)!`);
+        updateResultText(
+          `Order submitted with ${cart.length} unique item(s) (${itemNames.length} total)!`
+        );
         setCart([]);
       })
       .catch((err: any) => {
@@ -407,7 +440,7 @@ export const App = () => {
     }
 
     const itemId = parseInt(promotionSelectedItemId, 10);
-    const item = availableItems.find(i => i.id === itemId);
+    const item = availableItems.find((i) => i.id === itemId);
 
     if (!item) {
       updateResultText("Error: Item not found");
@@ -415,15 +448,25 @@ export const App = () => {
     }
 
     // Check if item already in promotion cart
-    const existingItem = promotionCart.find(c => c.id === itemId);
+    const existingItem = promotionCart.find((c) => c.id === itemId);
     if (existingItem) {
       // Increment quantity
-      setPromotionCart(promotionCart.map(c =>
-        c.id === itemId ? { ...c, quantity: c.quantity + 1 } : c
-      ));
+      setPromotionCart(
+        promotionCart.map((c) =>
+          c.id === itemId ? { ...c, quantity: c.quantity + 1 } : c
+        )
+      );
     } else {
       // Add new item to promotion cart
-      setPromotionCart([...promotionCart, { id: item.id, name: item.name, quantity: 1, priceInCents: item.priceInCents }]);
+      setPromotionCart([
+        ...promotionCart,
+        {
+          id: item.id,
+          name: item.name,
+          quantity: 1,
+          priceInCents: item.priceInCents,
+        },
+      ]);
     }
 
     updateResultText(`Added ${item.name} to promotion`);
@@ -431,9 +474,9 @@ export const App = () => {
 
   // Remove item from promotion cart
   const removeFromPromotionCart = (itemId: number) => {
-    const item = promotionCart.find(c => c.id === itemId);
+    const item = promotionCart.find((c) => c.id === itemId);
     if (item) {
-      setPromotionCart(promotionCart.filter(c => c.id !== itemId));
+      setPromotionCart(promotionCart.filter((c) => c.id !== itemId));
       updateResultText(`Removed ${item.name} from promotion`);
     }
   };
@@ -452,7 +495,7 @@ export const App = () => {
 
     // Build array of item names based on quantities
     const itemNames: string[] = [];
-    promotionCart.forEach(item => {
+    promotionCart.forEach((item) => {
       for (let i = 0; i < item.quantity; i++) {
         itemNames.push(item.name);
       }
@@ -460,7 +503,9 @@ export const App = () => {
 
     AddPromotion(promotionName, itemNames)
       .then(() => {
-        updateResultText(`Promotion "${promotionName}" created with ${promotionCart.length} unique item(s) (${itemNames.length} total)!`);
+        updateResultText(
+          `Promotion "${promotionName}" created with ${promotionCart.length} unique item(s) (${itemNames.length} total)!`
+        );
         setPromotionName("");
         setPromotionCart([]);
       })
@@ -485,7 +530,9 @@ export const App = () => {
     GetOrderByID(id)
       .then((order: any) => {
         const itemsList = order.items.join(", ");
-        updateResultText(`Order ${id}: ${order.items.length} item(s) - ${itemsList}`);
+        updateResultText(
+          `Order ${id}: ${order.items.length} item(s) - ${itemsList}`
+        );
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -517,14 +564,18 @@ export const App = () => {
 
     const id = parseInt(promotionReadId, 10);
     if (isNaN(id) || id < 0) {
-      updateResultText("Error: Promotion ID must be a valid non-negative number");
+      updateResultText(
+        "Error: Promotion ID must be a valid non-negative number"
+      );
       return;
     }
 
     GetPromotionByID(id)
       .then((promotion: any) => {
         const itemsList = promotion.items.join(", ");
-        updateResultText(`Promotion ${id} "${promotion.name}": ${promotion.items.length} item(s) - ${itemsList}`);
+        updateResultText(
+          `Promotion ${id} "${promotion.name}": ${promotion.items.length} item(s) - ${itemsList}`
+        );
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -649,7 +700,9 @@ export const App = () => {
       )}
 
       <div id="App">
-        {activeTab !== "order" && activeTab !== "promotion" && <img src={logo} id="logo" alt="logo" />}
+        {activeTab !== "order" && activeTab !== "promotion" && (
+          <img src={logo} id="logo" alt="logo" />
+        )}
         <div id="result" className="result">
           {resultText}
         </div>
@@ -694,7 +747,9 @@ export const App = () => {
               value={recordId}
             />
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <label
+                style={{ display: "flex", alignItems: "center", gap: "4px" }}
+              >
                 <input
                   type="checkbox"
                   checked={useIndex}
@@ -740,13 +795,18 @@ export const App = () => {
                   </button>
                 )}
               </div>
-
+              .
               {cart.length > 0 && (
                 <div className="cart-total">
-                  Total: ${(cart.reduce((sum, item) => sum + (item.priceInCents * item.quantity), 0) / 100).toFixed(2)}
+                  Total: $
+                  {(
+                    cart.reduce(
+                      (sum, item) => sum + item.priceInCents * item.quantity,
+                      0
+                    ) / 100
+                  ).toFixed(2)}
                 </div>
               )}
-
               <div className="cart-items">
                 {cart.length === 0 ? (
                   <div className="cart-empty">Cart is empty</div>
@@ -755,10 +815,18 @@ export const App = () => {
                     <div key={item.id} className="cart-item">
                       <div className="cart-item-info">
                         <div className="cart-item-name">{item.name}</div>
-                        <div className="cart-item-id">ID: {item.id} | ${(item.priceInCents / 100).toFixed(2)}</div>
+                        <div className="cart-item-id">
+                          ID: {item.id} | $
+                          {(item.priceInCents / 100).toFixed(2)} each | Total: $
+                          {((item.priceInCents * item.quantity) / 100).toFixed(
+                            2
+                          )}
+                        </div>
                       </div>
                       <div className="cart-item-controls">
-                        <div className="cart-item-quantity">x{item.quantity}</div>
+                        <div className="cart-item-quantity">
+                          x{item.quantity}
+                        </div>
                         <button
                           className="btn btn-danger btn-small"
                           onClick={() => removeFromCart(item.id)}
@@ -770,7 +838,6 @@ export const App = () => {
                   ))
                 )}
               </div>
-
               <div className="cart-footer">
                 <select
                   className="cart-select"
@@ -780,7 +847,8 @@ export const App = () => {
                   <option value="">Select an item...</option>
                   {availableItems.map((item) => (
                     <option key={item.id} value={item.id}>
-                      [{item.id}] {item.name} - ${(item.priceInCents / 100).toFixed(2)}
+                      [{item.id}] {item.name} - $
+                      {(item.priceInCents / 100).toFixed(2)}
                     </option>
                   ))}
                 </select>
@@ -848,7 +916,13 @@ export const App = () => {
 
               {promotionCart.length > 0 && (
                 <div className="cart-total">
-                  Total: ${(promotionCart.reduce((sum, item) => sum + (item.priceInCents * item.quantity), 0) / 100).toFixed(2)}
+                  Total: $
+                  {(
+                    promotionCart.reduce(
+                      (sum, item) => sum + item.priceInCents * item.quantity,
+                      0
+                    ) / 100
+                  ).toFixed(2)}
                 </div>
               )}
 
@@ -860,10 +934,18 @@ export const App = () => {
                     <div key={item.id} className="cart-item">
                       <div className="cart-item-info">
                         <div className="cart-item-name">{item.name}</div>
-                        <div className="cart-item-id">ID: {item.id} | ${(item.priceInCents / 100).toFixed(2)}</div>
+                        <div className="cart-item-id">
+                          ID: {item.id} | $
+                          {(item.priceInCents / 100).toFixed(2)} each | Total: $
+                          {((item.priceInCents * item.quantity) / 100).toFixed(
+                            2
+                          )}
+                        </div>
                       </div>
                       <div className="cart-item-controls">
-                        <div className="cart-item-quantity">x{item.quantity}</div>
+                        <div className="cart-item-quantity">
+                          x{item.quantity}
+                        </div>
                         <button
                           className="btn btn-danger btn-small"
                           onClick={() => removeFromPromotionCart(item.id)}
@@ -880,12 +962,15 @@ export const App = () => {
                 <select
                   className="cart-select"
                   value={promotionSelectedItemId}
-                  onChange={(e: any) => setPromotionSelectedItemId(e.target.value)}
+                  onChange={(e: any) =>
+                    setPromotionSelectedItemId(e.target.value)
+                  }
                 >
                   <option value="">Select an item...</option>
                   {availableItems.map((item) => (
                     <option key={item.id} value={item.id}>
-                      [{item.id}] {item.name} - ${(item.priceInCents / 100).toFixed(2)}
+                      [{item.id}] {item.name} - $
+                      {(item.priceInCents / 100).toFixed(2)}
                     </option>
                   ))}
                 </select>
