@@ -741,6 +741,12 @@ export const App = () => {
                 )}
               </div>
 
+              {cart.length > 0 && (
+                <div className="cart-total">
+                  Total: ${(cart.reduce((sum, item) => sum + (item.priceInCents * item.quantity), 0) / 100).toFixed(2)}
+                </div>
+              )}
+
               <div className="cart-items">
                 {cart.length === 0 ? (
                   <div className="cart-empty">Cart is empty</div>
@@ -839,6 +845,12 @@ export const App = () => {
                   autoComplete="off"
                 />
               </div>
+
+              {promotionCart.length > 0 && (
+                <div className="cart-total">
+                  Total: ${(promotionCart.reduce((sum, item) => sum + (item.priceInCents * item.quantity), 0) / 100).toFixed(2)}
+                </div>
+              )}
 
               <div className="cart-items">
                 {promotionCart.length === 0 ? (
