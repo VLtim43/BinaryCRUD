@@ -3,7 +3,7 @@
 import {main} from '../models';
 import {dao} from '../models';
 
-export function AddItem(arg1:string):Promise<void>;
+export function AddItem(arg1:string,arg2:number):Promise<void>;
 
 export function AddOrder(arg1:Array<string>):Promise<void>;
 
@@ -17,9 +17,9 @@ export function DeleteOrder(arg1:number):Promise<void>;
 
 export function DeletePromotion(arg1:number):Promise<void>;
 
-export function GetItemByID(arg1:number):Promise<string>;
+export function GetItemByID(arg1:number):Promise<main.ItemDTO>;
 
-export function GetItemByIDWithIndex(arg1:number):Promise<string>;
+export function GetItemByIDWithIndex(arg1:number):Promise<main.ItemDTO>;
 
 export function GetItems():Promise<Array<main.ItemDTO>>;
 

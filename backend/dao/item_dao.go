@@ -27,8 +27,8 @@ func NewItemDAO(filePath string) *ItemDAO {
 // Write adds a new item to the binary file with auto-increment ID
 // Creates and initializes the file if it doesn't exist
 // Also updates the B+ tree index with the new item
-// Item record format: [ID(4)][UnitSeparator][Tombstone(1)][UnitSeparator][StringLength(2)][UnitSeparator][StringContent][UnitSeparator][RecordSeparator]
-func (dao *ItemDAO) Write(itemName string) error {
+// Item record format: [ID(4)][UnitSeparator][Tombstone(1)][UnitSeparator][Price(8)][UnitSeparator][StringLength(2)][UnitSeparator][StringContent][UnitSeparator][RecordSeparator]
+func (dao *ItemDAO) Write(itemName string, priceInCents uint64) error {
 	// Initialize file if it doesn't exist
 	if err := utils.InitializeBinaryFile(dao.filePath); err != nil {
 		return fmt.Errorf("failed to initialize file: %w", err)
@@ -64,14 +64,21 @@ func (dao *ItemDAO) Write(itemName string) error {
 		return fmt.Errorf("failed to build tombstone field: %w", err)
 	}
 
+	// Build the price field: [Price(8)][UnitSeparator]
+	priceBytes, err := utils.BuildFixed(8, priceInCents)
+	if err != nil {
+		return fmt.Errorf("failed to build price field: %w", err)
+	}
+
 	// Build the item name field: [StringLength(2)][UnitSeparator][StringContent][UnitSeparator]
 	nameBytes, err := utils.BuildVariable(itemName)
 	if err != nil {
 		return fmt.Errorf("failed to build item name: %w", err)
 	}
 
-	// Combine ID, tombstone, and name bytes
+	// Combine ID, tombstone, price, and name bytes
 	recordBytes := append(idBytes, tombstoneBytes...)
+	recordBytes = append(recordBytes, priceBytes...)
 	recordBytes = append(recordBytes, nameBytes...)
 
 	// Append the record to the file
@@ -89,14 +96,20 @@ func (dao *ItemDAO) Write(itemName string) error {
 		utils.DebugPrint("Warning: failed to save index: %v", err)
 	}
 
-	utils.DebugPrint("Successfully wrote item [ID:%d]: \"%s\"", itemID, itemName)
+	utils.DebugPrint("Successfully wrote item [ID:%d]: \"%s\" ($%.2f)", itemID, itemName, float64(priceInCents)/100.0)
 	return nil
+}
+
+// ItemData represents an item with its name and price
+type ItemData struct {
+	Name         string
+	PriceInCents uint64
 }
 
 // Read reads all items from the binary file and returns them with their IDs
 // Skips records marked as deleted (tombstone = 0x01)
-func (dao *ItemDAO) Read() (map[uint32]string, error) {
-	items := make(map[uint32]string)
+func (dao *ItemDAO) Read() (map[uint32]ItemData, error) {
+	items := make(map[uint32]ItemData)
 
 	// Use generic sequential read to get raw record bytes
 	records, err := utils.SequentialRead(dao.filePath)
@@ -104,10 +117,10 @@ func (dao *ItemDAO) Read() (map[uint32]string, error) {
 		return items, err
 	}
 
-	// Parse each record's bytes to extract the ID and item name
-	// Format: [ID(4)][UnitSeparator][Tombstone(1)][UnitSeparator][StringLength(2)][UnitSeparator][StringContent][UnitSeparator]
+	// Parse each record's bytes to extract the ID, price, and item name
+	// Format: [ID(4)][UnitSeparator][Tombstone(1)][UnitSeparator][Price(8)][UnitSeparator][StringLength(2)][UnitSeparator][StringContent][UnitSeparator]
 	for _, recordBytes := range records {
-		if len(recordBytes) < 11 { // Minimum: 4 bytes ID + 1 sep + 1 tombstone + 1 sep + 2 bytes length + 1 sep + 0 content + 1 sep
+		if len(recordBytes) < 20 { // Minimum: 4 bytes ID + 1 sep + 1 tombstone + 1 sep + 8 bytes price + 1 sep + 2 bytes length + 1 sep + 0 content + 1 sep
 			return items, fmt.Errorf("invalid record: too short")
 		}
 
@@ -132,16 +145,25 @@ func (dao *ItemDAO) Read() (map[uint32]string, error) {
 			continue
 		}
 
-		// Extract length (bytes 7-8, little-endian)
-		length := uint16(recordBytes[7]) | uint16(recordBytes[8])<<8
+		// Extract price (bytes 7-14, little-endian uint64)
+		price := uint64(recordBytes[7]) | uint64(recordBytes[8])<<8 | uint64(recordBytes[9])<<16 | uint64(recordBytes[10])<<24 |
+			uint64(recordBytes[11])<<32 | uint64(recordBytes[12])<<40 | uint64(recordBytes[13])<<48 | uint64(recordBytes[14])<<56
 
-		// Verify unit separator after length at position 9
-		if recordBytes[9] != utils.UnitSeparator {
+		// Verify unit separator after price at position 15
+		if recordBytes[15] != utils.UnitSeparator {
+			return items, fmt.Errorf("invalid record ID %d: missing unit separator after price", itemID)
+		}
+
+		// Extract length (bytes 16-17, little-endian)
+		length := uint16(recordBytes[16]) | uint16(recordBytes[17])<<8
+
+		// Verify unit separator after length at position 18
+		if recordBytes[18] != utils.UnitSeparator {
 			return items, fmt.Errorf("invalid record ID %d: missing unit separator after length", itemID)
 		}
 
-		// Extract content (after third separator)
-		contentStart := 10
+		// Extract content (after fourth separator)
+		contentStart := 19
 		contentEnd := contentStart + int(length)
 
 		if contentEnd > len(recordBytes) {
@@ -154,35 +176,38 @@ func (dao *ItemDAO) Read() (map[uint32]string, error) {
 		}
 
 		itemName := string(recordBytes[contentStart:contentEnd])
-		items[itemID] = itemName
+		items[itemID] = ItemData{
+			Name:         itemName,
+			PriceInCents: price,
+		}
 	}
 
 	return items, nil
 }
 
 // ReadByIDWithIndex reads a single item by ID using the B+ tree index
-func (dao *ItemDAO) ReadByIDWithIndex(itemID uint32) (string, error) {
+func (dao *ItemDAO) ReadByIDWithIndex(itemID uint32) (ItemData, error) {
 	// Load index
 	if err := dao.index.Load(); err != nil {
-		return "", fmt.Errorf("failed to load index: %w", err)
+		return ItemData{}, fmt.Errorf("failed to load index: %w", err)
 	}
 
 	// Search for offset in index
 	offset, found := dao.index.Search(itemID)
 	if !found {
-		return "", fmt.Errorf("item with ID %d not found in index", itemID)
+		return ItemData{}, fmt.Errorf("item with ID %d not found in index", itemID)
 	}
 
 	// Open file
 	file, err := os.Open(dao.filePath)
 	if err != nil {
-		return "", fmt.Errorf("failed to open file: %w", err)
+		return ItemData{}, fmt.Errorf("failed to open file: %w", err)
 	}
 	defer file.Close()
 
 	// Seek to the record offset
 	if _, err := file.Seek(offset, 0); err != nil {
-		return "", fmt.Errorf("failed to seek to offset %d: %w", offset, err)
+		return ItemData{}, fmt.Errorf("failed to seek to offset %d: %w", offset, err)
 	}
 
 	// Read record until record separator
@@ -191,10 +216,10 @@ func (dao *ItemDAO) ReadByIDWithIndex(itemID uint32) (string, error) {
 	for {
 		n, err := file.Read(buf)
 		if err != nil {
-			return "", fmt.Errorf("failed to read record: %w", err)
+			return ItemData{}, fmt.Errorf("failed to read record: %w", err)
 		}
 		if n == 0 {
-			return "", fmt.Errorf("unexpected EOF while reading record")
+			return ItemData{}, fmt.Errorf("unexpected EOF while reading record")
 		}
 
 		if buf[0] == utils.RecordSeparator {
@@ -205,19 +230,19 @@ func (dao *ItemDAO) ReadByIDWithIndex(itemID uint32) (string, error) {
 	}
 
 	// Parse the record
-	if len(recordBytes) < 11 {
-		return "", fmt.Errorf("invalid record: too short")
+	if len(recordBytes) < 20 {
+		return ItemData{}, fmt.Errorf("invalid record: too short")
 	}
 
 	// Verify ID matches
 	recordID := uint32(recordBytes[0]) | uint32(recordBytes[1])<<8 | uint32(recordBytes[2])<<16 | uint32(recordBytes[3])<<24
 	if recordID != itemID {
-		return "", fmt.Errorf("ID mismatch: expected %d, got %d", itemID, recordID)
+		return ItemData{}, fmt.Errorf("ID mismatch: expected %d, got %d", itemID, recordID)
 	}
 
 	// Verify unit separator after ID
 	if recordBytes[4] != utils.UnitSeparator {
-		return "", fmt.Errorf("invalid record: missing separator after ID")
+		return ItemData{}, fmt.Errorf("invalid record: missing separator after ID")
 	}
 
 	// Extract tombstone flag
@@ -225,33 +250,45 @@ func (dao *ItemDAO) ReadByIDWithIndex(itemID uint32) (string, error) {
 
 	// Verify unit separator after tombstone
 	if recordBytes[6] != utils.UnitSeparator {
-		return "", fmt.Errorf("invalid record: missing separator after tombstone")
+		return ItemData{}, fmt.Errorf("invalid record: missing separator after tombstone")
 	}
 
 	// Check if record is deleted
 	if tombstone == 0x01 {
-		return "", fmt.Errorf("item with ID %d has been deleted", itemID)
+		return ItemData{}, fmt.Errorf("item with ID %d has been deleted", itemID)
+	}
+
+	// Extract price (bytes 7-14, little-endian uint64)
+	price := uint64(recordBytes[7]) | uint64(recordBytes[8])<<8 | uint64(recordBytes[9])<<16 | uint64(recordBytes[10])<<24 |
+		uint64(recordBytes[11])<<32 | uint64(recordBytes[12])<<40 | uint64(recordBytes[13])<<48 | uint64(recordBytes[14])<<56
+
+	// Verify unit separator after price
+	if recordBytes[15] != utils.UnitSeparator {
+		return ItemData{}, fmt.Errorf("invalid record: missing separator after price")
 	}
 
 	// Extract length
-	length := uint16(recordBytes[7]) | uint16(recordBytes[8])<<8
+	length := uint16(recordBytes[16]) | uint16(recordBytes[17])<<8
 
 	// Verify unit separator after length
-	if recordBytes[9] != utils.UnitSeparator {
-		return "", fmt.Errorf("invalid record: missing separator after length")
+	if recordBytes[18] != utils.UnitSeparator {
+		return ItemData{}, fmt.Errorf("invalid record: missing separator after length")
 	}
 
 	// Extract content
-	contentStart := 10
+	contentStart := 19
 	contentEnd := contentStart + int(length)
 
 	if contentEnd > len(recordBytes) {
-		return "", fmt.Errorf("invalid record: content length mismatch")
+		return ItemData{}, fmt.Errorf("invalid record: content length mismatch")
 	}
 
 	itemName := string(recordBytes[contentStart:contentEnd])
-	utils.DebugPrint("Found item [ID:%d] using index: \"%s\"", itemID, itemName)
-	return itemName, nil
+	utils.DebugPrint("Found item [ID:%d] using index: \"%s\" ($%.2f)", itemID, itemName, float64(price)/100.0)
+	return ItemData{
+		Name:         itemName,
+		PriceInCents: price,
+	}, nil
 }
 
 // Delete marks an item as deleted by setting its tombstone flag to 0x01

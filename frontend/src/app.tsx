@@ -31,13 +31,14 @@ export const App = () => {
   const [promotionSubTab, setPromotionSubTab] = useState<"create" | "read" | "delete">("create");
   const [resultText, setResultText] = useState("Enter item text below 👇");
   const [itemText, setItemText] = useState("");
+  const [itemPrice, setItemPrice] = useState("");
   const [recordId, setRecordId] = useState("");
   const [deleteRecordId, setDeleteRecordId] = useState("");
-  const [availableItems, setAvailableItems] = useState<Array<{id: number, name: string}>>([]);
-  const [cart, setCart] = useState<Array<{id: number, name: string, quantity: number}>>([]);
+  const [availableItems, setAvailableItems] = useState<Array<{id: number, name: string, priceInCents: number}>>([]);
+  const [cart, setCart] = useState<Array<{id: number, name: string, quantity: number, priceInCents: number}>>([]);
   const [selectedItemId, setSelectedItemId] = useState<string>("");
   const [promotionName, setPromotionName] = useState("");
-  const [promotionCart, setPromotionCart] = useState<Array<{id: number, name: string, quantity: number}>>([]);
+  const [promotionCart, setPromotionCart] = useState<Array<{id: number, name: string, quantity: number, priceInCents: number}>>([]);
   const [promotionSelectedItemId, setPromotionSelectedItemId] = useState<string>("");
   const [orderReadId, setOrderReadId] = useState("");
   const [orderDeleteId, setOrderDeleteId] = useState("");
@@ -45,6 +46,13 @@ export const App = () => {
   const [promotionDeleteId, setPromotionDeleteId] = useState("");
   const [useIndex, setUseIndex] = useState(true);
   const updateItemText = (e: any) => setItemText(e.target.value);
+  const updateItemPrice = (e: any) => {
+    const value = e.target.value;
+    // Allow empty string, digits, and one decimal point
+    if (value === "" || /^\d*\.?\d{0,2}$/.test(value)) {
+      setItemPrice(value);
+    }
+  };
   const updateRecordId = (e: any) => {
     const value = e.target.value;
     // Only allow empty string or non-negative integers
@@ -191,10 +199,23 @@ export const App = () => {
       return;
     }
 
-    AddItem(itemText)
+    if (!itemPrice || itemPrice.trim().length === 0) {
+      updateResultText("Error: Please enter a price");
+      return;
+    }
+
+    // Convert price from dollars to cents
+    const priceInCents = Math.round(parseFloat(itemPrice) * 100);
+    if (isNaN(priceInCents) || priceInCents < 0) {
+      updateResultText("Error: Invalid price");
+      return;
+    }
+
+    AddItem(itemText, priceInCents)
       .then(() => {
-        updateResultText(`Item saved: ${itemText}`);
+        updateResultText(`Item saved: ${itemText} ($${itemPrice})`);
         setItemText("");
+        setItemPrice("");
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -230,8 +251,9 @@ export const App = () => {
     const methodName = useIndex ? "B+ Tree Index" : "Sequential Search";
 
     searchMethod(id)
-      .then((itemName: string) => {
-        updateResultText(`Record ${id}: ${itemName} (using ${methodName})`);
+      .then((item: any) => {
+        const price = (item.priceInCents / 100).toFixed(2);
+        updateResultText(`Record ${id}: ${item.name} - $${price} (using ${methodName})`);
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -305,7 +327,7 @@ export const App = () => {
   // Load all items for order tab
   const loadItems = () => {
     GetItems()
-      .then((items: Array<{id: number, name: string}>) => {
+      .then((items: Array<{id: number, name: string, priceInCents: number}>) => {
         setAvailableItems(items);
       })
       .catch((err: any) => {
@@ -337,7 +359,7 @@ export const App = () => {
       ));
     } else {
       // Add new item to cart
-      setCart([...cart, { id: item.id, name: item.name, quantity: 1 }]);
+      setCart([...cart, { id: item.id, name: item.name, quantity: 1, priceInCents: item.priceInCents }]);
     }
 
     updateResultText(`Added ${item.name} to cart`);
@@ -401,7 +423,7 @@ export const App = () => {
       ));
     } else {
       // Add new item to promotion cart
-      setPromotionCart([...promotionCart, { id: item.id, name: item.name, quantity: 1 }]);
+      setPromotionCart([...promotionCart, { id: item.id, name: item.name, quantity: 1, priceInCents: item.priceInCents }]);
     }
 
     updateResultText(`Added ${item.name} to promotion`);
@@ -641,7 +663,18 @@ export const App = () => {
               autoComplete="off"
               name="input"
               type="text"
+              placeholder="Item Name"
               value={itemText}
+            />
+            <input
+              id="price"
+              className="input"
+              onChange={updateItemPrice}
+              autoComplete="off"
+              name="price"
+              type="text"
+              placeholder="Price ($)"
+              value={itemPrice}
             />
             <button className="btn" onClick={addItem}>
               Add Item
@@ -716,7 +749,7 @@ export const App = () => {
                     <div key={item.id} className="cart-item">
                       <div className="cart-item-info">
                         <div className="cart-item-name">{item.name}</div>
-                        <div className="cart-item-id">ID: {item.id}</div>
+                        <div className="cart-item-id">ID: {item.id} | ${(item.priceInCents / 100).toFixed(2)}</div>
                       </div>
                       <div className="cart-item-controls">
                         <div className="cart-item-quantity">x{item.quantity}</div>
@@ -741,7 +774,7 @@ export const App = () => {
                   <option value="">Select an item...</option>
                   {availableItems.map((item) => (
                     <option key={item.id} value={item.id}>
-                      [{item.id}] {item.name}
+                      [{item.id}] {item.name} - ${(item.priceInCents / 100).toFixed(2)}
                     </option>
                   ))}
                 </select>
@@ -815,7 +848,7 @@ export const App = () => {
                     <div key={item.id} className="cart-item">
                       <div className="cart-item-info">
                         <div className="cart-item-name">{item.name}</div>
-                        <div className="cart-item-id">ID: {item.id}</div>
+                        <div className="cart-item-id">ID: {item.id} | ${(item.priceInCents / 100).toFixed(2)}</div>
                       </div>
                       <div className="cart-item-controls">
                         <div className="cart-item-quantity">x{item.quantity}</div>
@@ -840,7 +873,7 @@ export const App = () => {
                   <option value="">Select an item...</option>
                   {availableItems.map((item) => (
                     <option key={item.id} value={item.id}>
-                      [{item.id}] {item.name}
+                      [{item.id}] {item.name} - ${(item.priceInCents / 100).toFixed(2)}
                     </option>
                   ))}
                 </select>

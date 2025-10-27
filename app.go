@@ -17,10 +17,11 @@ type App struct {
 	promotionDAO *dao.PromotionDAO
 }
 
-// ItemDTO represents an item with its ID and name for frontend consumption
+// ItemDTO represents an item with its ID, name, and price for frontend consumption
 type ItemDTO struct {
-	ID   uint32 `json:"id"`
-	Name string `json:"name"`
+	ID           uint32 `json:"id"`
+	Name         string `json:"name"`
+	PriceInCents uint64 `json:"priceInCents"`
 }
 
 // NewApp creates a new App application struct
@@ -38,9 +39,9 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 }
 
-// AddItem writes an item to the binary file
-func (a *App) AddItem(text string) error {
-	return a.itemDAO.Write(text)
+// AddItem writes an item to the binary file with a price in cents
+func (a *App) AddItem(text string, priceInCents uint64) error {
+	return a.itemDAO.Write(text, priceInCents)
 }
 
 // AddOrder writes an order to the binary file with an array of item names
@@ -53,7 +54,7 @@ func (a *App) AddPromotion(promotionName string, itemNames []string) error {
 	return a.promotionDAO.Write(promotionName, itemNames)
 }
 
-// GetItems reads items from the binary file and returns them with IDs
+// GetItems reads items from the binary file and returns them with IDs and prices
 func (a *App) GetItems() ([]ItemDTO, error) {
 	items, err := a.itemDAO.Read()
 	if err != nil {
@@ -62,10 +63,11 @@ func (a *App) GetItems() ([]ItemDTO, error) {
 
 	// Convert map to slice of DTOs
 	result := make([]ItemDTO, 0, len(items))
-	for id, name := range items {
+	for id, itemData := range items {
 		result = append(result, ItemDTO{
-			ID:   id,
-			Name: name,
+			ID:           id,
+			Name:         itemData.Name,
+			PriceInCents: itemData.PriceInCents,
 		})
 	}
 
@@ -128,24 +130,28 @@ func (a *App) PrintBinaryFile() error {
 }
 
 // GetItemByID retrieves an item by its record ID
-func (a *App) GetItemByID(recordID uint32) (string, error) {
+func (a *App) GetItemByID(recordID uint32) (ItemDTO, error) {
 	utils.DebugPrint("Searching ID: %d", recordID)
 
 	// Read all items
 	items, err := a.itemDAO.Read()
 	if err != nil {
-		return "", fmt.Errorf("failed to read items: %w", err)
+		return ItemDTO{}, fmt.Errorf("failed to read items: %w", err)
 	}
 
 	// Look up the item by ID
-	itemName, exists := items[recordID]
+	itemData, exists := items[recordID]
 	if !exists {
 		utils.DebugPrint("No ID found")
-		return "", fmt.Errorf("item with ID %d not found", recordID)
+		return ItemDTO{}, fmt.Errorf("item with ID %d not found", recordID)
 	}
 
-	utils.DebugPrint("Found entry: \"%s\"", itemName)
-	return itemName, nil
+	utils.DebugPrint("Found entry: \"%s\" ($%.2f)", itemData.Name, float64(itemData.PriceInCents)/100.0)
+	return ItemDTO{
+		ID:           recordID,
+		Name:         itemData.Name,
+		PriceInCents: itemData.PriceInCents,
+	}, nil
 }
 
 // DeleteItem marks an item as deleted by setting its tombstone flag
@@ -178,9 +184,17 @@ func (a *App) PrintIndex() {
 }
 
 // GetItemByIDWithIndex retrieves an item by its ID using the B+ tree index
-func (a *App) GetItemByIDWithIndex(recordID uint32) (string, error) {
+func (a *App) GetItemByIDWithIndex(recordID uint32) (ItemDTO, error) {
 	utils.DebugPrint("Searching ID: %d using B+ tree index", recordID)
-	return a.itemDAO.ReadByIDWithIndex(recordID)
+	itemData, err := a.itemDAO.ReadByIDWithIndex(recordID)
+	if err != nil {
+		return ItemDTO{}, err
+	}
+	return ItemDTO{
+		ID:           recordID,
+		Name:         itemData.Name,
+		PriceInCents: itemData.PriceInCents,
+	}, nil
 }
 
 // DeleteAllFiles deletes all files in the data folder
@@ -219,7 +233,10 @@ func (a *App) DeleteAllFiles() error {
 
 // InventoryData represents the JSON structure for inventory population
 type InventoryData struct {
-	Items []string `json:"items"`
+	Items []struct {
+		Name         string `json:"name"`
+		PriceInCents uint64 `json:"priceInCents"`
+	} `json:"items"`
 }
 
 // PopulateInventory reads a JSON file and adds all items to the binary file
@@ -245,14 +262,14 @@ func (a *App) PopulateInventory(filePath string) (string, error) {
 	successCount := 0
 	errorCount := 0
 
-	for _, itemName := range inventory.Items {
-		if itemName == "" {
+	for _, item := range inventory.Items {
+		if item.Name == "" {
 			errorCount++
 			continue
 		}
 
-		if err := a.itemDAO.Write(itemName); err != nil {
-			utils.DebugPrint("Failed to add item '%s': %v", itemName, err)
+		if err := a.itemDAO.Write(item.Name, item.PriceInCents); err != nil {
+			utils.DebugPrint("Failed to add item '%s': %v", item.Name, err)
 			errorCount++
 		} else {
 			successCount++
