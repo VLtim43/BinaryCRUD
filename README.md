@@ -11,6 +11,54 @@ BinaryCRUD implements a custom database-like system using binary files with B+ t
 - **Framework**: Wails v2
 - **Storage**: Custom binary file format with B+ tree indexing
 
+## Getting Started
+
+### Prerequisites
+
+- Go 1.18+
+- Node.js 16+
+- Wails CLI v2
+
+### Installation
+
+1. Install Go
+   https://go.dev/doc/install
+
+2. Install Wails CLI:
+
+```bash
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+```
+
+test it with `wails`
+
+3. Clone the repository:
+
+```bash
+git clone <repository-url>
+cd BinaryCRUD
+```
+
+4. Install dependencies:
+
+```bash
+  go mod download
+```
+
+5. Run with
+
+```bash
+run.sh
+```
+
+### Development
+
+Run in development mode with hot reload:
+
+```bash
+.\run.sh
+```
+
 ## Features
 
 ### Core Operations
@@ -72,56 +120,6 @@ All three files (`items.bin`, `orders.bin`, `promotions.bin`) share the same hea
 
 - **Unit Separator**: `0x1F` (U+001F) - Separates fields within a record
 - **Record Separator**: `0x1E` (U+001E) - Marks the end of a record
-
-## Getting Started
-
-### Prerequisites
-
-- Go 1.18+
-- Node.js 16+
-- Wails CLI v2
-
-### Installation
-1. Install Go
-   https://go.dev/doc/install
-
-
-3. Install Wails CLI:
-
-```bash
-go install github.com/wailsapp/wails/v2/cmd/wails@latest
-```
-
-3. Clone the repository:
-
-```bash
-git clone <repository-url>
-cd BinaryCRUD
-```
-
-4. Install dependencies:
-
-```bash
-wails build
-```
-
-### Development
-
-Run in development mode with hot reload:
-
-```bash
-.\run.sh
-```
-
-### Building
-
-Build for production:
-
-```bash
-wails build
-```
-
-The compiled application will be in the `build/bin` directory.
 
 ## Usage
 
@@ -200,11 +198,11 @@ The compiled application will be in the `build/bin` directory.
 ```json
 {
   "items": [
-    {"name": "Pizza", "priceInCents": 1200},
-    {"name": "Burger", "priceInCents": 899},
-    {"name": "Chicken Wrap", "priceInCents": 750},
-    {"name": "Burrito", "priceInCents": 950},
-    {"name": "Salad", "priceInCents": 650}
+    { "name": "Pizza", "priceInCents": 1200 },
+    { "name": "Burger", "priceInCents": 899 },
+    { "name": "Chicken Wrap", "priceInCents": 750 },
+    { "name": "Burrito", "priceInCents": 950 },
+    { "name": "Salad", "priceInCents": 650 }
   ]
 }
 ```
