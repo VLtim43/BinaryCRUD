@@ -64,8 +64,9 @@ export const App = () => {
   const [promotionDeleteId, setPromotionDeleteId] = useState("");
   const [useIndex, setUseIndex] = useState(true);
   const [isPopulatingInventory, setIsPopulatingInventory] = useState(false);
-  const [logs, setLogs] = useState<Array<{ timestamp: string; message: string }>>([]);
-  const [autoRefreshLogs, setAutoRefreshLogs] = useState(true);
+  const [logs, setLogs] = useState<
+    Array<{ timestamp: string; message: string }>
+  >([]);
   const [logsPanelOpen, setLogsPanelOpen] = useState(false);
   const updateItemText = (e: any) => setItemText(e.target.value);
   const updateItemPrice = (e: any) => {
@@ -247,6 +248,7 @@ export const App = () => {
         updateResultText(`Item saved: ${itemText} ($${itemPrice})`);
         setItemText("");
         setItemPrice("");
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -257,6 +259,7 @@ export const App = () => {
     PrintBinaryFile()
       .then(() => {
         updateResultText("Binary file printed to application console!");
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -287,6 +290,7 @@ export const App = () => {
         updateResultText(
           `Record ${id}: ${item.name} - $${price} (using ${methodName})`
         );
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -304,6 +308,7 @@ export const App = () => {
         setPromotionSelectedItemId("");
         setPromotionName("");
         updateResultText("All generated files deleted successfully!");
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -322,6 +327,7 @@ export const App = () => {
       .then((result: string) => {
         updateResultText(`Inventory populated! ${result}`);
         setIsPopulatingInventory(false);
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -333,6 +339,7 @@ export const App = () => {
     PrintIndex()
       .then(() => {
         updateResultText("Index printed to application console!");
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -357,6 +364,7 @@ export const App = () => {
       .then((itemName: string) => {
         updateResultText(`Record [${id}] [${itemName}] was deleted`);
         setDeleteRecordId("");
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -446,6 +454,7 @@ export const App = () => {
           `Order submitted with ${cart.length} unique item(s) (${itemNames.length} total)!`
         );
         setCart([]);
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -528,6 +537,7 @@ export const App = () => {
         );
         setPromotionName("");
         setPromotionCart([]);
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -553,6 +563,7 @@ export const App = () => {
         updateResultText(
           `Order ${id}: ${order.items.length} item(s) - ${itemsList}`
         );
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -564,6 +575,7 @@ export const App = () => {
     PrintOrdersFile()
       .then(() => {
         updateResultText("Orders file printed to application console!");
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -587,6 +599,7 @@ export const App = () => {
       .then((itemCount: number) => {
         updateResultText(`Order [${id}] with ${itemCount} item(s) was deleted`);
         setOrderDeleteId("");
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -614,6 +627,7 @@ export const App = () => {
         updateResultText(
           `Promotion ${id} "${promotion.name}": ${promotion.items.length} item(s) - ${itemsList}`
         );
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -625,6 +639,7 @@ export const App = () => {
     PrintPromotionsFile()
       .then(() => {
         updateResultText("Promotions file printed to application console!");
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -640,7 +655,9 @@ export const App = () => {
 
     const id = parseInt(promotionDeleteId, 10);
     if (isNaN(id) || id < 0) {
-      updateResultText("Error: Promotion ID must be a valid non-negative number");
+      updateResultText(
+        "Error: Promotion ID must be a valid non-negative number"
+      );
       return;
     }
 
@@ -648,11 +665,19 @@ export const App = () => {
       .then((promotionName: string) => {
         updateResultText(`Promotion [${id}] [${promotionName}] was deleted`);
         setPromotionDeleteId("");
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
       });
   };
+
+  // Load logs once when panel is opened
+  useEffect(() => {
+    if (logsPanelOpen) {
+      refreshLogs();
+    }
+  }, [logsPanelOpen]);
 
   // Refresh logs from backend
   const refreshLogs = () => {
@@ -663,30 +688,8 @@ export const App = () => {
       })
       .catch((err: any) => {
         console.error("Error loading logs:", err);
-        updateResultText(`Error loading logs: ${err}`);
       });
   };
-
-  // Auto-refresh logs when panel is open
-  useEffect(() => {
-    let intervalId: number | undefined;
-
-    if (logsPanelOpen && autoRefreshLogs) {
-      // Refresh immediately when opening
-      refreshLogs();
-
-      // Then refresh every 2 seconds
-      intervalId = window.setInterval(() => {
-        refreshLogs();
-      }, 2000);
-    }
-
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-    };
-  }, [logsPanelOpen, autoRefreshLogs]);
 
   // Clear all logs
   const clearLogs = () => {
@@ -711,7 +714,7 @@ export const App = () => {
   };
 
   return (
-    <div className={`app-container ${logsPanelOpen ? 'logs-open' : ''}`}>
+    <div className={`app-container ${logsPanelOpen ? "logs-open" : ""}`}>
       <button className="close-btn" onClick={() => Quit()}>
         ×
       </button>
@@ -1150,7 +1153,10 @@ export const App = () => {
                 className="btn btn-warning"
                 onClick={populateInventory}
                 disabled={isPopulatingInventory}
-                style={{ opacity: isPopulatingInventory ? 0.5 : 1, cursor: isPopulatingInventory ? 'not-allowed' : 'pointer' }}
+                style={{
+                  opacity: isPopulatingInventory ? 0.5 : 1,
+                  cursor: isPopulatingInventory ? "not-allowed" : "pointer",
+                }}
               >
                 {isPopulatingInventory ? "Populating..." : "Populate Inventory"}
               </button>
@@ -1166,17 +1172,12 @@ export const App = () => {
       </div>
 
       {/* Logs Side Panel */}
-      <div className={`logs-panel ${logsPanelOpen ? 'open' : 'closed'}`}>
+      <div className={`logs-panel ${logsPanelOpen ? "open" : "closed"}`}>
         <button
           className="logs-toggle"
-          onClick={() => {
-            setLogsPanelOpen(!logsPanelOpen);
-            if (!logsPanelOpen) {
-              refreshLogs();
-            }
-          }}
+          onClick={() => setLogsPanelOpen(!logsPanelOpen)}
         >
-          {logsPanelOpen ? '»' : '«'}
+          {logsPanelOpen ? "»" : "«"}
         </button>
 
         {logsPanelOpen && (
@@ -1184,13 +1185,18 @@ export const App = () => {
             <div className="logs-header">
               <h3>Logs</h3>
               <div className="logs-controls">
-                <button className="btn-icon" onClick={refreshLogs} title="Refresh Logs">
-                  ↻
-                </button>
-                <button className="btn-icon" onClick={copyLogs} title="Copy Logs">
+                <button
+                  className="btn-icon"
+                  onClick={copyLogs}
+                  title="Copy Logs"
+                >
                   📋
                 </button>
-                <button className="btn-icon btn-danger" onClick={clearLogs} title="Clear Logs">
+                <button
+                  className="btn-icon btn-danger"
+                  onClick={clearLogs}
+                  title="Clear Logs"
+                >
                   🗑
                 </button>
               </div>
