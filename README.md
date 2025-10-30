@@ -82,15 +82,13 @@ All three files (`items.bin`, `orders.bin`, `promotions.bin`) share the same hea
 - Wails CLI v2
 
 ### Installation
+
 1. Install Go
    https://go.dev/doc/install
 
+2. Install Wails CLI:
 
-3. Install Wails CLI:
-
-```bash
-go install github.com/wailsapp/wails/v2/cmd/wails@latest
-```
+https://wails.io/docs/gettingstarted/installation/
 
 3. Clone the repository:
 
@@ -118,11 +116,13 @@ Run in development mode with hot reload:
 Build for production:
 
 **Linux/macOS:**
+
 ```bash
 wails build
 ```
 
 **Windows:**
+
 ```bash
 wails build -platform windows/amd64
 ```
@@ -206,11 +206,11 @@ The compiled application will be in the `build/bin` directory.
 ```json
 {
   "items": [
-    {"name": "Pizza", "priceInCents": 1200},
-    {"name": "Burger", "priceInCents": 899},
-    {"name": "Chicken Wrap", "priceInCents": 750},
-    {"name": "Burrito", "priceInCents": 950},
-    {"name": "Salad", "priceInCents": 650}
+    { "name": "Pizza", "priceInCents": 1200 },
+    { "name": "Burger", "priceInCents": 899 },
+    { "name": "Chicken Wrap", "priceInCents": 750 },
+    { "name": "Burrito", "priceInCents": 950 },
+    { "name": "Salad", "priceInCents": 650 }
   ]
 }
 ```
