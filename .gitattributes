@@ -1,2 +1,6 @@
 *.nsi linguist-vendored
 *.nsh linguist-vendored
+
+# Binary files - prevent Git from modifying line endings
+*.bin binary
+*.idx binary
