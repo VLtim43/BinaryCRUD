@@ -257,19 +257,19 @@ func (dao *PromotionDAO) ReadByID(promotionID uint32) (*PromotionDTO, error) {
 }
 
 // Delete marks a promotion as deleted by setting its tombstone flag to 0x01
-// Uses sequential search to locate the record
-func (dao *PromotionDAO) Delete(promotionID uint32) error {
+// Returns the name of the deleted promotion
+func (dao *PromotionDAO) Delete(promotionID uint32) (string, error) {
 	// Open file for reading and writing
 	file, err := utils.OpenBinaryFile(dao.filePath)
 	if err != nil {
-		return fmt.Errorf("failed to open file: %w", err)
+		return "", fmt.Errorf("failed to open file: %w", err)
 	}
 	defer file.Close()
 
 	// Read header to skip it
 	_, err = utils.ReadHeader(file)
 	if err != nil {
-		return fmt.Errorf("failed to read header: %w", err)
+		return "", fmt.Errorf("failed to read header: %w", err)
 	}
 
 	// Track current offset (start after header)
@@ -288,14 +288,14 @@ func (dao *PromotionDAO) Delete(promotionID uint32) error {
 				if err.Error() == "EOF" {
 					if len(recordBytes) == 0 {
 						// Reached end without finding the record
-						return fmt.Errorf("promotion with ID %d not found", promotionID)
+						return "", fmt.Errorf("promotion with ID %d not found", promotionID)
 					}
-					return fmt.Errorf("unexpected EOF in record")
+					return "", fmt.Errorf("unexpected EOF in record")
 				}
-				return fmt.Errorf("failed to read byte: %w", err)
+				return "", fmt.Errorf("failed to read byte: %w", err)
 			}
 			if n == 0 {
-				return fmt.Errorf("promotion with ID %d not found", promotionID)
+				return "", fmt.Errorf("promotion with ID %d not found", promotionID)
 			}
 
 			currentOffset++
@@ -319,31 +319,48 @@ func (dao *PromotionDAO) Delete(promotionID uint32) error {
 		if recordID == promotionID {
 			// Verify separator after ID
 			if recordBytes[4] != utils.UnitSeparator {
-				return fmt.Errorf("invalid record: missing separator after ID")
+				return "", fmt.Errorf("invalid record: missing separator after ID")
 			}
 
 			// Check tombstone status
 			tombstone := recordBytes[5]
 			if tombstone == 0x01 {
-				return fmt.Errorf("promotion with ID %d is already deleted", promotionID)
+				return "", fmt.Errorf("promotion with ID %d is already deleted", promotionID)
 			}
+
+			// Verify separator after tombstone
+			if recordBytes[6] != utils.UnitSeparator {
+				return "", fmt.Errorf("invalid record: missing separator after tombstone")
+			}
+
+			// Extract promotion name before deletion
+			nameLength := binary.LittleEndian.Uint16(recordBytes[7:9])
+			if recordBytes[9] != utils.UnitSeparator {
+				return "", fmt.Errorf("invalid record: missing separator after name length")
+			}
+			nameStart := 10
+			nameEnd := nameStart + int(nameLength)
+			if nameEnd > len(recordBytes) {
+				return "", fmt.Errorf("invalid record: name length overflow")
+			}
+			promotionName := string(recordBytes[nameStart:nameEnd])
 
 			// Open file for writing (need a new file handle for O_RDWR)
 			writeFile, err := utils.OpenBinaryFile(dao.filePath)
 			if err != nil {
-				return fmt.Errorf("failed to open file for writing: %w", err)
+				return "", fmt.Errorf("failed to open file for writing: %w", err)
 			}
 			defer writeFile.Close()
 
 			// Seek to tombstone position (recordStartOffset + 4 bytes ID + 1 byte separator = recordStartOffset + 5)
 			tombstoneOffset := recordStartOffset + 5
 			if _, err := writeFile.Seek(tombstoneOffset, 0); err != nil {
-				return fmt.Errorf("failed to seek to tombstone position: %w", err)
+				return "", fmt.Errorf("failed to seek to tombstone position: %w", err)
 			}
 
 			// Write 0x01 to mark as deleted
 			if _, err := writeFile.Write([]byte{0x01}); err != nil {
-				return fmt.Errorf("failed to write tombstone flag: %w", err)
+				return "", fmt.Errorf("failed to write tombstone flag: %w", err)
 			}
 
 			// Increment tombstone count in header
@@ -351,8 +368,8 @@ func (dao *PromotionDAO) Delete(promotionID uint32) error {
 				utils.DebugPrint("Warning: failed to increment tombstone count: %v", err)
 			}
 
-			utils.DebugPrint("Successfully deleted promotion [ID:%d]", promotionID)
-			return nil
+			utils.DebugPrint("Successfully deleted promotion [ID:%d] [Name:%s]", promotionID, promotionName)
+			return promotionName, nil
 		}
 	}
 }

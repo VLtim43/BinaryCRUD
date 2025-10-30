@@ -168,12 +168,14 @@ func (a *App) DeleteItem(recordID uint32) (string, error) {
 }
 
 // DeleteOrder marks an order as deleted by setting its tombstone flag
-func (a *App) DeleteOrder(orderID uint32) error {
+// Returns the number of items in the deleted order
+func (a *App) DeleteOrder(orderID uint32) (int, error) {
 	return a.orderDAO.Delete(orderID)
 }
 
 // DeletePromotion marks a promotion as deleted by setting its tombstone flag
-func (a *App) DeletePromotion(promotionID uint32) error {
+// Returns the name of the deleted promotion
+func (a *App) DeletePromotion(promotionID uint32) (string, error) {
 	return a.promotionDAO.Delete(promotionID)
 }
 

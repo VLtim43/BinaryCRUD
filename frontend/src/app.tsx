@@ -17,6 +17,8 @@ import {
   GetPromotions,
   PopulateInventory,
   DeleteItem,
+  DeleteOrder,
+  DeletePromotion,
   PrintIndex,
   GetLogs,
   ClearLogs,
@@ -568,9 +570,27 @@ export const App = () => {
       });
   };
 
-  // Delete order placeholder (not implemented yet)
+  // Delete order by ID
   const deleteOrder = () => {
-    updateResultText("Delete order functionality not yet implemented");
+    if (!orderDeleteId || orderDeleteId.trim().length === 0) {
+      updateResultText("Error: Please enter an order ID");
+      return;
+    }
+
+    const id = parseInt(orderDeleteId, 10);
+    if (isNaN(id) || id < 0) {
+      updateResultText("Error: Order ID must be a valid non-negative number");
+      return;
+    }
+
+    DeleteOrder(id)
+      .then((itemCount: number) => {
+        updateResultText(`Order [${id}] with ${itemCount} item(s) was deleted`);
+        setOrderDeleteId("");
+      })
+      .catch((err: any) => {
+        updateResultText(`Error: ${err}`);
+      });
   };
 
   // Get promotion by ID
@@ -611,9 +631,27 @@ export const App = () => {
       });
   };
 
-  // Delete promotion placeholder (not implemented yet)
+  // Delete promotion by ID
   const deletePromotion = () => {
-    updateResultText("Delete promotion functionality not yet implemented");
+    if (!promotionDeleteId || promotionDeleteId.trim().length === 0) {
+      updateResultText("Error: Please enter a promotion ID");
+      return;
+    }
+
+    const id = parseInt(promotionDeleteId, 10);
+    if (isNaN(id) || id < 0) {
+      updateResultText("Error: Promotion ID must be a valid non-negative number");
+      return;
+    }
+
+    DeletePromotion(id)
+      .then((promotionName: string) => {
+        updateResultText(`Promotion [${id}] [${promotionName}] was deleted`);
+        setPromotionDeleteId("");
+      })
+      .catch((err: any) => {
+        updateResultText(`Error: ${err}`);
+      });
   };
 
   // Refresh logs from backend
