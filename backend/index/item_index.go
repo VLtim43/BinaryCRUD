@@ -2,6 +2,7 @@ package index
 
 import (
 	"BinaryCRUD/backend/utils"
+	"encoding/binary"
 	"fmt"
 	"os"
 )
@@ -119,7 +120,7 @@ func (idx *ItemIndex) RebuildFromFile() error {
 		}
 
 		// Extract ID (first 4 bytes, little-endian)
-		itemID := uint32(recordBytes[0]) | uint32(recordBytes[1])<<8 | uint32(recordBytes[2])<<16 | uint32(recordBytes[3])<<24
+		itemID := binary.LittleEndian.Uint32(recordBytes[0:4])
 
 		// Insert into index
 		if err := idx.tree.Insert(itemID, recordStartOffset); err != nil {

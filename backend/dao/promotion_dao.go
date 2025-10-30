@@ -19,7 +19,6 @@ func NewPromotionDAO(filePath string) *PromotionDAO {
 }
 
 // InitializeFile creates and initializes the promotion binary file with header only
-// Does not write any records - just creates the file structure
 func (dao *PromotionDAO) InitializeFile() error {
 	return utils.InitializeBinaryFile(dao.filePath)
 }
@@ -88,7 +87,6 @@ func (dao *PromotionDAO) Write(promotionName string, itemNames []string) error {
 	return nil
 }
 
-// PromotionDTO represents a promotion with its ID, name, and items
 type PromotionDTO struct {
 	ID    uint32   `json:"id"`
 	Name  string   `json:"name"`
