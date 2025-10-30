@@ -117,14 +117,8 @@ Run in development mode with hot reload:
 
 Build for production:
 
-**Linux/macOS:**
 ```bash
 wails build
-```
-
-**Windows:**
-```bash
-wails build -platform windows/amd64
 ```
 
 The compiled application will be in the `build/bin` directory.
