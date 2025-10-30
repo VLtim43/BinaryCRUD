@@ -39,18 +39,28 @@ func (dao *ItemDAO) Write(itemName string, priceInCents uint64) error {
 		utils.DebugPrint("Warning: failed to load index: %v", err)
 	}
 
+	// Open file in read-write mode for the entire operation
+	file, err := utils.OpenFileForWrite(dao.filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	// Read current header
+	header, err := utils.ReadHeader(file)
+	if err != nil {
+		return fmt.Errorf("failed to read header: %w", err)
+	}
+
+	// Get the ID to use for this record
+	itemID := header.NextID
+
 	// Get current file size to know where record will be written
-	fileInfo, err := os.Stat(dao.filePath)
+	fileInfo, err := file.Stat()
 	if err != nil {
 		return fmt.Errorf("failed to stat file: %w", err)
 	}
 	recordOffset := fileInfo.Size()
-
-	// Get the next ID and increment it atomically
-	itemID, err := utils.GetNextIDAndIncrement(dao.filePath)
-	if err != nil {
-		return fmt.Errorf("failed to get next ID: %w", err)
-	}
 
 	// Build the ID field: [ID(4)][UnitSeparator]
 	idBytes, err := utils.BuildFixed(4, uint64(itemID))
@@ -81,9 +91,28 @@ func (dao *ItemDAO) Write(itemName string, priceInCents uint64) error {
 	recordBytes = append(recordBytes, priceBytes...)
 	recordBytes = append(recordBytes, nameBytes...)
 
-	// Append the record to the file
-	if err := utils.AppendRecord(dao.filePath, recordBytes); err != nil {
-		return fmt.Errorf("failed to append item record: %w", err)
+	// Seek to end of file to append the new record
+	if _, err := file.Seek(0, 2); err != nil {
+		return fmt.Errorf("failed to seek to end of file: %w", err)
+	}
+
+	// Write the record bytes
+	if _, err := file.Write(recordBytes); err != nil {
+		return fmt.Errorf("failed to write record data: %w", err)
+	}
+
+	// Write record separator to mark end of record
+	if _, err := file.Write([]byte{utils.RecordSeparator}); err != nil {
+		return fmt.Errorf("failed to write record separator: %w", err)
+	}
+
+	// Update header with new counts
+	header.EntryCount++
+	header.NextID++
+
+	// Write updated header using the same file handle
+	if err := utils.WriteHeader(file, header); err != nil {
+		return fmt.Errorf("failed to update header: %w", err)
 	}
 
 	// Update index

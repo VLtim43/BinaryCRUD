@@ -18,7 +18,6 @@ import {
   PopulateInventory,
   DeleteItem,
   PrintIndex,
-  RebuildIndex,
 } from "../wailsjs/go/main/App";
 import { Quit } from "../wailsjs/runtime/runtime";
 import { useState } from "preact/hooks";
@@ -60,6 +59,7 @@ export const App = () => {
   const [promotionReadId, setPromotionReadId] = useState("");
   const [promotionDeleteId, setPromotionDeleteId] = useState("");
   const [useIndex, setUseIndex] = useState(true);
+  const [isPopulatingInventory, setIsPopulatingInventory] = useState(false);
   const updateItemText = (e: any) => setItemText(e.target.value);
   const updateItemPrice = (e: any) => {
     const value = e.target.value;
@@ -163,19 +163,26 @@ export const App = () => {
   const handleTabChange = (tab: "item" | "order" | "promotion" | "debug") => {
     setActiveTab(tab);
     if (tab === "item") {
-      setResultText(getDefaultText(tab, itemSubTab));
+      // Reset to create subtab
+      setItemSubTab("create");
+      setResultText(getDefaultText(tab, "create"));
     } else if (tab === "order") {
-      setResultText(getDefaultText(tab, orderSubTab));
-      // Load items when entering order tab and subtab is create
-      if (orderSubTab === "create") {
-        loadItems();
-      }
+      // Reset order page state and subtab
+      setOrderSubTab("create");
+      setSelectedItemId("");
+      setCart([]);
+      setResultText(getDefaultText(tab, "create"));
+      // Load items when entering order tab
+      loadItems();
     } else if (tab === "promotion") {
-      setResultText(getDefaultText(tab, promotionSubTab));
-      // Load items when entering promotion tab and subtab is create
-      if (promotionSubTab === "create") {
-        loadItems();
-      }
+      // Reset promotion page state and subtab
+      setPromotionSubTab("create");
+      setPromotionSelectedItemId("");
+      setPromotionCart([]);
+      setPromotionName("");
+      setResultText(getDefaultText(tab, "create"));
+      // Load items when entering promotion tab
+      loadItems();
     } else {
       setResultText(getDefaultText(tab));
     }
@@ -282,6 +289,13 @@ export const App = () => {
   const deleteAllFiles = () => {
     DeleteAllFiles()
       .then(() => {
+        // Clear all cached state
+        setAvailableItems([]);
+        setCart([]);
+        setPromotionCart([]);
+        setSelectedItemId("");
+        setPromotionSelectedItemId("");
+        setPromotionName("");
         updateResultText("All generated files deleted successfully!");
       })
       .catch((err: any) => {
@@ -290,12 +304,21 @@ export const App = () => {
   };
 
   const populateInventory = () => {
+    if (isPopulatingInventory) {
+      return; // Prevent multiple simultaneous calls
+    }
+
+    setIsPopulatingInventory(true);
+    updateResultText("Populating inventory...");
+
     PopulateInventory("inventory.json")
       .then((result: string) => {
         updateResultText(`Inventory populated! ${result}`);
+        setIsPopulatingInventory(false);
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
+        setIsPopulatingInventory(false);
       });
   };
 
@@ -303,16 +326,6 @@ export const App = () => {
     PrintIndex()
       .then(() => {
         updateResultText("Index printed to application console!");
-      })
-      .catch((err: any) => {
-        updateResultText(`Error: ${err}`);
-      });
-  };
-
-  const rebuildIndex = () => {
-    RebuildIndex()
-      .then(() => {
-        updateResultText("Index rebuilt successfully!");
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -845,12 +858,14 @@ export const App = () => {
                   onChange={(e: any) => setSelectedItemId(e.target.value)}
                 >
                   <option value="">Select an item...</option>
-                  {availableItems.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      [{item.id}] {item.name} - $
-                      {(item.priceInCents / 100).toFixed(2)}
-                    </option>
-                  ))}
+                  {availableItems
+                    .sort((a, b) => a.id - b.id)
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        [{item.id}] {item.name} - $
+                        {(item.priceInCents / 100).toFixed(2)}
+                      </option>
+                    ))}
                 </select>
                 <button className="btn" onClick={addToCart}>
                   Add
@@ -967,12 +982,14 @@ export const App = () => {
                   }
                 >
                   <option value="">Select an item...</option>
-                  {availableItems.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      [{item.id}] {item.name} - $
-                      {(item.priceInCents / 100).toFixed(2)}
-                    </option>
-                  ))}
+                  {availableItems
+                    .sort((a, b) => a.id - b.id)
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        [{item.id}] {item.name} - $
+                        {(item.priceInCents / 100).toFixed(2)}
+                      </option>
+                    ))}
                 </select>
                 <button className="btn" onClick={addToPromotionCart}>
                   Add
@@ -1030,14 +1047,16 @@ export const App = () => {
         {activeTab === "debug" && (
           <div id="debug-controls" className="debug-section">
             <div className="input-box">
-              <button className="btn btn-warning" onClick={populateInventory}>
-                Populate Inventory
+              <button
+                className="btn btn-warning"
+                onClick={populateInventory}
+                disabled={isPopulatingInventory}
+                style={{ opacity: isPopulatingInventory ? 0.5 : 1, cursor: isPopulatingInventory ? 'not-allowed' : 'pointer' }}
+              >
+                {isPopulatingInventory ? "Populating..." : "Populate Inventory"}
               </button>
               <button className="btn" onClick={printIndex}>
                 Print Index
-              </button>
-              <button className="btn" onClick={rebuildIndex}>
-                Rebuild Index
               </button>
               <button className="btn btn-danger" onClick={deleteAllFiles}>
                 Delete All Files

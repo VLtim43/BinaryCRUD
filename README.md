@@ -51,14 +51,6 @@ cd BinaryCRUD
 run.sh
 ```
 
-### Development
-
-Run in development mode with hot reload:
-
-```bash
-.\run.sh
-```
-
 ## Features
 
 ### Core Operations
