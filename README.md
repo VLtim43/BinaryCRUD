@@ -82,21 +82,24 @@ All three files (`items.bin`, `orders.bin`, `promotions.bin`) share the same hea
 - Wails CLI v2
 
 ### Installation
+1. Install Go
+   https://go.dev/doc/install
 
-1. Install Wails CLI:
+
+3. Install Wails CLI:
 
 ```bash
 go install github.com/wailsapp/wails/v2/cmd/wails@latest
 ```
 
-2. Clone the repository:
+3. Clone the repository:
 
 ```bash
 git clone <repository-url>
 cd BinaryCRUD
 ```
 
-3. Install dependencies:
+4. Install dependencies:
 
 ```bash
 wails build
