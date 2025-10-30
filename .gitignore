@@ -7,7 +7,6 @@ data/*
 /claude
 claude
 .claude
-
 *.bin
 *.idx
 *.txt
