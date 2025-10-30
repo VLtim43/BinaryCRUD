@@ -24,13 +24,12 @@ BinaryCRUD implements a custom database-like system using binary files with B+ t
 1. Install Go
    https://go.dev/doc/install
 
-2. Install Wails CLI:
+2. Install Wails CLI
+    https://wails.io/docs/gettingstarted/installation :
 
 ```bash
 go install github.com/wailsapp/wails/v2/cmd/wails@latest
 ```
-
-test it with `wails`
 
 3. Clone the repository:
 
