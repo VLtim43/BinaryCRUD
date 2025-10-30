@@ -225,7 +225,7 @@ func (a *App) DeleteAllFiles() error {
 	deletedCount := 0
 	for _, entry := range entries {
 		if !entry.IsDir() {
-			filePath := fmt.Sprintf("%s/%s", dataDir, entry.Name())
+			filePath := filepath.Join(dataDir, entry.Name())
 			if err := os.Remove(filePath); err != nil {
 				utils.DebugPrint("Failed to delete %s: %v", filePath, err)
 			} else {
