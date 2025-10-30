@@ -32,11 +32,21 @@ func (dao *OrderDAO) Write(itemNames []string) error {
 		return fmt.Errorf("failed to initialize file: %w", err)
 	}
 
-	// Get the next ID and increment it atomically
-	orderID, err := utils.GetNextIDAndIncrement(dao.filePath)
+	// Open file in read-write mode for the entire operation
+	file, err := utils.OpenFileForWrite(dao.filePath)
 	if err != nil {
-		return fmt.Errorf("failed to get next ID: %w", err)
+		return fmt.Errorf("failed to open file: %w", err)
 	}
+	defer file.Close()
+
+	// Read current header
+	header, err := utils.ReadHeader(file)
+	if err != nil {
+		return fmt.Errorf("failed to read header: %w", err)
+	}
+
+	// Get the ID to use for this record
+	orderID := header.NextID
 
 	// Build the ID field: [ID(4)][UnitSeparator]
 	idBytes, err := utils.BuildFixed(4, uint64(orderID))
@@ -70,9 +80,28 @@ func (dao *OrderDAO) Write(itemNames []string) error {
 		recordBytes = append(recordBytes, nameBytes...)
 	}
 
-	// Append the record to the file
-	if err := utils.AppendRecord(dao.filePath, recordBytes); err != nil {
-		return fmt.Errorf("failed to append order record: %w", err)
+	// Seek to end of file to append the new record
+	if _, err := file.Seek(0, 2); err != nil {
+		return fmt.Errorf("failed to seek to end of file: %w", err)
+	}
+
+	// Write the record bytes
+	if _, err := file.Write(recordBytes); err != nil {
+		return fmt.Errorf("failed to write record data: %w", err)
+	}
+
+	// Write record separator to mark end of record
+	if _, err := file.Write([]byte{utils.RecordSeparator}); err != nil {
+		return fmt.Errorf("failed to write record separator: %w", err)
+	}
+
+	// Update header with new counts
+	header.EntryCount++
+	header.NextID++
+
+	// Write updated header using the same file handle
+	if err := utils.WriteHeader(file, header); err != nil {
+		return fmt.Errorf("failed to update header: %w", err)
 	}
 
 	utils.DebugPrint("Successfully wrote order [ID:%d] with %d items", orderID, itemCount)

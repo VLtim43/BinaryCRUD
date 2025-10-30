@@ -59,21 +59,39 @@ func SequentialRead(filePath string) (map[uint32][]byte, error) {
 	}
 	defer file.Close()
 
-	// Read header to get entry count
-	header, err := ReadHeader(file)
+	// Read header to skip past it
+	_, err = ReadHeader(file)
 	if err != nil {
 		return records, fmt.Errorf("failed to read header: %w", err)
 	}
 
-	// Read each record
-	for i := uint32(0); i < header.EntryCount; i++ {
-		// Read all bytes until we hit a record separator
+	// Read records until EOF
+	recordNum := 0
+	for {
+		// Read all bytes until we hit a record separator or EOF
 		var recordBytes []byte
 		buf := make([]byte, 1)
 
 		for {
-			if _, err := file.Read(buf); err != nil {
-				return records, fmt.Errorf("failed to read byte at record %d: %w", i, err)
+			n, err := file.Read(buf)
+			if err != nil {
+				if err.Error() == "EOF" {
+					// If we hit EOF and have no record bytes, we're done
+					if len(recordBytes) == 0 {
+						return records, nil
+					}
+					// If we have record bytes but hit EOF, that's an error (missing separator)
+					return records, fmt.Errorf("unexpected EOF at record %d: missing record separator", recordNum)
+				}
+				return records, fmt.Errorf("failed to read byte at record %d: %w", recordNum, err)
+			}
+
+			if n == 0 {
+				// No bytes read, we're done
+				if len(recordBytes) == 0 {
+					return records, nil
+				}
+				return records, fmt.Errorf("unexpected end of file at record %d: missing record separator", recordNum)
 			}
 
 			// Check if we hit the record separator
@@ -84,8 +102,19 @@ func SequentialRead(filePath string) (map[uint32][]byte, error) {
 			recordBytes = append(recordBytes, buf[0])
 		}
 
-		records[i] = recordBytes
-	}
+		// If we got an empty record (consecutive separators), that's an error
+		if len(recordBytes) == 0 {
+			return records, fmt.Errorf("empty record at position %d", recordNum)
+		}
 
-	return records, nil
+		// Extract the actual ID from the first 4 bytes of the record
+		// Format: [ID(4)][UnitSeparator][...]
+		if len(recordBytes) < 4 {
+			return records, fmt.Errorf("invalid record at position %d: too short to contain ID", recordNum)
+		}
+
+		actualID := binary.LittleEndian.Uint32(recordBytes[0:4])
+		records[actualID] = recordBytes
+		recordNum++
+	}
 }

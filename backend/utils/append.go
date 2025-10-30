@@ -21,6 +21,12 @@ func AppendRecord(filePath string, recordBytes []byte) error {
 	}
 	defer file.Close()
 
+	// Read current header before seeking to end
+	header, err := ReadHeader(file)
+	if err != nil {
+		return fmt.Errorf("failed to read header: %w", err)
+	}
+
 	// Seek to end of file to append the new record
 	if _, err := file.Seek(0, 2); err != nil {
 		return fmt.Errorf("failed to seek to end of file: %w", err)
@@ -36,9 +42,12 @@ func AppendRecord(filePath string, recordBytes []byte) error {
 		return fmt.Errorf("failed to write record separator: %w", err)
 	}
 
-	// Increment entry count in header
-	if err := IncrementEntryCount(filePath); err != nil {
-		return fmt.Errorf("failed to increment entry count: %w", err)
+	// Increment entry count in the header we read earlier
+	header.EntryCount++
+
+	// Write updated header using the same file handle
+	if err := WriteHeader(file, header); err != nil {
+		return fmt.Errorf("failed to update header: %w", err)
 	}
 
 	return nil

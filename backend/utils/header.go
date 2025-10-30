@@ -256,3 +256,12 @@ func OpenBinaryFile(filePath string) (*os.File, error) {
 
 	return file, nil
 }
+
+// OpenFileForWrite opens a binary file for read-write operations
+func OpenFileForWrite(filePath string) (*os.File, error) {
+	file, err := os.OpenFile(filePath, os.O_RDWR, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file: %w", err)
+	}
+	return file, nil
+}

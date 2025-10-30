@@ -1,29 +1,10 @@
 {
   "items": [
-    {"name": "Burger", "priceInCents": 899},
-    {"name": "Fries", "priceInCents": 399},
-    {"name": "Hot Dog", "priceInCents": 499},
-    {"name": "Fried Chicken", "priceInCents": 1099},
-    {"name": "Pizza", "priceInCents": 1200},
-    {"name": "Taco", "priceInCents": 349},
-    {"name": "Sandwich", "priceInCents": 699},
-    {"name": "Nuggets", "priceInCents": 599},
-    {"name": "Onion Rings", "priceInCents": 449},
-    {"name": "Milkshake", "priceInCents": 549},
-    {"name": "Corn Dog", "priceInCents": 399},
-    {"name": "Mozzarella Sticks", "priceInCents": 649},
-    {"name": "Chicken Wrap", "priceInCents": 750},
-    {"name": "Cheeseburger", "priceInCents": 999},
-    {"name": "Chili Dog", "priceInCents": 599},
-    {"name": "Fish Sandwich", "priceInCents": 849},
-    {"name": "Loaded Fries", "priceInCents": 599},
-    {"name": "Quesadilla", "priceInCents": 799},
-    {"name": "Burrito", "priceInCents": 950},
-    {"name": "Chicken Tenders", "priceInCents": 899},
-    {"name": "Soft Pretzel", "priceInCents": 449},
-    {"name": "Popcorn Chicken", "priceInCents": 699},
-    {"name": "Submarine Sandwich", "priceInCents": 1099},
-    {"name": "Double Bacon Burger", "priceInCents": 1299},
-    {"name": "Sliders", "priceInCents": 799}
+    { "name": "Burger", "priceInCents": 899 },
+    { "name": "Soft Pretzel", "priceInCents": 449 },
+    { "name": "Popcorn Chicken", "priceInCents": 699 },
+    { "name": "Submarine Sandwich", "priceInCents": 1099 },
+    { "name": "Double Bacon Burger", "priceInCents": 1299 },
+    { "name": "Sliders", "priceInCents": 799 }
   ]
 }
