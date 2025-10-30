@@ -5,7 +5,10 @@ CLAUDE.md
 /claude
 claude
 .claude
+/build
 *.bin
 *.idx
 *.txt
 
+/data
+/build
