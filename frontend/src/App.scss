@@ -7,7 +7,6 @@
     justify-content: center;
     text-align: center;
     position: relative;
-    transition: padding-bottom 0.3s ease;
 
     &.logs-open {
         padding-bottom: 300px;
@@ -466,7 +465,6 @@
     color: #e0e0e0;
     box-shadow: none;
     border: none;
-    transition: transform 0.3s ease;
     z-index: 50;
     display: flex;
     flex-direction: column;
@@ -496,7 +494,6 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s ease;
     z-index: 1;
 
     &:hover {
@@ -553,7 +550,6 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s ease;
 
     &:hover {
         background-color: #3a3a3a;
@@ -579,6 +575,7 @@
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
     font-size: 12px;
     line-height: 1.5;
+    text-align: left;
 }
 
 .logs-empty {
