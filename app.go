@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 )
 
 // App struct
@@ -26,10 +28,16 @@ type ItemDTO struct {
 
 // NewApp creates a new App application struct
 func NewApp() *App {
+	// Resolve data paths relative to executable directory
+	// This ensures the app works correctly when compiled to .exe
+	itemsPath := resolveDataPath("data/items.bin")
+	ordersPath := resolveDataPath("data/orders.bin")
+	promotionsPath := resolveDataPath("data/promotions.bin")
+
 	return &App{
-		itemDAO:      dao.NewItemDAO("data/items.bin"),
-		orderDAO:     dao.NewOrderDAO("data/orders.bin"),
-		promotionDAO: dao.NewPromotionDAO("data/promotions.bin"),
+		itemDAO:      dao.NewItemDAO(itemsPath),
+		orderDAO:     dao.NewOrderDAO(ordersPath),
+		promotionDAO: dao.NewPromotionDAO(promotionsPath),
 	}
 }
 
@@ -199,7 +207,7 @@ func (a *App) GetItemByIDWithIndex(recordID uint32) (ItemDTO, error) {
 
 // DeleteAllFiles deletes all files in the data folder
 func (a *App) DeleteAllFiles() error {
-	dataDir := "data"
+	dataDir := resolveDataPath("data")
 
 	// Check if data directory exists
 	if _, err := os.Stat(dataDir); os.IsNotExist(err) {
@@ -239,12 +247,51 @@ type InventoryData struct {
 	} `json:"items"`
 }
 
+// isAbsolutePath checks if a path is absolute (cross-platform)
+func isAbsolutePath(path string) bool {
+	if filepath.IsAbs(path) {
+		return true
+	}
+	// On Windows, also check for drive letters
+	if runtime.GOOS == "windows" && len(path) >= 2 && path[1] == ':' {
+		return true
+	}
+	return false
+}
+
+// resolveDataPath resolves a relative path to be relative to the executable directory
+// This ensures the app works correctly when compiled to .exe and run from any location
+func resolveDataPath(relativePath string) string {
+	if isAbsolutePath(relativePath) {
+		return relativePath
+	}
+
+	// Try to get the executable directory
+	exePath, err := os.Executable()
+	if err != nil {
+		// If we can't get executable path, fall back to current working directory
+		return relativePath
+	}
+
+	// Resolve symlinks to get the actual executable path
+	exePath, err = filepath.EvalSymlinks(exePath)
+	if err != nil {
+		return relativePath
+	}
+
+	exeDir := filepath.Dir(exePath)
+	return filepath.Join(exeDir, relativePath)
+}
+
 // PopulateInventory reads a JSON file and adds all items to the binary file
 func (a *App) PopulateInventory(filePath string) (string, error) {
+	// Resolve the file path relative to executable directory
+	resolvedPath := resolveDataPath(filePath)
+
 	// Read the JSON file
-	data, err := os.ReadFile(filePath)
+	data, err := os.ReadFile(resolvedPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to read file: %w", err)
+		return "", fmt.Errorf("failed to read file '%s': %w\n\nTip: Place inventory.json in the same directory as the .exe file", resolvedPath, err)
 	}
 
 	// Parse JSON
