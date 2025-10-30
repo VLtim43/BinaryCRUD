@@ -17,10 +17,14 @@ import {
   GetPromotions,
   PopulateInventory,
   DeleteItem,
+  DeleteOrder,
+  DeletePromotion,
   PrintIndex,
+  GetLogs,
+  ClearLogs,
 } from "../wailsjs/go/main/App";
 import { Quit } from "../wailsjs/runtime/runtime";
-import { useState } from "preact/hooks";
+import { useState, useEffect, useRef } from "preact/hooks";
 import { h, Fragment } from "preact";
 
 export const App = () => {
@@ -60,6 +64,10 @@ export const App = () => {
   const [promotionDeleteId, setPromotionDeleteId] = useState("");
   const [useIndex, setUseIndex] = useState(true);
   const [isPopulatingInventory, setIsPopulatingInventory] = useState(false);
+  const [logs, setLogs] = useState<
+    Array<{ timestamp: string; message: string }>
+  >([]);
+  const [logsPanelOpen, setLogsPanelOpen] = useState(false);
   const updateItemText = (e: any) => setItemText(e.target.value);
   const updateItemPrice = (e: any) => {
     const value = e.target.value;
@@ -240,6 +248,7 @@ export const App = () => {
         updateResultText(`Item saved: ${itemText} ($${itemPrice})`);
         setItemText("");
         setItemPrice("");
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -250,6 +259,7 @@ export const App = () => {
     PrintBinaryFile()
       .then(() => {
         updateResultText("Binary file printed to application console!");
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -280,6 +290,7 @@ export const App = () => {
         updateResultText(
           `Record ${id}: ${item.name} - $${price} (using ${methodName})`
         );
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -297,6 +308,7 @@ export const App = () => {
         setPromotionSelectedItemId("");
         setPromotionName("");
         updateResultText("All generated files deleted successfully!");
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -315,6 +327,7 @@ export const App = () => {
       .then((result: string) => {
         updateResultText(`Inventory populated! ${result}`);
         setIsPopulatingInventory(false);
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -326,6 +339,7 @@ export const App = () => {
     PrintIndex()
       .then(() => {
         updateResultText("Index printed to application console!");
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -350,6 +364,7 @@ export const App = () => {
       .then((itemName: string) => {
         updateResultText(`Record [${id}] [${itemName}] was deleted`);
         setDeleteRecordId("");
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -439,6 +454,7 @@ export const App = () => {
           `Order submitted with ${cart.length} unique item(s) (${itemNames.length} total)!`
         );
         setCart([]);
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -521,6 +537,7 @@ export const App = () => {
         );
         setPromotionName("");
         setPromotionCart([]);
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -546,6 +563,7 @@ export const App = () => {
         updateResultText(
           `Order ${id}: ${order.items.length} item(s) - ${itemsList}`
         );
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -557,15 +575,35 @@ export const App = () => {
     PrintOrdersFile()
       .then(() => {
         updateResultText("Orders file printed to application console!");
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
       });
   };
 
-  // Delete order placeholder (not implemented yet)
+  // Delete order by ID
   const deleteOrder = () => {
-    updateResultText("Delete order functionality not yet implemented");
+    if (!orderDeleteId || orderDeleteId.trim().length === 0) {
+      updateResultText("Error: Please enter an order ID");
+      return;
+    }
+
+    const id = parseInt(orderDeleteId, 10);
+    if (isNaN(id) || id < 0) {
+      updateResultText("Error: Order ID must be a valid non-negative number");
+      return;
+    }
+
+    DeleteOrder(id)
+      .then((itemCount: number) => {
+        updateResultText(`Order [${id}] with ${itemCount} item(s) was deleted`);
+        setOrderDeleteId("");
+        refreshLogs();
+      })
+      .catch((err: any) => {
+        updateResultText(`Error: ${err}`);
+      });
   };
 
   // Get promotion by ID
@@ -589,6 +627,7 @@ export const App = () => {
         updateResultText(
           `Promotion ${id} "${promotion.name}": ${promotion.items.length} item(s) - ${itemsList}`
         );
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
@@ -600,19 +639,82 @@ export const App = () => {
     PrintPromotionsFile()
       .then(() => {
         updateResultText("Promotions file printed to application console!");
+        refreshLogs();
       })
       .catch((err: any) => {
         updateResultText(`Error: ${err}`);
       });
   };
 
-  // Delete promotion placeholder (not implemented yet)
+  // Delete promotion by ID
   const deletePromotion = () => {
-    updateResultText("Delete promotion functionality not yet implemented");
+    if (!promotionDeleteId || promotionDeleteId.trim().length === 0) {
+      updateResultText("Error: Please enter a promotion ID");
+      return;
+    }
+
+    const id = parseInt(promotionDeleteId, 10);
+    if (isNaN(id) || id < 0) {
+      updateResultText(
+        "Error: Promotion ID must be a valid non-negative number"
+      );
+      return;
+    }
+
+    DeletePromotion(id)
+      .then((promotionName: string) => {
+        updateResultText(`Promotion [${id}] [${promotionName}] was deleted`);
+        setPromotionDeleteId("");
+        refreshLogs();
+      })
+      .catch((err: any) => {
+        updateResultText(`Error: ${err}`);
+      });
+  };
+
+  // Load logs once when panel is opened
+  useEffect(() => {
+    if (logsPanelOpen) {
+      refreshLogs();
+    }
+  }, [logsPanelOpen]);
+
+  // Refresh logs from backend
+  const refreshLogs = () => {
+    GetLogs()
+      .then((newLogs: Array<{ timestamp: string; message: string }>) => {
+        console.log("Logs fetched:", newLogs);
+        setLogs(newLogs);
+      })
+      .catch((err: any) => {
+        console.error("Error loading logs:", err);
+      });
+  };
+
+  // Clear all logs
+  const clearLogs = () => {
+    ClearLogs()
+      .then(() => {
+        setLogs([]);
+        updateResultText("Logs cleared");
+      })
+      .catch((err: any) => {
+        updateResultText(`Error clearing logs: ${err}`);
+      });
+  };
+
+  // Copy logs to clipboard
+  const copyLogs = () => {
+    const logText = logs
+      .map((log) => `[${log.timestamp}] ${log.message}`)
+      .join("\n");
+    navigator.clipboard.writeText(logText).then(() => {
+      updateResultText("Logs copied to clipboard!");
+    });
   };
 
   return (
-    <>
+    <div className={`app-container ${logsPanelOpen ? "logs-open" : ""}`}>
       <button className="close-btn" onClick={() => Quit()}>
         ×
       </button>
@@ -1051,7 +1153,10 @@ export const App = () => {
                 className="btn btn-warning"
                 onClick={populateInventory}
                 disabled={isPopulatingInventory}
-                style={{ opacity: isPopulatingInventory ? 0.5 : 1, cursor: isPopulatingInventory ? 'not-allowed' : 'pointer' }}
+                style={{
+                  opacity: isPopulatingInventory ? 0.5 : 1,
+                  cursor: isPopulatingInventory ? "not-allowed" : "pointer",
+                }}
               >
                 {isPopulatingInventory ? "Populating..." : "Populate Inventory"}
               </button>
@@ -1065,6 +1170,52 @@ export const App = () => {
           </div>
         )}
       </div>
-    </>
+
+      {/* Logs Side Panel */}
+      <div className={`logs-panel ${logsPanelOpen ? "open" : "closed"}`}>
+        <button
+          className="logs-toggle"
+          onClick={() => setLogsPanelOpen(!logsPanelOpen)}
+        >
+          {logsPanelOpen ? "»" : "«"}
+        </button>
+
+        {logsPanelOpen && (
+          <div className="logs-content">
+            <div className="logs-header">
+              <h3>Logs</h3>
+              <div className="logs-controls">
+                <button
+                  className="btn-icon"
+                  onClick={copyLogs}
+                  title="Copy Logs"
+                >
+                  📋
+                </button>
+                <button
+                  className="btn-icon btn-danger"
+                  onClick={clearLogs}
+                  title="Clear Logs"
+                >
+                  🗑
+                </button>
+              </div>
+            </div>
+            <div className="logs-container">
+              {logs.length === 0 ? (
+                <div className="logs-empty">No logs yet</div>
+              ) : (
+                logs.map((log, index) => (
+                  <div key={index} className="log-entry">
+                    <span className="log-timestamp">[{log.timestamp}]</span>
+                    <span className="log-message">{log.message}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };

@@ -219,18 +219,19 @@ func (dao *OrderDAO) ReadByID(orderID uint32) (*OrderDTO, error) {
 }
 
 // Delete marks an order as deleted by setting its tombstone flag to 0x01
-func (dao *OrderDAO) Delete(orderID uint32) error {
+// Returns the number of items in the deleted order
+func (dao *OrderDAO) Delete(orderID uint32) (int, error) {
 	// Open file for reading and writing
 	file, err := utils.OpenBinaryFile(dao.filePath)
 	if err != nil {
-		return fmt.Errorf("failed to open file: %w", err)
+		return 0, fmt.Errorf("failed to open file: %w", err)
 	}
 	defer file.Close()
 
 	// Read header to skip it
 	_, err = utils.ReadHeader(file)
 	if err != nil {
-		return fmt.Errorf("failed to read header: %w", err)
+		return 0, fmt.Errorf("failed to read header: %w", err)
 	}
 
 	currentOffset := int64(utils.HeaderSize)
@@ -248,14 +249,14 @@ func (dao *OrderDAO) Delete(orderID uint32) error {
 				if err.Error() == "EOF" {
 					if len(recordBytes) == 0 {
 						// Reached end without finding the record
-						return fmt.Errorf("order with ID %d not found", orderID)
+						return 0, fmt.Errorf("order with ID %d not found", orderID)
 					}
-					return fmt.Errorf("unexpected EOF in record")
+					return 0, fmt.Errorf("unexpected EOF in record")
 				}
-				return fmt.Errorf("failed to read byte: %w", err)
+				return 0, fmt.Errorf("failed to read byte: %w", err)
 			}
 			if n == 0 {
-				return fmt.Errorf("order with ID %d not found", orderID)
+				return 0, fmt.Errorf("order with ID %d not found", orderID)
 			}
 
 			currentOffset++
@@ -279,31 +280,39 @@ func (dao *OrderDAO) Delete(orderID uint32) error {
 		if recordID == orderID {
 			// Verify separator after ID
 			if recordBytes[4] != utils.UnitSeparator {
-				return fmt.Errorf("invalid record: missing separator after ID")
+				return 0, fmt.Errorf("invalid record: missing separator after ID")
 			}
 
 			// Check tombstone status
 			tombstone := recordBytes[5]
 			if tombstone == 0x01 {
-				return fmt.Errorf("order with ID %d is already deleted", orderID)
+				return 0, fmt.Errorf("order with ID %d is already deleted", orderID)
 			}
 
+			// Verify separator after tombstone
+			if recordBytes[6] != utils.UnitSeparator {
+				return 0, fmt.Errorf("invalid record: missing separator after tombstone")
+			}
+
+			// Extract item count before deletion
+			itemCount := binary.LittleEndian.Uint16(recordBytes[7:9])
+
 			// Open file for writing (need a new file handle for O_RDWR)
-			writeFile, err := utils.OpenBinaryFile(dao.filePath)
+			writeFile, err := utils.OpenFileForWrite(dao.filePath)
 			if err != nil {
-				return fmt.Errorf("failed to open file for writing: %w", err)
+				return 0, fmt.Errorf("failed to open file for writing: %w", err)
 			}
 			defer writeFile.Close()
 
 			// Seek to tombstone position (recordStartOffset + 4 bytes ID + 1 byte separator = recordStartOffset + 5)
 			tombstoneOffset := recordStartOffset + 5
 			if _, err := writeFile.Seek(tombstoneOffset, 0); err != nil {
-				return fmt.Errorf("failed to seek to tombstone position: %w", err)
+				return 0, fmt.Errorf("failed to seek to tombstone position: %w", err)
 			}
 
 			// Write 0x01 to mark as deleted
 			if _, err := writeFile.Write([]byte{0x01}); err != nil {
-				return fmt.Errorf("failed to write tombstone flag: %w", err)
+				return 0, fmt.Errorf("failed to write tombstone flag: %w", err)
 			}
 
 			// Increment tombstone count in header
@@ -311,8 +320,8 @@ func (dao *OrderDAO) Delete(orderID uint32) error {
 				utils.DebugPrint("Warning: failed to increment tombstone count: %v", err)
 			}
 
-			utils.DebugPrint("Successfully deleted order [ID:%d]", orderID)
-			return nil
+			utils.DebugPrint("Successfully deleted order [ID:%d] with %d items", orderID, itemCount)
+			return int(itemCount), nil
 		}
 	}
 }
