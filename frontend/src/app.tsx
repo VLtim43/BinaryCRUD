@@ -18,9 +18,11 @@ import {
   PopulateInventory,
   DeleteItem,
   PrintIndex,
+  GetLogs,
+  ClearLogs,
 } from "../wailsjs/go/main/App";
 import { Quit } from "../wailsjs/runtime/runtime";
-import { useState } from "preact/hooks";
+import { useState, useEffect, useRef } from "preact/hooks";
 import { h, Fragment } from "preact";
 
 export const App = () => {
@@ -60,6 +62,9 @@ export const App = () => {
   const [promotionDeleteId, setPromotionDeleteId] = useState("");
   const [useIndex, setUseIndex] = useState(true);
   const [isPopulatingInventory, setIsPopulatingInventory] = useState(false);
+  const [logs, setLogs] = useState<Array<{ timestamp: string; message: string }>>([]);
+  const [autoRefreshLogs, setAutoRefreshLogs] = useState(true);
+  const [logsPanelOpen, setLogsPanelOpen] = useState(false);
   const updateItemText = (e: any) => setItemText(e.target.value);
   const updateItemPrice = (e: any) => {
     const value = e.target.value;
@@ -611,8 +616,64 @@ export const App = () => {
     updateResultText("Delete promotion functionality not yet implemented");
   };
 
+  // Refresh logs from backend
+  const refreshLogs = () => {
+    GetLogs()
+      .then((newLogs: Array<{ timestamp: string; message: string }>) => {
+        console.log("Logs fetched:", newLogs);
+        setLogs(newLogs);
+      })
+      .catch((err: any) => {
+        console.error("Error loading logs:", err);
+        updateResultText(`Error loading logs: ${err}`);
+      });
+  };
+
+  // Auto-refresh logs when panel is open
+  useEffect(() => {
+    let intervalId: number | undefined;
+
+    if (logsPanelOpen && autoRefreshLogs) {
+      // Refresh immediately when opening
+      refreshLogs();
+
+      // Then refresh every 2 seconds
+      intervalId = window.setInterval(() => {
+        refreshLogs();
+      }, 2000);
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [logsPanelOpen, autoRefreshLogs]);
+
+  // Clear all logs
+  const clearLogs = () => {
+    ClearLogs()
+      .then(() => {
+        setLogs([]);
+        updateResultText("Logs cleared");
+      })
+      .catch((err: any) => {
+        updateResultText(`Error clearing logs: ${err}`);
+      });
+  };
+
+  // Copy logs to clipboard
+  const copyLogs = () => {
+    const logText = logs
+      .map((log) => `[${log.timestamp}] ${log.message}`)
+      .join("\n");
+    navigator.clipboard.writeText(logText).then(() => {
+      updateResultText("Logs copied to clipboard!");
+    });
+  };
+
   return (
-    <>
+    <div className={`app-container ${logsPanelOpen ? 'logs-open' : ''}`}>
       <button className="close-btn" onClick={() => Quit()}>
         ×
       </button>
@@ -1065,6 +1126,52 @@ export const App = () => {
           </div>
         )}
       </div>
-    </>
+
+      {/* Logs Side Panel */}
+      <div className={`logs-panel ${logsPanelOpen ? 'open' : 'closed'}`}>
+        <button
+          className="logs-toggle"
+          onClick={() => {
+            setLogsPanelOpen(!logsPanelOpen);
+            if (!logsPanelOpen) {
+              refreshLogs();
+            }
+          }}
+        >
+          {logsPanelOpen ? '»' : '«'}
+        </button>
+
+        {logsPanelOpen && (
+          <div className="logs-content">
+            <div className="logs-header">
+              <h3>Logs</h3>
+              <div className="logs-controls">
+                <button className="btn-icon" onClick={refreshLogs} title="Refresh Logs">
+                  ↻
+                </button>
+                <button className="btn-icon" onClick={copyLogs} title="Copy Logs">
+                  📋
+                </button>
+                <button className="btn-icon btn-danger" onClick={clearLogs} title="Clear Logs">
+                  🗑
+                </button>
+              </div>
+            </div>
+            <div className="logs-container">
+              {logs.length === 0 ? (
+                <div className="logs-empty">No logs yet</div>
+              ) : (
+                logs.map((log, index) => (
+                  <div key={index} className="log-entry">
+                    <span className="log-timestamp">[{log.timestamp}]</span>
+                    <span className="log-message">{log.message}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };

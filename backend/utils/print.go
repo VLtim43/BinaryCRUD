@@ -7,6 +7,18 @@ import (
 	"strings"
 )
 
+// LoggerInterface defines the interface for logging
+type LoggerInterface interface {
+	Log(message string)
+}
+
+var globalLogger LoggerInterface
+
+// SetLogger sets the global logger instance
+func SetLogger(logger LoggerInterface) {
+	globalLogger = logger
+}
+
 // FormatBytes converts a byte slice to a hex string representation
 func FormatBytes(data []byte) string {
 	parts := make([]string, len(data))
@@ -102,21 +114,32 @@ func PrintBinaryFile(filePath string) (string, error) {
 // With formatting: DebugPrint("Deleted %d files from %s", count, dir) → [DEBUGGER] Deleted 5 files from data
 // Two string parameters: DebugPrint("Operation", "data") → [DEBUGGER] Operation: "data" [binary]
 func DebugPrint(format string, args ...interface{}) {
+	var message string
+
 	// Check if we have exactly one string argument and format doesn't contain %
 	if len(args) == 1 {
 		if str, ok := args[0].(string); ok && !containsFormatVerb(format) {
 			// Two string parameters: operation + content (show binary)
 			contentBytes := []byte(str)
-			fmt.Printf("[DEBUGGER] %s: \"%s\" %s\n", format, str, FormatBytes(contentBytes))
+			message = fmt.Sprintf("[DEBUGGER] %s: \"%s\" %s\n", format, str, FormatBytes(contentBytes))
+			fmt.Print(message)
+			if globalLogger != nil {
+				globalLogger.Log(message)
+			}
 			return
 		}
 	}
 
 	// Info message with optional formatting
 	if len(args) > 0 {
-		fmt.Printf("[DEBUGGER] "+format+"\n", args...)
+		message = fmt.Sprintf("[DEBUGGER] "+format+"\n", args...)
 	} else {
-		fmt.Printf("[DEBUGGER] %s\n", format)
+		message = fmt.Sprintf("[DEBUGGER] %s\n", format)
+	}
+
+	fmt.Print(message)
+	if globalLogger != nil {
+		globalLogger.Log(message)
 	}
 }
 

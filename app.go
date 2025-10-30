@@ -15,6 +15,7 @@ type App struct {
 	itemDAO      *dao.ItemDAO
 	orderDAO     *dao.OrderDAO
 	promotionDAO *dao.PromotionDAO
+	logger       *Logger
 }
 
 // ItemDTO represents an item with its ID, name, and price for frontend consumption
@@ -26,10 +27,14 @@ type ItemDTO struct {
 
 // NewApp creates a new App application struct
 func NewApp() *App {
+	logger := NewLogger(1000) // Store up to 1000 log entries
+	utils.SetLogger(logger)   // Set global logger for utils package
+
 	return &App{
 		itemDAO:      dao.NewItemDAO("data/items.bin"),
 		orderDAO:     dao.NewOrderDAO("data/orders.bin"),
 		promotionDAO: dao.NewPromotionDAO("data/promotions.bin"),
+		logger:       logger,
 	}
 }
 
@@ -37,6 +42,8 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	a.logger.Log("Application started")
+	utils.DebugPrint("BinaryCRUD application initialized")
 }
 
 // AddItem writes an item to the binary file with a price in cents
@@ -91,7 +98,7 @@ func (a *App) PrintOrdersFile() error {
 		return err
 	}
 
-	fmt.Println(output)
+	a.logger.LogPrintln(output)
 	return nil
 }
 
@@ -112,7 +119,7 @@ func (a *App) PrintPromotionsFile() error {
 		return err
 	}
 
-	fmt.Println(output)
+	a.logger.LogPrintln(output)
 	return nil
 }
 
@@ -124,7 +131,7 @@ func (a *App) PrintBinaryFile() error {
 	}
 
 	// Print to application console (same as debug logs)
-	fmt.Println(output)
+	a.logger.LogPrintln(output)
 
 	return nil
 }
@@ -180,7 +187,7 @@ func (a *App) RebuildIndex() error {
 func (a *App) PrintIndex() {
 	utils.DebugPrint("B+ Tree Index Structure:")
 	indexStr := a.itemDAO.PrintIndex()
-	fmt.Println(indexStr)
+	a.logger.LogPrintln(indexStr)
 }
 
 // GetItemByIDWithIndex retrieves an item by its ID using the B+ tree index
@@ -283,4 +290,14 @@ func (a *App) PopulateInventory(filePath string) (string, error) {
 	}
 
 	return result, nil
+}
+
+// GetLogs returns all current log entries
+func (a *App) GetLogs() []LogEntry {
+	return a.logger.GetLogs()
+}
+
+// ClearLogs clears all log entries
+func (a *App) ClearLogs() {
+	a.logger.Clear()
 }

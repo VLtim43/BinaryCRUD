@@ -14,6 +14,10 @@ export function AddPromotion(arg1, arg2) {
   return window['go']['main']['App']['AddPromotion'](arg1, arg2);
 }
 
+export function ClearLogs() {
+  return window['go']['main']['App']['ClearLogs']();
+}
+
 export function DeleteAllFiles() {
   return window['go']['main']['App']['DeleteAllFiles']();
 }
@@ -40,6 +44,10 @@ export function GetItemByIDWithIndex(arg1) {
 
 export function GetItems() {
   return window['go']['main']['App']['GetItems']();
+}
+
+export function GetLogs() {
+  return window['go']['main']['App']['GetLogs']();
 }
 
 export function GetOrderByID(arg1) {

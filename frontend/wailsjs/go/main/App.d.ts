@@ -9,6 +9,8 @@ export function AddOrder(arg1:Array<string>):Promise<void>;
 
 export function AddPromotion(arg1:string,arg2:Array<string>):Promise<void>;
 
+export function ClearLogs():Promise<void>;
+
 export function DeleteAllFiles():Promise<void>;
 
 export function DeleteItem(arg1:number):Promise<string>;
@@ -22,6 +24,8 @@ export function GetItemByID(arg1:number):Promise<main.ItemDTO>;
 export function GetItemByIDWithIndex(arg1:number):Promise<main.ItemDTO>;
 
 export function GetItems():Promise<Array<main.ItemDTO>>;
+
+export function GetLogs():Promise<Array<main.LogEntry>>;
 
 export function GetOrderByID(arg1:number):Promise<dao.OrderDTO>;
 
