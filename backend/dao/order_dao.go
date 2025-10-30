@@ -2,6 +2,7 @@ package dao
 
 import (
 	"BinaryCRUD/backend/utils"
+	"encoding/binary"
 	"fmt"
 )
 
@@ -18,13 +19,11 @@ func NewOrderDAO(filePath string) *OrderDAO {
 }
 
 // InitializeFile creates and initializes the order binary file with header only
-// Does not write any records - just creates the file structure
 func (dao *OrderDAO) InitializeFile() error {
 	return utils.InitializeBinaryFile(dao.filePath)
 }
 
 // Write adds a new order to the binary file with auto-increment ID
-// Creates and initializes the file if it doesn't exist
 // Order record format: [ID(4)][UnitSeparator][Tombstone(1)][UnitSeparator][ItemCount(2)][UnitSeparator][Item1Name][Item2Name]...[RecordSeparator]
 // Each item name uses the variable format: [StringLength(2)][UnitSeparator][StringContent][UnitSeparator]
 func (dao *OrderDAO) Write(itemNames []string) error {
@@ -80,7 +79,6 @@ func (dao *OrderDAO) Write(itemNames []string) error {
 	return nil
 }
 
-// OrderDTO represents an order with its ID and items
 type OrderDTO struct {
 	ID    uint32   `json:"id"`
 	Items []string `json:"items"`
@@ -105,7 +103,7 @@ func (dao *OrderDAO) Read() ([]OrderDTO, error) {
 		}
 
 		// Extract ID (first 4 bytes, little-endian)
-		orderID := uint32(recordBytes[0]) | uint32(recordBytes[1])<<8 | uint32(recordBytes[2])<<16 | uint32(recordBytes[3])<<24
+		orderID := binary.LittleEndian.Uint32(recordBytes[0:4])
 
 		// Verify unit separator after ID at position 4
 		if recordBytes[4] != utils.UnitSeparator {
@@ -125,8 +123,7 @@ func (dao *OrderDAO) Read() ([]OrderDTO, error) {
 			continue
 		}
 
-		// Extract item count (bytes 7-8, little-endian)
-		itemCount := uint16(recordBytes[7]) | uint16(recordBytes[8])<<8
+		itemCount := binary.LittleEndian.Uint16(recordBytes[7:9])
 
 		// Verify unit separator after count at position 9
 		if recordBytes[9] != utils.UnitSeparator {
@@ -142,8 +139,7 @@ func (dao *OrderDAO) Read() ([]OrderDTO, error) {
 				return orders, fmt.Errorf("invalid record ID %d: incomplete item %d", orderID, i)
 			}
 
-			// Extract item length (2 bytes, little-endian)
-			itemLength := uint16(recordBytes[pos]) | uint16(recordBytes[pos+1])<<8
+			itemLength := binary.LittleEndian.Uint16(recordBytes[pos : pos+2])
 			pos += 2
 
 			// Verify unit separator
@@ -194,7 +190,6 @@ func (dao *OrderDAO) ReadByID(orderID uint32) (*OrderDTO, error) {
 }
 
 // Delete marks an order as deleted by setting its tombstone flag to 0x01
-// Uses sequential search to locate the record
 func (dao *OrderDAO) Delete(orderID uint32) error {
 	// Open file for reading and writing
 	file, err := utils.OpenBinaryFile(dao.filePath)
@@ -209,7 +204,6 @@ func (dao *OrderDAO) Delete(orderID uint32) error {
 		return fmt.Errorf("failed to read header: %w", err)
 	}
 
-	// Track current offset (start after header)
 	currentOffset := int64(utils.HeaderSize)
 
 	// Read records sequentially to find the one with matching ID
@@ -250,7 +244,7 @@ func (dao *OrderDAO) Delete(orderID uint32) error {
 		}
 
 		// Extract ID
-		recordID := uint32(recordBytes[0]) | uint32(recordBytes[1])<<8 | uint32(recordBytes[2])<<16 | uint32(recordBytes[3])<<24
+		recordID := binary.LittleEndian.Uint32(recordBytes[0:4])
 
 		// Check if this is the record we're looking for
 		if recordID == orderID {

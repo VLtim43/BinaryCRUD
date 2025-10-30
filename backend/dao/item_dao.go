@@ -3,11 +3,11 @@ package dao
 import (
 	"BinaryCRUD/backend/index"
 	"BinaryCRUD/backend/utils"
+	"encoding/binary"
 	"fmt"
 	"os"
 )
 
-// ItemDAO handles data access operations for items
 type ItemDAO struct {
 	filePath  string
 	index     *index.ItemIndex
@@ -145,9 +145,7 @@ func (dao *ItemDAO) Read() (map[uint32]ItemData, error) {
 			continue
 		}
 
-		// Extract price (bytes 7-14, little-endian uint64)
-		price := uint64(recordBytes[7]) | uint64(recordBytes[8])<<8 | uint64(recordBytes[9])<<16 | uint64(recordBytes[10])<<24 |
-			uint64(recordBytes[11])<<32 | uint64(recordBytes[12])<<40 | uint64(recordBytes[13])<<48 | uint64(recordBytes[14])<<56
+		price := binary.LittleEndian.Uint64(recordBytes[7:15])
 
 		// Verify unit separator after price at position 15
 		if recordBytes[15] != utils.UnitSeparator {
@@ -259,8 +257,7 @@ func (dao *ItemDAO) ReadByIDWithIndex(itemID uint32) (ItemData, error) {
 	}
 
 	// Extract price (bytes 7-14, little-endian uint64)
-	price := uint64(recordBytes[7]) | uint64(recordBytes[8])<<8 | uint64(recordBytes[9])<<16 | uint64(recordBytes[10])<<24 |
-		uint64(recordBytes[11])<<32 | uint64(recordBytes[12])<<40 | uint64(recordBytes[13])<<48 | uint64(recordBytes[14])<<56
+	price := binary.LittleEndian.Uint64(recordBytes[7:15])
 
 	// Verify unit separator after price
 	if recordBytes[15] != utils.UnitSeparator {
@@ -337,12 +334,12 @@ func (dao *ItemDAO) Delete(itemID uint32) (string, error) {
 	}
 
 	// Parse the record to validate and extract item name
-	if len(recordBytes) < 11 {
+	if len(recordBytes) < 20 {
 		return "", fmt.Errorf("invalid record: too short")
 	}
 
 	// Verify ID matches
-	recordID := uint32(recordBytes[0]) | uint32(recordBytes[1])<<8 | uint32(recordBytes[2])<<16 | uint32(recordBytes[3])<<24
+	recordID := binary.LittleEndian.Uint32(recordBytes[0:4])
 	if recordID != itemID {
 		return "", fmt.Errorf("ID mismatch: expected %d, got %d", itemID, recordID)
 	}
@@ -363,9 +360,14 @@ func (dao *ItemDAO) Delete(itemID uint32) (string, error) {
 		return "", fmt.Errorf("invalid record: missing separator after tombstone")
 	}
 
-	// Extract item name before deletion
-	length := uint16(recordBytes[7]) | uint16(recordBytes[8])<<8
-	contentStart := 10
+	// Verify unit separator after price (at position 15)
+	if recordBytes[15] != utils.UnitSeparator {
+		return "", fmt.Errorf("invalid record: missing separator after price")
+	}
+
+	// Extract item name before deletion (after price field)
+	length := binary.LittleEndian.Uint16(recordBytes[16:18])
+	contentStart := 19
 	contentEnd := contentStart + int(length)
 	if contentEnd > len(recordBytes) {
 		return "", fmt.Errorf("invalid record: content length mismatch")

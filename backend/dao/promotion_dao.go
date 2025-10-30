@@ -2,6 +2,7 @@ package dao
 
 import (
 	"BinaryCRUD/backend/utils"
+	"encoding/binary"
 	"fmt"
 )
 
@@ -113,7 +114,7 @@ func (dao *PromotionDAO) Read() ([]PromotionDTO, error) {
 		}
 
 		// Extract ID (first 4 bytes, little-endian)
-		promotionID := uint32(recordBytes[0]) | uint32(recordBytes[1])<<8 | uint32(recordBytes[2])<<16 | uint32(recordBytes[3])<<24
+		promotionID := binary.LittleEndian.Uint32(recordBytes[0:4])
 
 		// Verify unit separator after ID at position 4
 		if recordBytes[4] != utils.UnitSeparator {
@@ -134,7 +135,7 @@ func (dao *PromotionDAO) Read() ([]PromotionDTO, error) {
 		}
 
 		// Extract promotion name length (bytes 7-8, little-endian)
-		nameLength := uint16(recordBytes[7]) | uint16(recordBytes[8])<<8
+		nameLength := binary.LittleEndian.Uint16(recordBytes[7:9])
 
 		// Verify unit separator after name length at position 9
 		if recordBytes[9] != utils.UnitSeparator {
@@ -160,7 +161,7 @@ func (dao *PromotionDAO) Read() ([]PromotionDTO, error) {
 		if pos+2 > len(recordBytes) {
 			return promotions, fmt.Errorf("invalid record ID %d: missing item count", promotionID)
 		}
-		itemCount := uint16(recordBytes[pos]) | uint16(recordBytes[pos+1])<<8
+		itemCount := binary.LittleEndian.Uint16(recordBytes[pos : pos+2])
 		pos += 2
 
 		// Verify unit separator after count
@@ -177,7 +178,7 @@ func (dao *PromotionDAO) Read() ([]PromotionDTO, error) {
 			}
 
 			// Extract item length (2 bytes, little-endian)
-			itemLength := uint16(recordBytes[pos]) | uint16(recordBytes[pos+1])<<8
+			itemLength := binary.LittleEndian.Uint16(recordBytes[pos : pos+2])
 			pos += 2
 
 			// Verify unit separator
@@ -285,7 +286,7 @@ func (dao *PromotionDAO) Delete(promotionID uint32) error {
 		}
 
 		// Extract ID
-		recordID := uint32(recordBytes[0]) | uint32(recordBytes[1])<<8 | uint32(recordBytes[2])<<16 | uint32(recordBytes[3])<<24
+		recordID := binary.LittleEndian.Uint32(recordBytes[0:4])
 
 		// Check if this is the record we're looking for
 		if recordID == promotionID {
