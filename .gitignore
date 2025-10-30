@@ -4,7 +4,6 @@ frontend/dist
 CLAUDE.md
 data/
 data/*
-build
 /claude
 claude
 .claude
