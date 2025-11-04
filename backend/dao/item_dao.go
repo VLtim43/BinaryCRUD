@@ -24,10 +24,6 @@ func NewItemDAO(filePath string) *ItemDAO {
 	}
 }
 
-// Write adds a new item to the binary file with auto-increment ID
-// Creates and initializes the file if it doesn't exist
-// Also updates the B+ tree index with the new item
-// Item record format: [ID(4)][UnitSeparator][Tombstone(1)][UnitSeparator][Price(8)][UnitSeparator][StringLength(2)][UnitSeparator][StringContent][UnitSeparator][RecordSeparator]
 func (dao *ItemDAO) Write(itemName string, priceInCents uint64) error {
 	// Initialize file if it doesn't exist
 	if err := utils.InitializeBinaryFile(dao.filePath); err != nil {
@@ -128,7 +124,6 @@ func (dao *ItemDAO) Write(itemName string, priceInCents uint64) error {
 	return nil
 }
 
-// ItemData represents an item with its name and price
 type ItemData struct {
 	Name         string
 	PriceInCents uint64
@@ -432,4 +427,3 @@ func (dao *ItemDAO) PrintIndex() string {
 	}
 	return dao.index.Print()
 }
-
