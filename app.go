@@ -11,11 +11,10 @@ import (
 
 // App struct
 type App struct {
-	ctx          context.Context
-	itemDAO      *dao.ItemDAO
-	orderDAO     *dao.OrderDAO
-	promotionDAO *dao.PromotionDAO
-	logger       *Logger
+	ctx      context.Context
+	itemDAO  *dao.ItemDAO
+	orderDAO *dao.OrderDAO
+	logger   *Logger
 }
 
 // ItemDTO represents an item with its ID, name, and price for frontend consumption
@@ -31,10 +30,9 @@ func NewApp() *App {
 	utils.SetLogger(logger)   // Set global logger for utils package
 
 	return &App{
-		itemDAO:      dao.NewItemDAO("data/items.bin"),
-		orderDAO:     dao.NewOrderDAO("data/orders.bin"),
-		promotionDAO: dao.NewPromotionDAO("data/promotions.bin"),
-		logger:       logger,
+		itemDAO:  dao.NewItemDAO("data/items.bin"),
+		orderDAO: dao.NewOrderDAO("data/orders.bin"),
+		logger:   logger,
 	}
 }
 
@@ -54,11 +52,6 @@ func (a *App) AddItem(text string, priceInCents uint64) error {
 // AddOrder writes an order to the binary file with an array of item names
 func (a *App) AddOrder(itemNames []string) error {
 	return a.orderDAO.Write(itemNames)
-}
-
-// AddPromotion writes a promotion to the binary file with a name and an array of item names
-func (a *App) AddPromotion(promotionName string, itemNames []string) error {
-	return a.promotionDAO.Write(promotionName, itemNames)
 }
 
 // GetItems reads items from the binary file and returns them with IDs and prices
@@ -94,27 +87,6 @@ func (a *App) GetOrderByID(orderID uint32) (*dao.OrderDTO, error) {
 // PrintOrdersFile prints the orders binary file to the application console
 func (a *App) PrintOrdersFile() error {
 	output, err := a.orderDAO.Print()
-	if err != nil {
-		return err
-	}
-
-	a.logger.LogPrintln(output)
-	return nil
-}
-
-// GetPromotions reads all promotions from the binary file
-func (a *App) GetPromotions() ([]dao.PromotionDTO, error) {
-	return a.promotionDAO.Read()
-}
-
-// GetPromotionByID reads a single promotion by its ID
-func (a *App) GetPromotionByID(promotionID uint32) (*dao.PromotionDTO, error) {
-	return a.promotionDAO.ReadByID(promotionID)
-}
-
-// PrintPromotionsFile prints the promotions binary file to the application console
-func (a *App) PrintPromotionsFile() error {
-	output, err := a.promotionDAO.Print()
 	if err != nil {
 		return err
 	}
@@ -171,12 +143,6 @@ func (a *App) DeleteItem(recordID uint32) (string, error) {
 // Returns the number of items in the deleted order
 func (a *App) DeleteOrder(orderID uint32) (int, error) {
 	return a.orderDAO.Delete(orderID)
-}
-
-// DeletePromotion marks a promotion as deleted by setting its tombstone flag
-// Returns the name of the deleted promotion
-func (a *App) DeletePromotion(promotionID uint32) (string, error) {
-	return a.promotionDAO.Delete(promotionID)
 }
 
 // RebuildIndex rebuilds the B+ tree index from scratch

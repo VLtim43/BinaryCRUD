@@ -3,22 +3,17 @@ import logo from "./assets/images/logo-universal.png";
 import {
   AddItem,
   AddOrder,
-  AddPromotion,
   PrintBinaryFile,
   PrintOrdersFile,
-  PrintPromotionsFile,
   DeleteAllFiles,
   GetItemByID,
   GetItemByIDWithIndex,
   GetOrderByID,
-  GetPromotionByID,
   GetItems,
   GetOrders,
-  GetPromotions,
   PopulateInventory,
   DeleteItem,
   DeleteOrder,
-  DeletePromotion,
   PrintIndex,
   GetLogs,
   ClearLogs,
@@ -29,7 +24,7 @@ import { h, Fragment } from "preact";
 
 export const App = () => {
   const [activeTab, setActiveTab] = useState<
-    "item" | "order" | "promotion" | "debug"
+    "item" | "order" | "debug"
   >("item");
   const [itemSubTab, setItemSubTab] = useState<"create" | "read" | "delete">(
     "create"
@@ -37,9 +32,6 @@ export const App = () => {
   const [orderSubTab, setOrderSubTab] = useState<"create" | "read" | "delete">(
     "create"
   );
-  const [promotionSubTab, setPromotionSubTab] = useState<
-    "create" | "read" | "delete"
-  >("create");
   const [resultText, setResultText] = useState("Enter item text below 👇");
   const [itemText, setItemText] = useState("");
   const [itemPrice, setItemPrice] = useState("");
@@ -52,16 +44,8 @@ export const App = () => {
     Array<{ id: number; name: string; quantity: number; priceInCents: number }>
   >([]);
   const [selectedItemId, setSelectedItemId] = useState<string>("");
-  const [promotionName, setPromotionName] = useState("");
-  const [promotionCart, setPromotionCart] = useState<
-    Array<{ id: number; name: string; quantity: number; priceInCents: number }>
-  >([]);
-  const [promotionSelectedItemId, setPromotionSelectedItemId] =
-    useState<string>("");
   const [orderReadId, setOrderReadId] = useState("");
   const [orderDeleteId, setOrderDeleteId] = useState("");
-  const [promotionReadId, setPromotionReadId] = useState("");
-  const [promotionDeleteId, setPromotionDeleteId] = useState("");
   const [useIndex, setUseIndex] = useState(true);
   const [isPopulatingInventory, setIsPopulatingInventory] = useState(false);
   const [logs, setLogs] = useState<
@@ -102,23 +86,11 @@ export const App = () => {
       setOrderDeleteId(value);
     }
   };
-  const updatePromotionReadId = (e: any) => {
-    const value = e.target.value;
-    if (value === "" || /^\d+$/.test(value)) {
-      setPromotionReadId(value);
-    }
-  };
-  const updatePromotionDeleteId = (e: any) => {
-    const value = e.target.value;
-    if (value === "" || /^\d+$/.test(value)) {
-      setPromotionDeleteId(value);
-    }
-  };
   const updateResultText = (result: string) => setResultText(result);
 
   // Get default text for each tab/subtab combination
   const getDefaultText = (
-    tab: "item" | "order" | "promotion" | "debug",
+    tab: "item" | "order" | "debug",
     subTab?: "create" | "read" | "delete"
   ) => {
     if (tab === "debug") {
@@ -135,19 +107,6 @@ export const App = () => {
           return "Enter an order ID to delete 👇";
         default:
           return "Select items to add to your order";
-      }
-    }
-
-    if (tab === "promotion") {
-      switch (subTab) {
-        case "create":
-          return "Create a promotion with a name and items";
-        case "read":
-          return "Enter a promotion ID to fetch 👇";
-        case "delete":
-          return "Enter a promotion ID to delete 👇";
-        default:
-          return "Create a promotion with a name and items";
       }
     }
 
@@ -168,7 +127,7 @@ export const App = () => {
   };
 
   // Handle main tab changes
-  const handleTabChange = (tab: "item" | "order" | "promotion" | "debug") => {
+  const handleTabChange = (tab: "item" | "order" | "debug") => {
     setActiveTab(tab);
     if (tab === "item") {
       // Reset to create subtab
@@ -181,15 +140,6 @@ export const App = () => {
       setCart([]);
       setResultText(getDefaultText(tab, "create"));
       // Load items when entering order tab
-      loadItems();
-    } else if (tab === "promotion") {
-      // Reset promotion page state and subtab
-      setPromotionSubTab("create");
-      setPromotionSelectedItemId("");
-      setPromotionCart([]);
-      setPromotionName("");
-      setResultText(getDefaultText(tab, "create"));
-      // Load items when entering promotion tab
       loadItems();
     } else {
       setResultText(getDefaultText(tab));
@@ -206,18 +156,6 @@ export const App = () => {
   const handleOrderSubTabChange = (subTab: "create" | "read" | "delete") => {
     setOrderSubTab(subTab);
     setResultText(getDefaultText("order", subTab));
-    // Load items when switching to create subtab
-    if (subTab === "create") {
-      loadItems();
-    }
-  };
-
-  // Handle promotion subtab changes
-  const handlePromotionSubTabChange = (
-    subTab: "create" | "read" | "delete"
-  ) => {
-    setPromotionSubTab(subTab);
-    setResultText(getDefaultText("promotion", subTab));
     // Load items when switching to create subtab
     if (subTab === "create") {
       loadItems();
@@ -303,10 +241,7 @@ export const App = () => {
         // Clear all cached state
         setAvailableItems([]);
         setCart([]);
-        setPromotionCart([]);
         setSelectedItemId("");
-        setPromotionSelectedItemId("");
-        setPromotionName("");
         updateResultText("All generated files deleted successfully!");
         refreshLogs();
       })
@@ -461,89 +396,6 @@ export const App = () => {
       });
   };
 
-  // Add item to promotion cart
-  const addToPromotionCart = () => {
-    if (!promotionSelectedItemId) {
-      updateResultText("Error: Please select an item");
-      return;
-    }
-
-    const itemId = parseInt(promotionSelectedItemId, 10);
-    const item = availableItems.find((i) => i.id === itemId);
-
-    if (!item) {
-      updateResultText("Error: Item not found");
-      return;
-    }
-
-    // Check if item already in promotion cart
-    const existingItem = promotionCart.find((c) => c.id === itemId);
-    if (existingItem) {
-      // Increment quantity
-      setPromotionCart(
-        promotionCart.map((c) =>
-          c.id === itemId ? { ...c, quantity: c.quantity + 1 } : c
-        )
-      );
-    } else {
-      // Add new item to promotion cart
-      setPromotionCart([
-        ...promotionCart,
-        {
-          id: item.id,
-          name: item.name,
-          quantity: 1,
-          priceInCents: item.priceInCents,
-        },
-      ]);
-    }
-
-    updateResultText(`Added ${item.name} to promotion`);
-  };
-
-  // Remove item from promotion cart
-  const removeFromPromotionCart = (itemId: number) => {
-    const item = promotionCart.find((c) => c.id === itemId);
-    if (item) {
-      setPromotionCart(promotionCart.filter((c) => c.id !== itemId));
-      updateResultText(`Removed ${item.name} from promotion`);
-    }
-  };
-
-  // Submit promotion - writes promotion to promotions.bin
-  const submitPromotion = () => {
-    if (!promotionName || promotionName.trim().length === 0) {
-      updateResultText("Error: Please enter a promotion name");
-      return;
-    }
-
-    if (promotionCart.length === 0) {
-      updateResultText("Error: Promotion cart is empty");
-      return;
-    }
-
-    // Build array of item names based on quantities
-    const itemNames: string[] = [];
-    promotionCart.forEach((item) => {
-      for (let i = 0; i < item.quantity; i++) {
-        itemNames.push(item.name);
-      }
-    });
-
-    AddPromotion(promotionName, itemNames)
-      .then(() => {
-        updateResultText(
-          `Promotion "${promotionName}" created with ${promotionCart.length} unique item(s) (${itemNames.length} total)!`
-        );
-        setPromotionName("");
-        setPromotionCart([]);
-        refreshLogs();
-      })
-      .catch((err: any) => {
-        updateResultText(`Error: ${err}`);
-      });
-  };
-
   // Get order by ID
   const getOrderById = () => {
     if (!orderReadId || orderReadId.trim().length === 0) {
@@ -599,72 +451,6 @@ export const App = () => {
       .then((itemCount: number) => {
         updateResultText(`Order [${id}] with ${itemCount} item(s) was deleted`);
         setOrderDeleteId("");
-        refreshLogs();
-      })
-      .catch((err: any) => {
-        updateResultText(`Error: ${err}`);
-      });
-  };
-
-  // Get promotion by ID
-  const getPromotionById = () => {
-    if (!promotionReadId || promotionReadId.trim().length === 0) {
-      updateResultText("Error: Please enter a promotion ID");
-      return;
-    }
-
-    const id = parseInt(promotionReadId, 10);
-    if (isNaN(id) || id < 0) {
-      updateResultText(
-        "Error: Promotion ID must be a valid non-negative number"
-      );
-      return;
-    }
-
-    GetPromotionByID(id)
-      .then((promotion: any) => {
-        const itemsList = promotion.items.join(", ");
-        updateResultText(
-          `Promotion ${id} "${promotion.name}": ${promotion.items.length} item(s) - ${itemsList}`
-        );
-        refreshLogs();
-      })
-      .catch((err: any) => {
-        updateResultText(`Error: ${err}`);
-      });
-  };
-
-  // Print promotions file
-  const printPromotionsFile = () => {
-    PrintPromotionsFile()
-      .then(() => {
-        updateResultText("Promotions file printed to application console!");
-        refreshLogs();
-      })
-      .catch((err: any) => {
-        updateResultText(`Error: ${err}`);
-      });
-  };
-
-  // Delete promotion by ID
-  const deletePromotion = () => {
-    if (!promotionDeleteId || promotionDeleteId.trim().length === 0) {
-      updateResultText("Error: Please enter a promotion ID");
-      return;
-    }
-
-    const id = parseInt(promotionDeleteId, 10);
-    if (isNaN(id) || id < 0) {
-      updateResultText(
-        "Error: Promotion ID must be a valid non-negative number"
-      );
-      return;
-    }
-
-    DeletePromotion(id)
-      .then((promotionName: string) => {
-        updateResultText(`Promotion [${id}] [${promotionName}] was deleted`);
-        setPromotionDeleteId("");
         refreshLogs();
       })
       .catch((err: any) => {
@@ -732,12 +518,6 @@ export const App = () => {
           Order
         </button>
         <button
-          className={`tab ${activeTab === "promotion" ? "active" : ""}`}
-          onClick={() => handleTabChange("promotion")}
-        >
-          Promotion
-        </button>
-        <button
           className={`tab ${activeTab === "debug" ? "active" : ""}`}
           onClick={() => handleTabChange("debug")}
         >
@@ -791,31 +571,8 @@ export const App = () => {
         </div>
       )}
 
-      {activeTab === "promotion" && (
-        <div className="sub_tabs">
-          <button
-            className={`tab ${promotionSubTab === "create" ? "active" : ""}`}
-            onClick={() => handlePromotionSubTabChange("create")}
-          >
-            Create
-          </button>
-          <button
-            className={`tab ${promotionSubTab === "read" ? "active" : ""}`}
-            onClick={() => handlePromotionSubTabChange("read")}
-          >
-            Read
-          </button>
-          <button
-            className={`tab ${promotionSubTab === "delete" ? "active" : ""}`}
-            onClick={() => handlePromotionSubTabChange("delete")}
-          >
-            Delete
-          </button>
-        </div>
-      )}
-
       <div id="App">
-        {activeTab !== "order" && activeTab !== "promotion" && (
+        {activeTab !== "order" && (
           <img src={logo} id="logo" alt="logo" />
         )}
         <div id="result" className="result">
@@ -1010,138 +767,6 @@ export const App = () => {
             />
             <button className="btn btn-danger" onClick={deleteOrder}>
               Delete Order
-            </button>
-          </div>
-        )}
-
-        {activeTab === "promotion" && promotionSubTab === "create" && (
-          <div id="promotion-section">
-            <div className="cart-container">
-              <div className="cart-header">
-                <h3>Create Promotion</h3>
-              </div>
-
-              <div className="promotion-name-input">
-                <input
-                  className="input"
-                  placeholder="Promotion Name"
-                  value={promotionName}
-                  onChange={(e: any) => setPromotionName(e.target.value)}
-                  autoComplete="off"
-                />
-              </div>
-
-              {promotionCart.length > 0 && (
-                <div className="cart-total">
-                  Total: $
-                  {(
-                    promotionCart.reduce(
-                      (sum, item) => sum + item.priceInCents * item.quantity,
-                      0
-                    ) / 100
-                  ).toFixed(2)}
-                </div>
-              )}
-
-              <div className="cart-items">
-                {promotionCart.length === 0 ? (
-                  <div className="cart-empty">No items in promotion</div>
-                ) : (
-                  promotionCart.map((item) => (
-                    <div key={item.id} className="cart-item">
-                      <div className="cart-item-info">
-                        <div className="cart-item-name">{item.name}</div>
-                        <div className="cart-item-id">
-                          ID: {item.id} | $
-                          {(item.priceInCents / 100).toFixed(2)} each | Total: $
-                          {((item.priceInCents * item.quantity) / 100).toFixed(
-                            2
-                          )}
-                        </div>
-                      </div>
-                      <div className="cart-item-controls">
-                        <div className="cart-item-quantity">
-                          x{item.quantity}
-                        </div>
-                        <button
-                          className="btn btn-danger btn-small"
-                          onClick={() => removeFromPromotionCart(item.id)}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              <div className="cart-footer">
-                <select
-                  className="cart-select"
-                  value={promotionSelectedItemId}
-                  onChange={(e: any) =>
-                    setPromotionSelectedItemId(e.target.value)
-                  }
-                >
-                  <option value="">Select an item...</option>
-                  {availableItems
-                    .sort((a, b) => a.id - b.id)
-                    .map((item) => (
-                      <option key={item.id} value={item.id}>
-                        [{item.id}] {item.name} - $
-                        {(item.priceInCents / 100).toFixed(2)}
-                      </option>
-                    ))}
-                </select>
-                <button className="btn" onClick={addToPromotionCart}>
-                  Add
-                </button>
-              </div>
-
-              {promotionName && promotionCart.length > 0 && (
-                <div className="promotion-submit">
-                  <button className="btn btn-primary" onClick={submitPromotion}>
-                    Create Promotion
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeTab === "promotion" && promotionSubTab === "read" && (
-          <div id="promotion-read-input" className="input-box">
-            <input
-              id="promotion-read-id"
-              className="input"
-              onChange={updatePromotionReadId}
-              autoComplete="off"
-              name="promotion-read-id"
-              placeholder="Enter Promotion ID"
-              value={promotionReadId}
-            />
-            <button className="btn" onClick={getPromotionById}>
-              Get Promotion
-            </button>
-            <button className="btn" onClick={printPromotionsFile}>
-              Print
-            </button>
-          </div>
-        )}
-
-        {activeTab === "promotion" && promotionSubTab === "delete" && (
-          <div id="promotion-delete-input" className="input-box">
-            <input
-              id="promotion-delete-id"
-              className="input"
-              onChange={updatePromotionDeleteId}
-              autoComplete="off"
-              name="promotion-delete-id"
-              placeholder="Enter Promotion ID"
-              value={promotionDeleteId}
-            />
-            <button className="btn btn-danger" onClick={deletePromotion}>
-              Delete Promotion
             </button>
           </div>
         )}

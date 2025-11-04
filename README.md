@@ -2,7 +2,7 @@
 
 A restaurant management desktop application with custom binary file-based storage, built with Wails (Go + Preact).
 
-BinaryCRUD implements a custom database-like system using binary files with B+ tree indexing and logical deletion with tombstones. It manages items, orders, and promotions using a custom binary file format, providing a modern desktop UI for all CRUD operations.
+BinaryCRUD implements a custom database-like system using binary files with B+ tree indexing and logical deletion with tombstones. It manages items and orders using a custom binary file format, providing a modern desktop UI for all CRUD operations.
 
 ## Tech Stack
 
@@ -56,7 +56,7 @@ You can also toggle a console to see what is going on
 
 ### Core Operations
 
-- **Create**: Add items, orders, and promotions with auto-increment IDs
+- **Create**: Add items and orders with auto-increment IDs
 - **Read**: Retrieve records by ID (with B+ tree indexing for items) or view all records
 - **Delete**: Logical deletion using tombstone flags (preserves data)
 - **Print**: View complete binary file structure
@@ -70,7 +70,7 @@ You can also toggle a console to see what is going on
 
 ## Binary File Format
 
-All three files (`items.bin`, `orders.bin`, `promotions.bin`) share the same header structure with independent ID counters.
+Both files (`items.bin`, `orders.bin`) share the same header structure with independent ID counters.
 
 ### Header Structure (14 bytes)
 
@@ -95,15 +95,6 @@ All three files (`items.bin`, `orders.bin`, `promotions.bin`) share the same hea
 
 ```
 [ID(4)][0x1F][Tombstone(1)][0x1F][ItemCount(2)][0x1F][Item1Name][Item2Name]...[0x1E]
-```
-
-- **Tombstone**: `0x00` = active, `0x01` = deleted
-- Each item name uses variable-length format: `[Length(2)][0x1F][Content][0x1F]`
-
-### Promotion Record Format
-
-```
-[ID(4)][0x1F][Tombstone(1)][0x1F][NameLength(2)][0x1F][Name][0x1F][ItemCount(2)][0x1F][Item1Name][Item2Name]...[0x1E]
 ```
 
 - **Tombstone**: `0x00` = active, `0x01` = deleted
@@ -160,30 +151,6 @@ All three files (`items.bin`, `orders.bin`, `promotions.bin`) share the same hea
 2. Enter the order ID to delete
 3. Click **Delete Order** to mark the order as deleted (tombstone flag)
 
-### Promotion Management
-
-**Creating Promotions:**
-
-1. Navigate to **Promotion** → **Create** tab
-2. Enter a promotion name
-3. Select items from the dropdown and click **Add**
-4. Adjust quantities as needed (each item shows unit price and total)
-5. View the promotion total at the top
-6. Click **Create Promotion** when ready
-
-**Reading Promotions:**
-
-1. Navigate to **Promotion** → **Read** tab
-2. Enter a promotion ID
-3. Click **Get Promotion** to fetch a specific promotion
-4. Click **Print** to view all promotions in the console
-
-**Deleting Promotions:**
-
-1. Navigate to **Promotion** → **Delete** tab
-2. Enter the promotion ID to delete
-3. Click **Delete Promotion** to mark the promotion as deleted (tombstone flag)
-
 ### Populating Test Data
 
 1. Create an `inventory.json` file in the project root:
@@ -213,7 +180,7 @@ UI (Preact) → Wails Bindings → App Layer → DAO Layer → Index Layer → U
 
 - **Presentation**: Tab-based Preact UI with real-time feedback
 - **Application**: Wails bindings (app.go)
-- **Business**: DAO layer (item_dao.go, order_dao.go, promotion_dao.go)
+- **Business**: DAO layer (item_dao.go, order_dao.go)
 - **Indexing**: B+ tree layer (bplustree.go, item_index.go)
 - **Data Access**: Utils layer (header, read, write, append, print)
 - **Storage**: Binary files with separate index files
@@ -231,7 +198,7 @@ UI (Preact) → Wails Bindings → App Layer → DAO Layer → Index Layer → U
 ### 🚧 Planned
 
 - Update operations
-- B+ Tree for orders/promotions
+- B+ Tree for orders
 - Secondary indexes
 - File compaction
 - Concurrent access control
@@ -250,7 +217,7 @@ See [Binary File Format](#binary-file-format) section for detailed format specif
 
 ### b) Multi-valued String Attributes (Atributos Multivalorados)
 
-Multi-valued string attributes (items in orders/promotions) are stored using:
+Multi-valued string attributes (items in orders) are stored using:
 
 1. **Count field**: 2-byte field indicating number of strings
 2. **Variable-length encoding**: Each string uses `[Length(2)][0x1F][Content][0x1F]`
@@ -272,13 +239,13 @@ Logical deletion using tombstone flags preserves data while marking records as d
 - **Header tracking**: `TombstoneCount` tracks total deleted records
 - **Delete process**:
   - Items: Use B+ tree index for O(log n) lookup
-  - Orders/Promotions: Sequential search
+  - Orders: Sequential search
   - Flip tombstone byte from 0x00 to 0x01
   - Increment `TombstoneCount` in header
 - **Read operations**: Automatically skip tombstoned records
 - **Benefits**: Data preserved for recovery, no file reorganization, fast deletion
 
-**API**: `DeleteItem(id)`, `DeleteOrder(id)`, `DeletePromotion(id)`
+**API**: `DeleteItem(id)`, `DeleteOrder(id)`
 
 ### d) Search Keys (Chaves de Pesquisa)
 
@@ -286,7 +253,6 @@ Logical deletion using tombstone flags preserves data while marking records as d
 
 - **Item ID** - ✅ **Indexed with B+ Tree** (O(log n) search)
 - **Order ID** - Sequential search (O(n))
-- **Promotion ID** - Sequential search (O(n))
 
 **Item Index Details**:
 
@@ -330,7 +296,7 @@ dao.RebuildIndex()              // Recovery from corruption
 
 **UI**: Checkbox in Item → Read tab (enabled by default)
 
-**Planned**: Hash indexes, extensible hashing, B+ tree for orders/promotions
+**Planned**: Hash indexes, extensible hashing, B+ tree for orders
 
 See `backend/index/README.md` for complete documentation.
 
@@ -338,7 +304,7 @@ See `backend/index/README.md` for complete documentation.
 
 **Approach**: Embedded collections (denormalized)
 
-Orders and Promotions store item **names** (not IDs) directly in records.
+Orders store item **names** (not IDs) directly in records.
 
 **Trade-offs**:
 
@@ -392,8 +358,7 @@ BinaryCRUD/
 ├── backend/
 │   ├── dao/              # Data Access Objects
 │   │   ├── item_dao.go       # CRUD + B+ tree index
-│   │   ├── order_dao.go      # CRUD for orders
-│   │   └── promotion_dao.go  # CRUD for promotions
+│   │   └── order_dao.go      # CRUD for orders
 │   ├── index/            # B+ tree implementation
 │   │   ├── bplustree.go      # Core tree (insert, search, persist)
 │   │   ├── item_index.go     # Index manager
@@ -410,8 +375,7 @@ BinaryCRUD/
 ├── data/                 # Generated at runtime
 │   ├── items.bin
 │   ├── items.bin.idx
-│   ├── orders.bin
-│   └── promotions.bin
+│   └── orders.bin
 ├── app.go                # Wails bindings
 └── main.go               # Entry point
 ```
