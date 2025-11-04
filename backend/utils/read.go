@@ -40,9 +40,6 @@ func ReadVariable(file *os.File) (string, error) {
 
 	result := string(data)
 
-	// Debug print the read content
-	DebugPrint("Read", result)
-
 	return result, nil
 }
 

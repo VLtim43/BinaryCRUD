@@ -104,7 +104,6 @@ func (dao *OrderDAO) Write(itemNames []string) error {
 		return fmt.Errorf("failed to update header: %w", err)
 	}
 
-	utils.DebugPrint("Successfully wrote order [ID:%d] with %d items", orderID, itemCount)
 	return nil
 }
 
@@ -317,16 +316,11 @@ func (dao *OrderDAO) Delete(orderID uint32) (int, error) {
 
 			// Increment tombstone count in header
 			if err := utils.IncrementTombstoneCount(dao.filePath); err != nil {
-				utils.DebugPrint("Warning: failed to increment tombstone count: %v", err)
+				// Silently fail to increment tombstone count
 			}
 
-			utils.DebugPrint("Successfully deleted order [ID:%d] with %d items", orderID, itemCount)
 			return int(itemCount), nil
 		}
 	}
 }
 
-// Print returns a formatted string representation of the binary file contents
-func (dao *OrderDAO) Print() (string, error) {
-	return utils.PrintBinaryFile(dao.filePath)
-}

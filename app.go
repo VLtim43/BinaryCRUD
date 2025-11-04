@@ -2,7 +2,6 @@ package main
 
 import (
 	"BinaryCRUD/backend/dao"
-	"BinaryCRUD/backend/utils"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -27,7 +26,6 @@ type ItemDTO struct {
 // NewApp creates a new App application struct
 func NewApp() *App {
 	logger := NewLogger(1000) // Store up to 1000 log entries
-	utils.SetLogger(logger)   // Set global logger for utils package
 
 	return &App{
 		itemDAO:  dao.NewItemDAO("data/items.bin"),
@@ -41,7 +39,6 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.logger.Log("Application started")
-	utils.DebugPrint("BinaryCRUD application initialized")
 }
 
 // AddItem writes an item to the binary file with a price in cents
@@ -84,34 +81,9 @@ func (a *App) GetOrderByID(orderID uint32) (*dao.OrderDTO, error) {
 	return a.orderDAO.ReadByID(orderID)
 }
 
-// PrintOrdersFile prints the orders binary file to the application console
-func (a *App) PrintOrdersFile() error {
-	output, err := a.orderDAO.Print()
-	if err != nil {
-		return err
-	}
-
-	a.logger.LogPrintln(output)
-	return nil
-}
-
-// PrintBinaryFile prints the binary file to the application console
-func (a *App) PrintBinaryFile() error {
-	output, err := a.itemDAO.Print()
-	if err != nil {
-		return err
-	}
-
-	// Print to application console (same as debug logs)
-	a.logger.LogPrintln(output)
-
-	return nil
-}
 
 // GetItemByID retrieves an item by its record ID
 func (a *App) GetItemByID(recordID uint32) (ItemDTO, error) {
-	utils.DebugPrint("Searching ID: %d", recordID)
-
 	// Read all items
 	items, err := a.itemDAO.Read()
 	if err != nil {
@@ -121,11 +93,9 @@ func (a *App) GetItemByID(recordID uint32) (ItemDTO, error) {
 	// Look up the item by ID
 	itemData, exists := items[recordID]
 	if !exists {
-		utils.DebugPrint("No ID found")
 		return ItemDTO{}, fmt.Errorf("item with ID %d not found", recordID)
 	}
 
-	utils.DebugPrint("Found entry: \"%s\" ($%.2f)", itemData.Name, float64(itemData.PriceInCents)/100.0)
 	return ItemDTO{
 		ID:           recordID,
 		Name:         itemData.Name,
@@ -147,20 +117,17 @@ func (a *App) DeleteOrder(orderID uint32) (int, error) {
 
 // RebuildIndex rebuilds the B+ tree index from scratch
 func (a *App) RebuildIndex() error {
-	utils.DebugPrint("Rebuilding B+ tree index...")
 	return a.itemDAO.RebuildIndex()
 }
 
 // PrintIndex prints the B+ tree structure to the console (for debugging)
 func (a *App) PrintIndex() {
-	utils.DebugPrint("B+ Tree Index Structure:")
 	indexStr := a.itemDAO.PrintIndex()
 	a.logger.LogPrintln(indexStr)
 }
 
 // GetItemByIDWithIndex retrieves an item by its ID using the B+ tree index
 func (a *App) GetItemByIDWithIndex(recordID uint32) (ItemDTO, error) {
-	utils.DebugPrint("Searching ID: %d using B+ tree index", recordID)
 	itemData, err := a.itemDAO.ReadByIDWithIndex(recordID)
 	if err != nil {
 		return ItemDTO{}, err
@@ -178,7 +145,6 @@ func (a *App) DeleteAllFiles() error {
 
 	// Check if data directory exists
 	if _, err := os.Stat(dataDir); os.IsNotExist(err) {
-		utils.DebugPrint("Data directory does not exist: %s", dataDir)
 		return nil
 	}
 
@@ -189,20 +155,13 @@ func (a *App) DeleteAllFiles() error {
 	}
 
 	// Delete each file
-	deletedCount := 0
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			filePath := fmt.Sprintf("%s/%s", dataDir, entry.Name())
-			if err := os.Remove(filePath); err != nil {
-				utils.DebugPrint("Failed to delete %s: %v", filePath, err)
-			} else {
-				utils.DebugPrint("Deleted", filePath)
-				deletedCount++
-			}
+			os.Remove(filePath)
 		}
 	}
 
-	utils.DebugPrint("Deleted %d files from %s", deletedCount, dataDir)
 	return nil
 }
 
@@ -244,7 +203,6 @@ func (a *App) PopulateInventory(filePath string) (string, error) {
 		}
 
 		if err := a.itemDAO.Write(item.Name, item.PriceInCents); err != nil {
-			utils.DebugPrint("Failed to add item '%s': %v", item.Name, err)
 			errorCount++
 		} else {
 			successCount++

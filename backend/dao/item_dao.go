@@ -36,7 +36,7 @@ func (dao *ItemDAO) Write(itemName string, priceInCents uint64) error {
 
 	// Load index
 	if err := dao.index.Load(); err != nil {
-		utils.DebugPrint("Warning: failed to load index: %v", err)
+		// Silently fail to load index
 	}
 
 	// Open file in read-write mode for the entire operation
@@ -117,15 +117,14 @@ func (dao *ItemDAO) Write(itemName string, priceInCents uint64) error {
 
 	// Update index
 	if err := dao.index.Insert(itemID, recordOffset); err != nil {
-		utils.DebugPrint("Warning: failed to insert into index: %v", err)
+		// Silently fail to insert into index
 	}
 
 	// Save index
 	if err := dao.index.Save(); err != nil {
-		utils.DebugPrint("Warning: failed to save index: %v", err)
+		// Silently fail to save index
 	}
 
-	utils.DebugPrint("Successfully wrote item [ID:%d]: \"%s\" ($%.2f)", itemID, itemName, float64(priceInCents)/100.0)
 	return nil
 }
 
@@ -310,7 +309,6 @@ func (dao *ItemDAO) ReadByIDWithIndex(itemID uint32) (ItemData, error) {
 	}
 
 	itemName := string(recordBytes[contentStart:contentEnd])
-	utils.DebugPrint("Found item [ID:%d] using index: \"%s\" ($%.2f)", itemID, itemName, float64(price)/100.0)
 	return ItemData{
 		Name:         itemName,
 		PriceInCents: price,
@@ -416,16 +414,14 @@ func (dao *ItemDAO) Delete(itemID uint32) (string, error) {
 
 	// Increment tombstone count in header
 	if err := utils.IncrementTombstoneCount(dao.filePath); err != nil {
-		utils.DebugPrint("Warning: failed to increment tombstone count: %v", err)
+		// Silently fail to increment tombstone count
 	}
 
-	utils.DebugPrint("Successfully deleted item [ID:%d]: \"%s\"", itemID, itemName)
 	return itemName, nil
 }
 
 // RebuildIndex rebuilds the B+ tree index from the data file
 func (dao *ItemDAO) RebuildIndex() error {
-	utils.DebugPrint("Rebuilding index for %s", dao.filePath)
 	return dao.index.RebuildFromFile()
 }
 
@@ -437,7 +433,3 @@ func (dao *ItemDAO) PrintIndex() string {
 	return dao.index.Print()
 }
 
-// Print returns a formatted string representation of the binary file contents
-func (dao *ItemDAO) Print() (string, error) {
-	return utils.PrintBinaryFile(dao.filePath)
-}

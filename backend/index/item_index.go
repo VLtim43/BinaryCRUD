@@ -50,14 +50,11 @@ func (idx *ItemIndex) Search(itemID uint32) (int64, bool) {
 
 // RebuildFromFile rebuilds the entire index by scanning the data file
 func (idx *ItemIndex) RebuildFromFile() error {
-	utils.DebugPrint("Rebuilding index from %s", idx.dataFilePath)
-
 	// Create new empty tree
 	idx.tree = NewBPlusTree(4)
 
 	// Check if data file exists
 	if _, err := os.Stat(idx.dataFilePath); os.IsNotExist(err) {
-		utils.DebugPrint("Data file does not exist, index is empty")
 		return idx.Save()
 	}
 
@@ -69,12 +66,10 @@ func (idx *ItemIndex) RebuildFromFile() error {
 	defer file.Close()
 
 	// Read header to get past it
-	header, err := utils.ReadHeader(file)
+	_, err = utils.ReadHeader(file)
 	if err != nil {
 		return fmt.Errorf("failed to read header: %w", err)
 	}
-
-	utils.DebugPrint("Rebuilding index for %d entries", header.EntryCount)
 
 	// Current file offset (start after header)
 	currentOffset := int64(utils.HeaderSize)
@@ -124,7 +119,6 @@ func (idx *ItemIndex) RebuildFromFile() error {
 
 		// Insert into index
 		if err := idx.tree.Insert(itemID, recordStartOffset); err != nil {
-			utils.DebugPrint("Warning: failed to insert item ID %d into index: %v", itemID, err)
 			continue
 		}
 
@@ -132,8 +126,6 @@ func (idx *ItemIndex) RebuildFromFile() error {
 	}
 
 done:
-	utils.DebugPrint("Rebuilt index with %d entries", recordCount)
-
 	// Save the index
 	return idx.Save()
 }
