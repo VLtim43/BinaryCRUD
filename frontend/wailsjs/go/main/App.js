@@ -54,16 +54,8 @@ export function PopulateInventory(arg1) {
   return window['go']['main']['App']['PopulateInventory'](arg1);
 }
 
-export function PrintBinaryFile() {
-  return window['go']['main']['App']['PrintBinaryFile']();
-}
-
 export function PrintIndex() {
   return window['go']['main']['App']['PrintIndex']();
-}
-
-export function PrintOrdersFile() {
-  return window['go']['main']['App']['PrintOrdersFile']();
 }
 
 export function RebuildIndex() {

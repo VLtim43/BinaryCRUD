@@ -10,10 +10,9 @@ import (
 
 // App struct
 type App struct {
-	ctx      context.Context
-	itemDAO  *dao.ItemDAO
-	orderDAO *dao.OrderDAO
-	logger   *Logger
+	ctx     context.Context
+	itemDAO *dao.ItemDAO
+	logger  *Logger
 }
 
 // ItemDTO represents an item with its ID, name, and price for frontend consumption
@@ -28,9 +27,8 @@ func NewApp() *App {
 	logger := NewLogger(1000) // Store up to 1000 log entries
 
 	return &App{
-		itemDAO:  dao.NewItemDAO("data/items.bin"),
-		orderDAO: dao.NewOrderDAO("data/orders.bin"),
-		logger:   logger,
+		itemDAO: dao.NewItemDAO("data/items.bin"),
+		logger:  logger,
 	}
 }
 
@@ -48,7 +46,8 @@ func (a *App) AddItem(text string, priceInCents uint64) error {
 
 // AddOrder writes an order to the binary file with an array of item names
 func (a *App) AddOrder(itemNames []string) error {
-	return a.orderDAO.Write(itemNames)
+	// Order functionality removed - do nothing
+	return nil
 }
 
 // GetItems reads items from the binary file and returns them with IDs and prices
@@ -71,14 +70,22 @@ func (a *App) GetItems() ([]ItemDTO, error) {
 	return result, nil
 }
 
+// OrderDTO represents an order for frontend compatibility
+type OrderDTO struct {
+	ID    uint32   `json:"id"`
+	Items []string `json:"items"`
+}
+
 // GetOrders reads all orders from the binary file
-func (a *App) GetOrders() ([]dao.OrderDTO, error) {
-	return a.orderDAO.Read()
+func (a *App) GetOrders() ([]OrderDTO, error) {
+	// Order functionality removed - return empty list
+	return []OrderDTO{}, nil
 }
 
 // GetOrderByID reads a single order by its ID
-func (a *App) GetOrderByID(orderID uint32) (*dao.OrderDTO, error) {
-	return a.orderDAO.ReadByID(orderID)
+func (a *App) GetOrderByID(orderID uint32) (*OrderDTO, error) {
+	// Order functionality removed - return not found
+	return nil, fmt.Errorf("order functionality removed")
 }
 
 
@@ -112,7 +119,8 @@ func (a *App) DeleteItem(recordID uint32) (string, error) {
 // DeleteOrder marks an order as deleted by setting its tombstone flag
 // Returns the number of items in the deleted order
 func (a *App) DeleteOrder(orderID uint32) (int, error) {
-	return a.orderDAO.Delete(orderID)
+	// Order functionality removed - do nothing
+	return 0, nil
 }
 
 // RebuildIndex rebuilds the B+ tree index from scratch

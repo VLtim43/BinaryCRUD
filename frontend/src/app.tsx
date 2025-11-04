@@ -3,8 +3,6 @@ import logo from "./assets/images/logo-universal.png";
 import {
   AddItem,
   AddOrder,
-  PrintBinaryFile,
-  PrintOrdersFile,
   DeleteAllFiles,
   GetItemByID,
   GetItemByIDWithIndex,
@@ -194,14 +192,8 @@ export const App = () => {
   };
 
   const printFile = () => {
-    PrintBinaryFile()
-      .then(() => {
-        updateResultText("Binary file printed to application console!");
-        refreshLogs();
-      })
-      .catch((err: any) => {
-        updateResultText(`Error: ${err}`);
-      });
+    // Print functionality removed
+    updateResultText("Print functionality has been removed");
   };
 
   const getRecordById = () => {
@@ -424,14 +416,8 @@ export const App = () => {
 
   // Print orders file
   const printOrdersFile = () => {
-    PrintOrdersFile()
-      .then(() => {
-        updateResultText("Orders file printed to application console!");
-        refreshLogs();
-      })
-      .catch((err: any) => {
-        updateResultText(`Error: ${err}`);
-      });
+    // Print functionality removed
+    updateResultText("Print functionality has been removed");
   };
 
   // Delete order by ID

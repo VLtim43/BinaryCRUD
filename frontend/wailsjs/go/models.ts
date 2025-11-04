@@ -1,22 +1,3 @@
-export namespace dao {
-	
-	export class OrderDTO {
-	    id: number;
-	    items: string[];
-	
-	    static createFrom(source: any = {}) {
-	        return new OrderDTO(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.items = source["items"];
-	    }
-	}
-
-}
-
 export namespace main {
 	
 	export class ItemDTO {
@@ -47,6 +28,20 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.timestamp = source["timestamp"];
 	        this.message = source["message"];
+	    }
+	}
+	export class OrderDTO {
+	    id: number;
+	    items: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new OrderDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.items = source["items"];
 	    }
 	}
 
