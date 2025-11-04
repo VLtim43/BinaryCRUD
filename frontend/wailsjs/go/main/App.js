@@ -10,10 +10,6 @@ export function AddOrder(arg1) {
   return window['go']['main']['App']['AddOrder'](arg1);
 }
 
-export function AddPromotion(arg1, arg2) {
-  return window['go']['main']['App']['AddPromotion'](arg1, arg2);
-}
-
 export function ClearLogs() {
   return window['go']['main']['App']['ClearLogs']();
 }
@@ -28,10 +24,6 @@ export function DeleteItem(arg1) {
 
 export function DeleteOrder(arg1) {
   return window['go']['main']['App']['DeleteOrder'](arg1);
-}
-
-export function DeletePromotion(arg1) {
-  return window['go']['main']['App']['DeletePromotion'](arg1);
 }
 
 export function GetItemByID(arg1) {
@@ -58,14 +50,6 @@ export function GetOrders() {
   return window['go']['main']['App']['GetOrders']();
 }
 
-export function GetPromotionByID(arg1) {
-  return window['go']['main']['App']['GetPromotionByID'](arg1);
-}
-
-export function GetPromotions() {
-  return window['go']['main']['App']['GetPromotions']();
-}
-
 export function PopulateInventory(arg1) {
   return window['go']['main']['App']['PopulateInventory'](arg1);
 }
@@ -80,10 +64,6 @@ export function PrintIndex() {
 
 export function PrintOrdersFile() {
   return window['go']['main']['App']['PrintOrdersFile']();
-}
-
-export function PrintPromotionsFile() {
-  return window['go']['main']['App']['PrintPromotionsFile']();
 }
 
 export function RebuildIndex() {

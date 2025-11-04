@@ -14,22 +14,6 @@ export namespace dao {
 	        this.items = source["items"];
 	    }
 	}
-	export class PromotionDTO {
-	    id: number;
-	    name: string;
-	    items: string[];
-	
-	    static createFrom(source: any = {}) {
-	        return new PromotionDTO(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.name = source["name"];
-	        this.items = source["items"];
-	    }
-	}
 
 }
 

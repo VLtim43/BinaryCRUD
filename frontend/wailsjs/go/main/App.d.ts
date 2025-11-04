@@ -7,8 +7,6 @@ export function AddItem(arg1:string,arg2:number):Promise<void>;
 
 export function AddOrder(arg1:Array<string>):Promise<void>;
 
-export function AddPromotion(arg1:string,arg2:Array<string>):Promise<void>;
-
 export function ClearLogs():Promise<void>;
 
 export function DeleteAllFiles():Promise<void>;
@@ -16,8 +14,6 @@ export function DeleteAllFiles():Promise<void>;
 export function DeleteItem(arg1:number):Promise<string>;
 
 export function DeleteOrder(arg1:number):Promise<number>;
-
-export function DeletePromotion(arg1:number):Promise<string>;
 
 export function GetItemByID(arg1:number):Promise<main.ItemDTO>;
 
@@ -31,10 +27,6 @@ export function GetOrderByID(arg1:number):Promise<dao.OrderDTO>;
 
 export function GetOrders():Promise<Array<dao.OrderDTO>>;
 
-export function GetPromotionByID(arg1:number):Promise<dao.PromotionDTO>;
-
-export function GetPromotions():Promise<Array<dao.PromotionDTO>>;
-
 export function PopulateInventory(arg1:string):Promise<string>;
 
 export function PrintBinaryFile():Promise<void>;
@@ -42,7 +34,5 @@ export function PrintBinaryFile():Promise<void>;
 export function PrintIndex():Promise<void>;
 
 export function PrintOrdersFile():Promise<void>;
-
-export function PrintPromotionsFile():Promise<void>;
 
 export function RebuildIndex():Promise<void>;
