@@ -1,204 +1,67 @@
 package test
 
 import (
-	"bytes"
-	"encoding/binary"
 	"testing"
 
 	"BinaryCRUD/backend/utils"
 )
 
-func TestWriteFixed(t *testing.T) {
-	tests := []struct {
-		name        string
-		size        int
-		content     []byte
-		expectError bool
-		validate    func(t *testing.T, result []byte)
-	}{
-		{
-			name:        "content shorter than size - should pad with zeros",
-			size:        10,
-			content:     []byte("hello"),
-			expectError: false,
-			validate: func(t *testing.T, result []byte) {
-				if len(result) != 10 {
-					t.Errorf("expected length 10, got %d", len(result))
-				}
-				expected := []byte{'h', 'e', 'l', 'l', 'o', 0, 0, 0, 0, 0}
-				if !bytes.Equal(result, expected) {
-					t.Errorf("expected %v, got %v", expected, result)
-				}
-			},
-		},
-		{
-			name:        "content equal to size",
-			size:        5,
-			content:     []byte("hello"),
-			expectError: false,
-			validate: func(t *testing.T, result []byte) {
-				if len(result) != 5 {
-					t.Errorf("expected length 5, got %d", len(result))
-				}
-				if !bytes.Equal(result, []byte("hello")) {
-					t.Errorf("expected %v, got %v", []byte("hello"), result)
-				}
-			},
-		},
-		{
-			name:        "content longer than size - should truncate",
-			size:        3,
-			content:     []byte("hello"),
-			expectError: false,
-			validate: func(t *testing.T, result []byte) {
-				if len(result) != 3 {
-					t.Errorf("expected length 3, got %d", len(result))
-				}
-				if !bytes.Equal(result, []byte("hel")) {
-					t.Errorf("expected %v, got %v", []byte("hel"), result)
-				}
-			},
-		},
-		{
-			name:        "empty content",
-			size:        5,
-			content:     []byte{},
-			expectError: false,
-			validate: func(t *testing.T, result []byte) {
-				if len(result) != 5 {
-					t.Errorf("expected length 5, got %d", len(result))
-				}
-				expected := []byte{0, 0, 0, 0, 0}
-				if !bytes.Equal(result, expected) {
-					t.Errorf("expected %v, got %v", expected, result)
-				}
-			},
-		},
-		{
-			name:        "zero size - should error",
-			size:        0,
-			content:     []byte("hello"),
-			expectError: true,
-			validate:    nil,
-		},
-		{
-			name:        "negative size - should error",
-			size:        -5,
-			content:     []byte("hello"),
-			expectError: true,
-			validate:    nil,
-		},
+func TestWriteFixedString(t *testing.T) {
+	result, err := utils.WriteFixedString(10, "hello")
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := utils.WriteFixed(tt.size, tt.content)
-
-			if tt.expectError {
-				if err == nil {
-					t.Error("expected error but got none")
-				}
-				return
-			}
-
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-				return
-			}
-
-			if tt.validate != nil {
-				tt.validate(t, result)
-			}
-		})
+	expected := "000000000068656c6c6f" // 5 zero bytes + "hello"
+	if result != expected {
+		t.Errorf("expected %s, got %s", expected, result)
 	}
 }
 
 func TestWriteVariable(t *testing.T) {
-	tests := []struct {
-		name     string
-		content  []byte
-		validate func(t *testing.T, result []byte)
-	}{
-		{
-			name:    "normal content",
-			content: []byte("hello"),
-			validate: func(t *testing.T, result []byte) {
-				if len(result) != 9 {
-					t.Errorf("expected length 9, got %d", len(result))
-				}
-
-				// Read the size from first 4 bytes
-				var size uint32
-				buf := bytes.NewReader(result[:4])
-				if err := binary.Read(buf, binary.LittleEndian, &size); err != nil {
-					t.Errorf("error reading size: %v", err)
-				}
-
-				if size != 5 {
-					t.Errorf("expected size 5, got %d", size)
-				}
-
-				if !bytes.Equal(result[4:], []byte("hello")) {
-					t.Errorf("expected content 'hello', got %v", result[4:])
-				}
-			},
-		},
-		{
-			name:    "empty content",
-			content: []byte{},
-			validate: func(t *testing.T, result []byte) {
-				if len(result) != 4 {
-					t.Errorf("expected length 4, got %d", len(result))
-				}
-
-				var size uint32
-				buf := bytes.NewReader(result[:4])
-				if err := binary.Read(buf, binary.LittleEndian, &size); err != nil {
-					t.Errorf("error reading size: %v", err)
-				}
-
-				if size != 0 {
-					t.Errorf("expected size 0, got %d", size)
-				}
-			},
-		},
-		{
-			name:    "large content",
-			content: bytes.Repeat([]byte("A"), 1000),
-			validate: func(t *testing.T, result []byte) {
-				if len(result) != 1004 {
-					t.Errorf("expected length 1004, got %d", len(result))
-				}
-
-				var size uint32
-				buf := bytes.NewReader(result[:4])
-				if err := binary.Read(buf, binary.LittleEndian, &size); err != nil {
-					t.Errorf("error reading size: %v", err)
-				}
-
-				if size != 1000 {
-					t.Errorf("expected size 1000, got %d", size)
-				}
-
-				if !bytes.Equal(result[4:], bytes.Repeat([]byte("A"), 1000)) {
-					t.Error("content mismatch")
-				}
-			},
-		},
+	result, err := utils.WriteVariable("hello")
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := utils.WriteVariable(tt.content)
+	expected := "68656c6c6f" // "hello" in hex
+	if result != expected {
+		t.Errorf("expected %s, got %s", expected, result)
+	}
+}
 
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-				return
-			}
+func TestWriteFixedNumberTwoBytes(t *testing.T) {
+	result, err := utils.WriteFixedNumber(2, 4)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
 
-			if tt.validate != nil {
-				tt.validate(t, result)
-			}
-		})
+	expected := "0004" // binary 4 in 2 bytes
+	if result != expected {
+		t.Errorf("expected %s, got %s", expected, result)
+	}
+}
+
+func TestWriteFixedNumberTombstone(t *testing.T) {
+	// Empty tombstone (0)
+	result, err := utils.WriteFixedNumber(1, 0)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	expected := "00" // binary 0
+	if result != expected {
+		t.Errorf("expected %s, got %s", expected, result)
+	}
+
+	// Set tombstone (1)
+	result, err = utils.WriteFixedNumber(1, 1)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	expected = "01" // binary 1
+	if result != expected {
+		t.Errorf("expected %s, got %s", expected, result)
 	}
 }

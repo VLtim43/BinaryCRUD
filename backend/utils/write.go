@@ -1,40 +1,51 @@
 package utils
 
 import (
-	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 )
 
-func WriteFixed(size int, content []byte) ([]byte, error) {
+// WriteFixedNumber writes a number as binary in a fixed-size field (left-padded with zeros)
+func WriteFixedNumber(size int, value uint64) (string, error) {
 	if size <= 0 {
-		return nil, fmt.Errorf("size must be positive")
+		return "", fmt.Errorf("size must be positive")
+	}
+	if size > 8 {
+		return "", fmt.Errorf("size cannot exceed 8 bytes for uint64")
 	}
 
-	buf := new(bytes.Buffer)
+	// Convert number to bytes (big-endian)
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, value)
 
-	data := make([]byte, size)
+	// Take the last 'size' bytes (right-most bytes)
+	data := buf[8-size:]
 
-	copy(data, content)
-
-	if err := binary.Write(buf, binary.LittleEndian, data); err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
+	return hex.EncodeToString(data), nil
 }
 
-func WriteVariable(content []byte) ([]byte, error) {
-	buf := new(bytes.Buffer)
-
-	size := uint32(len(content))
-	if err := binary.Write(buf, binary.LittleEndian, size); err != nil {
-		return nil, err
+// WriteFixedString writes a string as ASCII in a fixed-size field
+func WriteFixedString(size int, content string) (string, error) {
+	if size <= 0 {
+		return "", fmt.Errorf("size must be positive")
 	}
 
-	if err := binary.Write(buf, binary.LittleEndian, content); err != nil {
-		return nil, err
+	contentBytes := []byte(content)
+
+	if len(contentBytes) > size {
+		return "", fmt.Errorf("content length %d exceeds size %d", len(contentBytes), size)
 	}
 
-	return buf.Bytes(), nil
+	data := make([]byte, size)
+	// left-pad with zeros
+	copy(data[size-len(contentBytes):], contentBytes)
+
+	return hex.EncodeToString(data), nil
+}
+
+// WriteVariable writes a string as ASCII with variable length
+func WriteVariable(content string) (string, error) {
+	data := []byte(content)
+	return hex.EncodeToString(data), nil
 }
