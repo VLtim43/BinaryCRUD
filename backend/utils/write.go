@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-// WriteFixedNumber writes a number as binary in a fixed-size field (left-padded with zeros)
+// WriteFixedNumber writes a number as binary in a fixed-size field
 func WriteFixedNumber(size int, value uint64) (string, error) {
 	if size <= 0 {
 		return "", fmt.Errorf("size must be positive")
