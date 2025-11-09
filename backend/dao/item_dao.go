@@ -4,11 +4,13 @@ import (
 	"BinaryCRUD/backend/utils"
 	"fmt"
 	"os"
+	"sync"
 )
 
 // ItemDAO manages the items binary file
 type ItemDAO struct {
 	filePath string
+	mu       sync.Mutex // Protects concurrent writes to the binary file
 }
 
 // NewItemDAO creates a new ItemDAO instance
@@ -51,6 +53,10 @@ func (dao *ItemDAO) ensureFileExists() error {
 // Item structure: [ID][0x1F][nameSize][name][0x1F][price][0x1E]
 // ID is auto-assigned by AppendEntry
 func (dao *ItemDAO) Write(name string, priceInCents uint64) error {
+	// Lock to prevent concurrent writes
+	dao.mu.Lock()
+	defer dao.mu.Unlock()
+
 	// Ensure file exists
 	if err := dao.ensureFileExists(); err != nil {
 		return err
@@ -113,4 +119,61 @@ func (dao *ItemDAO) Write(name string, priceInCents uint64) error {
 	}
 
 	return nil
+}
+
+// Read retrieves an item by ID using sequential search
+// Returns (id, name, priceInCents, error)
+func (dao *ItemDAO) Read(id uint64) (uint64, string, uint64, error) {
+	// Ensure file exists
+	if err := dao.ensureFileExists(); err != nil {
+		return 0, "", 0, err
+	}
+
+	// Open file for reading
+	file, err := os.Open(dao.filePath)
+	if err != nil {
+		return 0, "", 0, fmt.Errorf("failed to open item file: %w", err)
+	}
+	defer file.Close()
+
+	// Use sequential finder to locate the entry
+	entryData, err := utils.FindByIDSequential(file, id)
+	if err != nil {
+		return 0, "", 0, fmt.Errorf("failed to find item: %w", err)
+	}
+
+	// Parse the entry: [ID(2)][0x1F][nameSize(2)][name][0x1F][price(4)]
+	offset := 0
+
+	// Read ID
+	entryID, offset, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
+	if err != nil {
+		return 0, "", 0, fmt.Errorf("failed to read ID: %w", err)
+	}
+
+	// Skip unit separator (0x1F)
+	offset += 1
+
+	// Read name size
+	nameSize, offset, err := utils.ReadFixedNumber(2, entryData, offset)
+	if err != nil {
+		return 0, "", 0, fmt.Errorf("failed to read name size: %w", err)
+	}
+
+	// Read name
+	name, offset, err := utils.ReadFixedString(int(nameSize), entryData, offset)
+	if err != nil {
+		return 0, "", 0, fmt.Errorf("failed to read name: %w", err)
+	}
+
+	// Skip unit separator (0x1F)
+	offset += 1
+
+	// Read price
+	price, _, err := utils.ReadFixedNumber(4, entryData, offset)
+	if err != nil {
+		return 0, "", 0, fmt.Errorf("failed to read price: %w", err)
+	}
+
+	return entryID, name, price, nil
 }

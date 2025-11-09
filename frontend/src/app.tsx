@@ -2,9 +2,11 @@ import "./App.scss";
 import logo from "./assets/images/logo-universal.png";
 import {
   AddItem,
+  GetItem,
   DeleteAllFiles,
   GetLogs,
   ClearLogs,
+  PopulateInventory,
 } from "../wailsjs/go/main/App";
 import { Quit } from "../wailsjs/runtime/runtime";
 import { useState, useEffect, useRef } from "preact/hooks";
@@ -25,6 +27,11 @@ export const App = () => {
   const [itemPrice, setItemPrice] = useState("");
   const [recordId, setRecordId] = useState("");
   const [deleteRecordId, setDeleteRecordId] = useState("");
+  const [foundItem, setFoundItem] = useState<{
+    id: number;
+    name: string;
+    priceInCents: number;
+  } | null>(null);
   const [availableItems, setAvailableItems] = useState<
     Array<{ id: number; name: string; priceInCents: number }>
   >([]);
@@ -137,6 +144,8 @@ export const App = () => {
   const handleItemSubTabChange = (subTab: "create" | "read" | "delete") => {
     setItemSubTab(subTab);
     setResultText(getDefaultText("item", subTab));
+    // Clear found item when switching tabs
+    setFoundItem(null);
   };
 
   // Handle order subtab changes
@@ -180,13 +189,38 @@ export const App = () => {
       });
   };
 
-  const printFile = () => {
-    // Print functionality removed
-    updateResultText("Print functionality has been removed");
-  };
-
   const getRecordById = () => {
-    updateResultText("Read functionality not yet implemented");
+    // Validate input
+    if (!recordId || recordId.trim().length === 0) {
+      updateResultText("Error: Please enter a record ID");
+      setFoundItem(null);
+      return;
+    }
+
+    const id = parseInt(recordId, 10);
+    if (isNaN(id) || id < 0) {
+      updateResultText("Error: Invalid record ID");
+      setFoundItem(null);
+      return;
+    }
+
+    // Call backend to get item
+    GetItem(id)
+      .then((item: any) => {
+        setFoundItem({
+          id: item.id,
+          name: item.name,
+          priceInCents: item.priceInCents,
+        });
+        updateResultText(
+          `Found Item #${item.id}: ${item.name} - $${(item.priceInCents / 100).toFixed(2)}`
+        );
+        refreshLogs();
+      })
+      .catch((err: any) => {
+        setFoundItem(null);
+        updateResultText(`Error: ${err}`);
+      });
   };
 
   const deleteAllFiles = () => {
@@ -205,7 +239,17 @@ export const App = () => {
   };
 
   const populateInventory = () => {
-    updateResultText("Populate inventory functionality removed");
+    updateResultText("Populating inventory from items.json...");
+
+    PopulateInventory()
+      .then(() => {
+        updateResultText("Inventory populated successfully! Check logs for details.");
+        refreshLogs();
+      })
+      .catch((err: any) => {
+        updateResultText(`Error populating inventory: ${err}`);
+        refreshLogs();
+      });
   };
 
   const printIndex = () => {
@@ -279,12 +323,6 @@ export const App = () => {
   // Get order by ID
   const getOrderById = () => {
     updateResultText("Order functionality not yet implemented");
-  };
-
-  // Print orders file
-  const printOrdersFile = () => {
-    // Print functionality removed
-    updateResultText("Print functionality has been removed");
   };
 
   // Delete order by ID
@@ -442,35 +480,94 @@ export const App = () => {
         )}
 
         {activeTab === "item" && itemSubTab === "read" && (
-          <div id="read-input" className="input-box">
-            <input
-              id="record-id"
-              className="input"
-              onChange={updateRecordId}
-              autoComplete="off"
-              name="record-id"
-              placeholder="Enter Record ID"
-              value={recordId}
-            />
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <label
-                style={{ display: "flex", alignItems: "center", gap: "4px" }}
-              >
-                <input
-                  type="checkbox"
-                  checked={useIndex}
-                  onChange={(e: any) => setUseIndex(e.target.checked)}
-                />
-                Use B+ Tree Index
-              </label>
+          <>
+            <div id="read-input" className="input-box">
+              <input
+                id="record-id"
+                className="input"
+                onChange={updateRecordId}
+                autoComplete="off"
+                name="record-id"
+                placeholder="Enter Record ID"
+                value={recordId}
+              />
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <label
+                  style={{ display: "flex", alignItems: "center", gap: "4px" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={useIndex}
+                    onChange={(e: any) => setUseIndex(e.target.checked)}
+                  />
+                  Use B+ Tree Index
+                </label>
+              </div>
+              <button className="btn" onClick={getRecordById}>
+                Get Record
+              </button>
             </div>
-            <button className="btn" onClick={getRecordById}>
-              Get Record
-            </button>
-            <button className="btn" onClick={printFile}>
-              Print
-            </button>
-          </div>
+
+            {foundItem && (
+              <div
+                style={{
+                  marginTop: "20px",
+                  padding: "20px",
+                  backgroundColor: "rgba(255, 255, 255, 0.1)",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(255, 255, 255, 0.2)",
+                }}
+              >
+                <h3 style={{ margin: "0 0 15px 0", color: "#fff" }}>
+                  Item Details
+                </h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      padding: "8px",
+                      backgroundColor: "rgba(0, 0, 0, 0.2)",
+                      borderRadius: "4px",
+                    }}
+                  >
+                    <span style={{ color: "#aaa", fontWeight: "bold" }}>ID:</span>
+                    <span style={{ color: "#fff" }}>{foundItem.id}</span>
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      padding: "8px",
+                      backgroundColor: "rgba(0, 0, 0, 0.2)",
+                      borderRadius: "4px",
+                    }}
+                  >
+                    <span style={{ color: "#aaa", fontWeight: "bold" }}>
+                      Name:
+                    </span>
+                    <span style={{ color: "#fff" }}>{foundItem.name}</span>
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      padding: "8px",
+                      backgroundColor: "rgba(0, 0, 0, 0.2)",
+                      borderRadius: "4px",
+                    }}
+                  >
+                    <span style={{ color: "#aaa", fontWeight: "bold" }}>
+                      Price:
+                    </span>
+                    <span style={{ color: "#fff" }}>
+                      ${(foundItem.priceInCents / 100).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {activeTab === "item" && itemSubTab === "delete" && (
@@ -582,9 +679,6 @@ export const App = () => {
             <button className="btn" onClick={getOrderById}>
               Get Order
             </button>
-            <button className="btn" onClick={printOrdersFile}>
-              Print
-            </button>
           </div>
         )}
 
@@ -608,6 +702,9 @@ export const App = () => {
         {activeTab === "debug" && (
           <div id="debug-controls" className="debug-section">
             <div className="input-box">
+              <button className="btn" onClick={populateInventory}>
+                Populate Inventory
+              </button>
               <button className="btn btn-danger" onClick={deleteAllFiles}>
                 Delete All Files
               </button>

@@ -240,7 +240,7 @@ func TestAppendEntry(t *testing.T) {
 	}
 
 	// Append first entry (without ID)
-	entryData := "68656c6c6f" // "hello" in hex
+	entryData := []byte("hello")
 	err = utils.AppendEntry(file, entryData)
 	if err != nil {
 		t.Errorf("failed to append entry: %v", err)

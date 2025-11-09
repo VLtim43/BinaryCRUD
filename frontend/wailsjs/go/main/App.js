@@ -14,6 +14,14 @@ export function DeleteAllFiles() {
   return window['go']['main']['App']['DeleteAllFiles']();
 }
 
+export function GetItem(arg1) {
+  return window['go']['main']['App']['GetItem'](arg1);
+}
+
 export function GetLogs() {
   return window['go']['main']['App']['GetLogs']();
+}
+
+export function PopulateInventory() {
+  return window['go']['main']['App']['PopulateInventory']();
 }

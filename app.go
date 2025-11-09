@@ -3,8 +3,10 @@ package main
 import (
 	"BinaryCRUD/backend/dao"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 )
 
 // App struct
@@ -36,7 +38,21 @@ func (a *App) AddItem(text string, priceInCents uint64) error {
 	return a.itemDAO.Write(text, priceInCents)
 }
 
-// DeleteAllFiles deletes all files in the data folder
+// GetItem retrieves an item by ID from the binary file
+func (a *App) GetItem(id uint64) (map[string]any, error) {
+	itemID, name, priceInCents, err := a.itemDAO.Read(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]any{
+		"id":           itemID,
+		"name":         name,
+		"priceInCents": priceInCents,
+	}, nil
+}
+
+// DeleteAllFiles deletes all files in the data folder except .json files
 func (a *App) DeleteAllFiles() error {
 	dataDir := "data"
 
@@ -51,13 +67,30 @@ func (a *App) DeleteAllFiles() error {
 		return fmt.Errorf("failed to read data directory: %w", err)
 	}
 
-	// Delete each file
+	// Delete each file except .json files
+	deletedCount := 0
 	for _, entry := range entries {
 		if !entry.IsDir() {
-			filePath := fmt.Sprintf("%s/%s", dataDir, entry.Name())
-			os.Remove(filePath)
+			fileName := entry.Name()
+			filePath := fmt.Sprintf("%s/%s", dataDir, fileName)
+
+			// Skip .json files
+			if len(fileName) >= 5 && fileName[len(fileName)-5:] == ".json" {
+				a.logger.Log(fmt.Sprintf("Skipping JSON file: %s", fileName))
+				continue
+			}
+
+			err := os.Remove(filePath)
+			if err != nil {
+				a.logger.Log(fmt.Sprintf("Failed to delete %s: %v", fileName, err))
+			} else {
+				a.logger.Log(fmt.Sprintf("Deleted file: %s", fileName))
+				deletedCount++
+			}
 		}
 	}
+
+	a.logger.Log(fmt.Sprintf("Deleted %d file(s), skipped .json files", deletedCount))
 
 	return nil
 }
@@ -70,4 +103,59 @@ func (a *App) GetLogs() []LogEntry {
 // ClearLogs clears all log entries
 func (a *App) ClearLogs() {
 	a.logger.Clear()
+}
+
+// ItemEntry represents an item in the JSON file
+type ItemEntry struct {
+	Name         string `json:"name"`
+	PriceInCents uint64 `json:"priceInCents"`
+}
+
+// PopulateInventory reads items from items.json and adds them to the database
+// with delays to ensure safe sequential writes
+func (a *App) PopulateInventory() error {
+	// Read the JSON file
+	jsonPath := "data/items.json"
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return fmt.Errorf("failed to read items.json: %w", err)
+	}
+
+	// Parse JSON into slice of items
+	var items []ItemEntry
+	err = json.Unmarshal(data, &items)
+	if err != nil {
+		return fmt.Errorf("failed to parse items.json: %w", err)
+	}
+
+	a.logger.Log(fmt.Sprintf("Starting inventory population with %d items", len(items)))
+
+	// Add each item sequentially with a delay to prevent race conditions
+	successCount := 0
+	failCount := 0
+
+	for i, item := range items {
+		// Add item using the Write method (protected by mutex)
+		err := a.itemDAO.Write(item.Name, item.PriceInCents)
+		if err != nil {
+			a.logger.Log(fmt.Sprintf("Failed to add item %d (%s): %v", i+1, item.Name, err))
+			failCount++
+			continue
+		}
+
+		successCount++
+		a.logger.Log(fmt.Sprintf("Added item %d/%d: %s ($%.2f)", i+1, len(items), item.Name, float64(item.PriceInCents)/100))
+
+		// Small delay to ensure file system has time to complete the write
+		// This prevents potential file corruption from rapid sequential writes
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	a.logger.Log(fmt.Sprintf("Inventory population complete: %d succeeded, %d failed", successCount, failCount))
+
+	if failCount > 0 {
+		return fmt.Errorf("some items failed to add: %d succeeded, %d failed", successCount, failCount)
+	}
+
+	return nil
 }

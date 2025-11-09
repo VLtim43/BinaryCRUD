@@ -8,4 +8,8 @@ export function ClearLogs():Promise<void>;
 
 export function DeleteAllFiles():Promise<void>;
 
+export function GetItem(arg1:number):Promise<Record<string, any>>;
+
 export function GetLogs():Promise<Array<main.LogEntry>>;
+
+export function PopulateInventory():Promise<void>;
