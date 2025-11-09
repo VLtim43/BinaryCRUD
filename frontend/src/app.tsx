@@ -2,17 +2,7 @@ import "./App.scss";
 import logo from "./assets/images/logo-universal.png";
 import {
   AddItem,
-  AddOrder,
   DeleteAllFiles,
-  GetItemByID,
-  GetItemByIDWithIndex,
-  GetOrderByID,
-  GetItems,
-  GetOrders,
-  PopulateInventory,
-  DeleteItem,
-  DeleteOrder,
-  PrintIndex,
   GetLogs,
   ClearLogs,
 } from "../wailsjs/go/main/App";
@@ -45,7 +35,6 @@ export const App = () => {
   const [orderReadId, setOrderReadId] = useState("");
   const [orderDeleteId, setOrderDeleteId] = useState("");
   const [useIndex, setUseIndex] = useState(true);
-  const [isPopulatingInventory, setIsPopulatingInventory] = useState(false);
   const [logs, setLogs] = useState<
     Array<{ timestamp: string; message: string }>
   >([]);
@@ -197,34 +186,7 @@ export const App = () => {
   };
 
   const getRecordById = () => {
-    // Validate input before sending to backend
-    if (!recordId || recordId.trim().length === 0) {
-      updateResultText("Error: Please enter a record ID");
-      return;
-    }
-
-    // Parse the record ID as a number
-    const id = parseInt(recordId, 10);
-    if (isNaN(id) || id < 0) {
-      updateResultText("Error: Record ID must be a valid non-negative number");
-      return;
-    }
-
-    // Use index or sequential search based on checkbox
-    const searchMethod = useIndex ? GetItemByIDWithIndex : GetItemByID;
-    const methodName = useIndex ? "B+ Tree Index" : "Sequential Search";
-
-    searchMethod(id)
-      .then((item: any) => {
-        const price = (item.priceInCents / 100).toFixed(2);
-        updateResultText(
-          `Record ${id}: ${item.name} - $${price} (using ${methodName})`
-        );
-        refreshLogs();
-      })
-      .catch((err: any) => {
-        updateResultText(`Error: ${err}`);
-      });
+    updateResultText("Read functionality not yet implemented");
   };
 
   const deleteAllFiles = () => {
@@ -243,72 +205,21 @@ export const App = () => {
   };
 
   const populateInventory = () => {
-    if (isPopulatingInventory) {
-      return; // Prevent multiple simultaneous calls
-    }
-
-    setIsPopulatingInventory(true);
-    updateResultText("Populating inventory...");
-
-    PopulateInventory("inventory.json")
-      .then((result: string) => {
-        updateResultText(`Inventory populated! ${result}`);
-        setIsPopulatingInventory(false);
-        refreshLogs();
-      })
-      .catch((err: any) => {
-        updateResultText(`Error: ${err}`);
-        setIsPopulatingInventory(false);
-      });
+    updateResultText("Populate inventory functionality removed");
   };
 
   const printIndex = () => {
-    PrintIndex()
-      .then(() => {
-        updateResultText("Index printed to application console!");
-        refreshLogs();
-      })
-      .catch((err: any) => {
-        updateResultText(`Error: ${err}`);
-      });
+    updateResultText("Index functionality not yet implemented");
   };
 
   const deleteItem = () => {
-    // Validate input before sending to backend
-    if (!deleteRecordId || deleteRecordId.trim().length === 0) {
-      updateResultText("Error: Please enter a record ID");
-      return;
-    }
-
-    // Parse the record ID as a number
-    const id = parseInt(deleteRecordId, 10);
-    if (isNaN(id) || id < 0) {
-      updateResultText("Error: Record ID must be a valid non-negative number");
-      return;
-    }
-
-    DeleteItem(id)
-      .then((itemName: string) => {
-        updateResultText(`Record [${id}] [${itemName}] was deleted`);
-        setDeleteRecordId("");
-        refreshLogs();
-      })
-      .catch((err: any) => {
-        updateResultText(`Error: ${err}`);
-      });
+    updateResultText("Delete functionality not yet implemented");
   };
 
   // Load all items for order tab
   const loadItems = () => {
-    GetItems()
-      .then(
-        (items: Array<{ id: number; name: string; priceInCents: number }>) => {
-          setAvailableItems(items);
-        }
-      )
-      .catch((err: any) => {
-        updateResultText(`Error loading items: ${err}`);
-      });
+    // GetItems not implemented yet
+    setAvailableItems([]);
   };
 
   // Add item to cart
@@ -362,56 +273,12 @@ export const App = () => {
 
   // Submit order - writes order to orders.bin
   const submitOrder = () => {
-    if (cart.length === 0) {
-      updateResultText("Error: Cart is empty");
-      return;
-    }
-
-    // Build array of item names based on quantities
-    const itemNames: string[] = [];
-    cart.forEach((item) => {
-      for (let i = 0; i < item.quantity; i++) {
-        itemNames.push(item.name);
-      }
-    });
-
-    AddOrder(itemNames)
-      .then(() => {
-        updateResultText(
-          `Order submitted with ${cart.length} unique item(s) (${itemNames.length} total)!`
-        );
-        setCart([]);
-        refreshLogs();
-      })
-      .catch((err: any) => {
-        updateResultText(`Error: ${err}`);
-      });
+    updateResultText("Order functionality not yet implemented");
   };
 
   // Get order by ID
   const getOrderById = () => {
-    if (!orderReadId || orderReadId.trim().length === 0) {
-      updateResultText("Error: Please enter an order ID");
-      return;
-    }
-
-    const id = parseInt(orderReadId, 10);
-    if (isNaN(id) || id < 0) {
-      updateResultText("Error: Order ID must be a valid non-negative number");
-      return;
-    }
-
-    GetOrderByID(id)
-      .then((order: any) => {
-        const itemsList = order.items.join(", ");
-        updateResultText(
-          `Order ${id}: ${order.items.length} item(s) - ${itemsList}`
-        );
-        refreshLogs();
-      })
-      .catch((err: any) => {
-        updateResultText(`Error: ${err}`);
-      });
+    updateResultText("Order functionality not yet implemented");
   };
 
   // Print orders file
@@ -422,26 +289,7 @@ export const App = () => {
 
   // Delete order by ID
   const deleteOrder = () => {
-    if (!orderDeleteId || orderDeleteId.trim().length === 0) {
-      updateResultText("Error: Please enter an order ID");
-      return;
-    }
-
-    const id = parseInt(orderDeleteId, 10);
-    if (isNaN(id) || id < 0) {
-      updateResultText("Error: Order ID must be a valid non-negative number");
-      return;
-    }
-
-    DeleteOrder(id)
-      .then((itemCount: number) => {
-        updateResultText(`Order [${id}] with ${itemCount} item(s) was deleted`);
-        setOrderDeleteId("");
-        refreshLogs();
-      })
-      .catch((err: any) => {
-        updateResultText(`Error: ${err}`);
-      });
+    updateResultText("Order functionality not yet implemented");
   };
 
   // Load logs once when panel is opened
@@ -760,20 +608,6 @@ export const App = () => {
         {activeTab === "debug" && (
           <div id="debug-controls" className="debug-section">
             <div className="input-box">
-              <button
-                className="btn btn-warning"
-                onClick={populateInventory}
-                disabled={isPopulatingInventory}
-                style={{
-                  opacity: isPopulatingInventory ? 0.5 : 1,
-                  cursor: isPopulatingInventory ? "not-allowed" : "pointer",
-                }}
-              >
-                {isPopulatingInventory ? "Populating..." : "Populate Inventory"}
-              </button>
-              <button className="btn" onClick={printIndex}>
-                Print Index
-              </button>
               <button className="btn btn-danger" onClick={deleteAllFiles}>
                 Delete All Files
               </button>

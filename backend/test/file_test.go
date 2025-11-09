@@ -54,7 +54,7 @@ func TestWriteToFile(t *testing.T) {
 	defer file.Close()
 
 	// Write content
-	content := "48656c6c6f" // "Hello" in hex
+	content := []byte("Hello")
 	err = utils.WriteToFile(file, content)
 	if err != nil {
 		t.Errorf("failed to write to file: %v", err)
@@ -67,8 +67,8 @@ func TestWriteToFile(t *testing.T) {
 		t.Fatalf("failed to read file: %v", err)
 	}
 
-	if string(data) != content {
-		t.Errorf("expected %s, got %s", content, string(data))
+	if string(data) != string(content) {
+		t.Errorf("expected %s, got %s", string(content), string(data))
 	}
 }
 
@@ -101,9 +101,9 @@ func TestWriteHeaderToFile(t *testing.T) {
 		t.Fatalf("failed to read file: %v", err)
 	}
 
-	expected := "000000011f000000021f00000003"
-	if string(data) != expected {
-		t.Errorf("expected %s, got %s", expected, string(data))
+	expected := []byte{0x00, 0x00, 0x00, 0x01, 0x1f, 0x00, 0x00, 0x00, 0x02, 0x1f, 0x00, 0x00, 0x00, 0x03, 0x1e}
+	if string(data) != string(expected) {
+		t.Errorf("expected %v, got %v", expected, data)
 	}
 }
 
@@ -118,7 +118,7 @@ func TestWriteHeaderToFileRejectsNonEmpty(t *testing.T) {
 	defer file.Close()
 
 	// Write some content first
-	err = utils.WriteToFile(file, "existing content")
+	err = utils.WriteToFile(file, []byte("existing content"))
 	if err != nil {
 		t.Fatalf("failed to write initial content: %v", err)
 	}

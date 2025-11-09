@@ -1,6 +1,7 @@
 package test
 
 import (
+	"bytes"
 	"testing"
 
 	"BinaryCRUD/backend/utils"
@@ -12,9 +13,9 @@ func TestWriteFixedString(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	expected := "000000000068656c6c6f" // 5 zero bytes + "hello"
-	if result != expected {
-		t.Errorf("expected %s, got %s", expected, result)
+	expected := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x68, 0x65, 0x6c, 0x6c, 0x6f} // 5 zero bytes + "hello"
+	if !bytes.Equal(result, expected) {
+		t.Errorf("expected %v, got %v", expected, result)
 	}
 }
 
@@ -24,9 +25,9 @@ func TestWriteVariable(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	expected := "68656c6c6f" // "hello" in hex
-	if result != expected {
-		t.Errorf("expected %s, got %s", expected, result)
+	expected := []byte("hello")
+	if !bytes.Equal(result, expected) {
+		t.Errorf("expected %v, got %v", expected, result)
 	}
 }
 
@@ -36,9 +37,9 @@ func TestWriteFixedNumberTwoBytes(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	expected := "0004" // binary 4 in 2 bytes
-	if result != expected {
-		t.Errorf("expected %s, got %s", expected, result)
+	expected := []byte{0x00, 0x04} // binary 4 in 2 bytes
+	if !bytes.Equal(result, expected) {
+		t.Errorf("expected %v, got %v", expected, result)
 	}
 }
 
@@ -49,9 +50,9 @@ func TestWriteFixedNumberTombstone(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	expected := "00" // binary 0
-	if result != expected {
-		t.Errorf("expected %s, got %s", expected, result)
+	expected := []byte{0x00} // binary 0
+	if !bytes.Equal(result, expected) {
+		t.Errorf("expected %v, got %v", expected, result)
 	}
 
 	// Set tombstone (1)
@@ -60,9 +61,9 @@ func TestWriteFixedNumberTombstone(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	expected = "01" // binary 1
-	if result != expected {
-		t.Errorf("expected %s, got %s", expected, result)
+	expected = []byte{0x01} // binary 1
+	if !bytes.Equal(result, expected) {
+		t.Errorf("expected %v, got %v", expected, result)
 	}
 }
 
@@ -73,14 +74,10 @@ func TestWriteHeader(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	// Expected format: [0000 0001][1F][0000 0002][1F][0000 0003]
-	// 0x00000001 = "00000001"
-	// 0x1F = "1f"
-	// 0x00000002 = "00000002"
-	// 0x00000003 = "00000003"
-	expected := "000000011f000000021f00000003"
-	if result != expected {
-		t.Errorf("expected %s, got %s", expected, result)
+	// Expected format: [0000 0001][1F][0000 0002][1F][0000 0003][1E]
+	expected := []byte{0x00, 0x00, 0x00, 0x01, 0x1f, 0x00, 0x00, 0x00, 0x02, 0x1f, 0x00, 0x00, 0x00, 0x03, 0x1e}
+	if !bytes.Equal(result, expected) {
+		t.Errorf("expected %v, got %v", expected, result)
 	}
 }
 
@@ -91,9 +88,9 @@ func TestWriteHeaderWithZeros(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	expected := "000000001f000000001f00000000"
-	if result != expected {
-		t.Errorf("expected %s, got %s", expected, result)
+	expected := []byte{0x00, 0x00, 0x00, 0x00, 0x1f, 0x00, 0x00, 0x00, 0x00, 0x1f, 0x00, 0x00, 0x00, 0x00, 0x1e}
+	if !bytes.Equal(result, expected) {
+		t.Errorf("expected %v, got %v", expected, result)
 	}
 }
 
@@ -105,9 +102,9 @@ func TestWriteHeaderWithLargeValues(t *testing.T) {
 	}
 
 	// 100 = 0x64, 50 = 0x32, 200 = 0xC8
-	expected := "000000641f000000321f000000c8"
-	if result != expected {
-		t.Errorf("expected %s, got %s", expected, result)
+	expected := []byte{0x00, 0x00, 0x00, 0x64, 0x1f, 0x00, 0x00, 0x00, 0x32, 0x1f, 0x00, 0x00, 0x00, 0xc8, 0x1e}
+	if !bytes.Equal(result, expected) {
+		t.Errorf("expected %v, got %v", expected, result)
 	}
 }
 
@@ -129,16 +126,18 @@ func TestWriteFixedNumberOverflow(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error for max 1-byte value: %v", err)
 	}
-	if result != "ff" {
-		t.Errorf("expected ff, got %s", result)
+	expected := []byte{0xff}
+	if !bytes.Equal(result, expected) {
+		t.Errorf("expected %v, got %v", expected, result)
 	}
 
 	result, err = utils.WriteFixedNumber(2, 65535)
 	if err != nil {
 		t.Errorf("unexpected error for max 2-byte value: %v", err)
 	}
-	if result != "ffff" {
-		t.Errorf("expected ffff, got %s", result)
+	expected = []byte{0xff, 0xff}
+	if !bytes.Equal(result, expected) {
+		t.Errorf("expected %v, got %v", expected, result)
 	}
 }
 

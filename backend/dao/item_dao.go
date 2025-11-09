@@ -75,13 +75,13 @@ func (dao *ItemDAO) Write(name string, priceInCents uint64) error {
 	}
 
 	// Name size (2 bytes - supports names up to 65535 chars)
-	nameSizeHex, err := utils.WriteFixedNumber(2, uint64(nameSize))
+	nameSizeBytes, err := utils.WriteFixedNumber(2, uint64(nameSize))
 	if err != nil {
 		return fmt.Errorf("failed to write name size: %w", err)
 	}
 
 	// Name (variable length)
-	nameHex, err := utils.WriteVariable(name)
+	nameBytes, err := utils.WriteVariable(name)
 	if err != nil {
 		return fmt.Errorf("failed to write name: %w", err)
 	}
@@ -93,13 +93,18 @@ func (dao *ItemDAO) Write(name string, priceInCents uint64) error {
 	}
 
 	// Price (4 bytes - supports prices up to 4,294,967,295 cents)
-	priceHex, err := utils.WriteFixedNumber(4, priceInCents)
+	priceBytes, err := utils.WriteFixedNumber(4, priceInCents)
 	if err != nil {
 		return fmt.Errorf("failed to write price: %w", err)
 	}
 
 	// Combine all fields
-	entry := sep1 + nameSizeHex + nameHex + sep2 + priceHex
+	entry := make([]byte, 0)
+	entry = append(entry, sep1...)
+	entry = append(entry, nameSizeBytes...)
+	entry = append(entry, nameBytes...)
+	entry = append(entry, sep2...)
+	entry = append(entry, priceBytes...)
 
 	// Append the entry (ID auto-assigned and record separator added)
 	err = utils.AppendEntry(file, entry)

@@ -7,8 +7,8 @@ import (
 )
 
 func TestReadFixedNumber(t *testing.T) {
-	hexString := "0000002a" // 42 in 4 bytes
-	value, newOffset, err := utils.ReadFixedNumber(4, hexString, 0)
+	data := []byte{0x00, 0x00, 0x00, 0x2a} // 42 in 4 bytes
+	value, newOffset, err := utils.ReadFixedNumber(4, data, 0)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -17,14 +17,14 @@ func TestReadFixedNumber(t *testing.T) {
 		t.Errorf("expected 42, got %d", value)
 	}
 
-	if newOffset != 8 {
-		t.Errorf("expected offset 8, got %d", newOffset)
+	if newOffset != 4 {
+		t.Errorf("expected offset 4, got %d", newOffset)
 	}
 }
 
 func TestReadFixedNumberWithOffset(t *testing.T) {
-	hexString := "ffff0005" // garbage + 5 in 2 bytes
-	value, newOffset, err := utils.ReadFixedNumber(2, hexString, 4)
+	data := []byte{0xff, 0xff, 0x00, 0x05} // garbage + 5 in 2 bytes
+	value, newOffset, err := utils.ReadFixedNumber(2, data, 2)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -33,14 +33,14 @@ func TestReadFixedNumberWithOffset(t *testing.T) {
 		t.Errorf("expected 5, got %d", value)
 	}
 
-	if newOffset != 8 {
-		t.Errorf("expected offset 8, got %d", newOffset)
+	if newOffset != 4 {
+		t.Errorf("expected offset 4, got %d", newOffset)
 	}
 }
 
 func TestReadFixedNumberOverflow(t *testing.T) {
-	hexString := "00ff"
-	_, _, err := utils.ReadFixedNumber(4, hexString, 0)
+	data := []byte{0x00, 0xff}
+	_, _, err := utils.ReadFixedNumber(4, data, 0)
 	if err == nil {
 		t.Error("expected error when not enough data, got none")
 	}
@@ -48,8 +48,8 @@ func TestReadFixedNumberOverflow(t *testing.T) {
 
 func TestReadFixedNumberMaxValues(t *testing.T) {
 	// Test 1 byte max (255)
-	hexString := "ff"
-	value, _, err := utils.ReadFixedNumber(1, hexString, 0)
+	data := []byte{0xff}
+	value, _, err := utils.ReadFixedNumber(1, data, 0)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -58,8 +58,8 @@ func TestReadFixedNumberMaxValues(t *testing.T) {
 	}
 
 	// Test 2 bytes max (65535)
-	hexString = "ffff"
-	value, _, err = utils.ReadFixedNumber(2, hexString, 0)
+	data = []byte{0xff, 0xff}
+	value, _, err = utils.ReadFixedNumber(2, data, 0)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}

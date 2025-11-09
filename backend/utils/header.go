@@ -5,31 +5,42 @@ import (
 	"os"
 )
 
-// WriteHeader creates a header string with entitiesCount, tombstoneCount, and nextId
-// separated by unit separators. Format: [count][0x1F][count][0x1F][count]
-func WriteHeader(entitiesCount, tombstoneCount, nextId int) (string, error) {
-	entitiesHex, err := WriteFixedNumber(HeaderFieldSize, uint64(entitiesCount))
+// WriteHeader creates a header byte slice with entitiesCount, tombstoneCount, and nextId
+// separated by unit separators. Format: [count][0x1F][count][0x1F][count][0x1E]
+func WriteHeader(entitiesCount, tombstoneCount, nextId int) ([]byte, error) {
+	entitiesBytes, err := WriteFixedNumber(HeaderFieldSize, uint64(entitiesCount))
 	if err != nil {
-		return "", fmt.Errorf("failed to write entitiesCount: %w", err)
+		return nil, fmt.Errorf("failed to write entitiesCount: %w", err)
 	}
 
-	tombstoneHex, err := WriteFixedNumber(HeaderFieldSize, uint64(tombstoneCount))
+	tombstoneBytes, err := WriteFixedNumber(HeaderFieldSize, uint64(tombstoneCount))
 	if err != nil {
-		return "", fmt.Errorf("failed to write tombstoneCount: %w", err)
+		return nil, fmt.Errorf("failed to write tombstoneCount: %w", err)
 	}
 
-	nextIdHex, err := WriteFixedNumber(HeaderFieldSize, uint64(nextId))
+	nextIdBytes, err := WriteFixedNumber(HeaderFieldSize, uint64(nextId))
 	if err != nil {
-		return "", fmt.Errorf("failed to write nextId: %w", err)
+		return nil, fmt.Errorf("failed to write nextId: %w", err)
 	}
 
-	separatorHex, err := WriteVariable(UnitSeparator)
+	unitSeparatorBytes, err := WriteVariable(UnitSeparator)
 	if err != nil {
-		return "", fmt.Errorf("failed to write separator: %w", err)
+		return nil, fmt.Errorf("failed to write unit separator: %w", err)
 	}
 
-	// Build the header: [entitiesCount][0x1F][tombstoneCount][0x1F][nextId]
-	header := entitiesHex + separatorHex + tombstoneHex + separatorHex + nextIdHex
+	recordSeparatorBytes, err := WriteVariable(RecordSeparator)
+	if err != nil {
+		return nil, fmt.Errorf("failed to write record separator: %w", err)
+	}
+
+	// Build the header: [entitiesCount][0x1F][tombstoneCount][0x1F][nextId][0x1E]
+	header := make([]byte, 0)
+	header = append(header, entitiesBytes...)
+	header = append(header, unitSeparatorBytes...)
+	header = append(header, tombstoneBytes...)
+	header = append(header, unitSeparatorBytes...)
+	header = append(header, nextIdBytes...)
+	header = append(header, recordSeparatorBytes...)
 
 	return header, nil
 }
@@ -37,12 +48,11 @@ func WriteHeader(entitiesCount, tombstoneCount, nextId int) (string, error) {
 // ReadHeader reads and parses the header from a file
 // Returns (entitiesCount, tombstoneCount, nextId, error)
 func ReadHeader(file *os.File) (int, int, int, error) {
-	// Calculate header size: 3 fields * 4 bytes each + 2 separators * 1 byte each = 14 bytes = 28 hex chars
-	headerSize := (HeaderFieldSize * 3) + 2 // in bytes
-	hexChars := headerSize * 2
+	// Calculate header size: 3 fields * 4 bytes each + 2 unit separators + 1 record separator = 15 bytes
+	headerSize := (HeaderFieldSize * 3) + 3
 
 	// Read the header bytes
-	headerBytes := make([]byte, hexChars)
+	headerBytes := make([]byte, headerSize)
 	_, err := file.Seek(0, 0) // Start from beginning
 	if err != nil {
 		return 0, 0, 0, fmt.Errorf("failed to seek to beginning: %w", err)
@@ -52,38 +62,39 @@ func ReadHeader(file *os.File) (int, int, int, error) {
 	if err != nil {
 		return 0, 0, 0, fmt.Errorf("failed to read header: %w", err)
 	}
-	if n != hexChars {
-		return 0, 0, 0, fmt.Errorf("incomplete header: read %d bytes, expected %d", n, hexChars)
+	if n != headerSize {
+		return 0, 0, 0, fmt.Errorf("incomplete header: read %d bytes, expected %d", n, headerSize)
 	}
 
-	hexString := string(headerBytes)
-
-	// Parse the header: [entitiesCount][0x1F][tombstoneCount][0x1F][nextId]
+	// Parse the header: [entitiesCount][0x1F][tombstoneCount][0x1F][nextId][0x1E]
 	offset := 0
 
 	// Read entitiesCount
-	entitiesCount, offset, err := ReadFixedNumber(HeaderFieldSize, hexString, offset)
+	entitiesCount, offset, err := ReadFixedNumber(HeaderFieldSize, headerBytes, offset)
 	if err != nil {
 		return 0, 0, 0, fmt.Errorf("failed to read entitiesCount: %w", err)
 	}
 
-	// Skip separator (0x1F = 2 hex chars)
-	offset += 2
+	// Skip unit separator (0x1F = 1 byte)
+	offset += 1
 
 	// Read tombstoneCount
-	tombstoneCount, offset, err := ReadFixedNumber(HeaderFieldSize, hexString, offset)
+	tombstoneCount, offset, err := ReadFixedNumber(HeaderFieldSize, headerBytes, offset)
 	if err != nil {
 		return 0, 0, 0, fmt.Errorf("failed to read tombstoneCount: %w", err)
 	}
 
-	// Skip separator
-	offset += 2
+	// Skip unit separator
+	offset += 1
 
 	// Read nextId
-	nextId, _, err := ReadFixedNumber(HeaderFieldSize, hexString, offset)
+	nextId, offset, err := ReadFixedNumber(HeaderFieldSize, headerBytes, offset)
 	if err != nil {
 		return 0, 0, 0, fmt.Errorf("failed to read nextId: %w", err)
 	}
+
+	// Skip record separator (0x1E = 1 byte) - already at end
+	// offset += 1
 
 	return int(entitiesCount), int(tombstoneCount), int(nextId), nil
 }
@@ -103,7 +114,7 @@ func UpdateHeader(file *os.File, entitiesCount, tombstoneCount, nextId int) erro
 	}
 
 	// Write the header
-	_, err = file.WriteString(header)
+	_, err = file.Write(header)
 	if err != nil {
 		return fmt.Errorf("failed to write header: %w", err)
 	}

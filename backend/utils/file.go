@@ -18,9 +18,9 @@ func CreateFile(filePath string) (*os.File, error) {
 	return file, nil
 }
 
-// WriteToFile writes a string to the given file.
-func WriteToFile(file *os.File, content string) error {
-	_, err := file.WriteString(content)
+// WriteToFile writes binary data to the given file.
+func WriteToFile(file *os.File, data []byte) error {
+	_, err := file.Write(data)
 	if err != nil {
 		return fmt.Errorf("failed to write to file: %w", err)
 	}
@@ -28,9 +28,9 @@ func WriteToFile(file *os.File, content string) error {
 	return nil
 }
 
-// WriteHeaderToFile writes a header string to the beginning of a file.
+// WriteHeaderToFile writes a header to the beginning of a file.
 // Returns an error if the file is not empty.
-func WriteHeaderToFile(file *os.File, header string) error {
+func WriteHeaderToFile(file *os.File, header []byte) error {
 	// Check if file is empty
 	fileInfo, err := file.Stat()
 	if err != nil {
@@ -58,7 +58,7 @@ func WriteHeaderToFile(file *os.File, header string) error {
 
 // AppendEntry appends an entry to the file with auto-assigned ID
 // The entry should NOT include an ID - it will be prepended automatically
-func AppendEntry(file *os.File, entryWithoutId string) error {
+func AppendEntry(file *os.File, entryWithoutId []byte) error {
 	// Read current header to get nextId
 	entitiesCount, tombstoneCount, nextId, err := ReadHeader(file)
 	if err != nil {
@@ -66,13 +66,15 @@ func AppendEntry(file *os.File, entryWithoutId string) error {
 	}
 
 	// Generate ID field (2 bytes)
-	idHex, err := WriteFixedNumber(IDSize, uint64(nextId))
+	idBytes, err := WriteFixedNumber(IDSize, uint64(nextId))
 	if err != nil {
 		return fmt.Errorf("failed to write ID: %w", err)
 	}
 
 	// Patch the entry with the ID at the beginning
-	patchedEntry := idHex + entryWithoutId
+	patchedEntry := make([]byte, 0)
+	patchedEntry = append(patchedEntry, idBytes...)
+	patchedEntry = append(patchedEntry, entryWithoutId...)
 
 	// Seek to end of file
 	_, err = file.Seek(0, 2) // 2 = io.SeekEnd
@@ -87,12 +89,12 @@ func AppendEntry(file *os.File, entryWithoutId string) error {
 	}
 
 	// Append record separator
-	separatorHex, err := WriteVariable(RecordSeparator)
+	separatorBytes, err := WriteVariable(RecordSeparator)
 	if err != nil {
 		return fmt.Errorf("failed to write separator: %w", err)
 	}
 
-	err = WriteToFile(file, separatorHex)
+	err = WriteToFile(file, separatorBytes)
 	if err != nil {
 		return fmt.Errorf("failed to write separator: %w", err)
 	}

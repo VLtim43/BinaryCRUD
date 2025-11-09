@@ -4,30 +4,8 @@ import {main} from '../models';
 
 export function AddItem(arg1:string,arg2:number):Promise<void>;
 
-export function AddOrder(arg1:Array<string>):Promise<void>;
-
 export function ClearLogs():Promise<void>;
 
 export function DeleteAllFiles():Promise<void>;
 
-export function DeleteItem(arg1:number):Promise<string>;
-
-export function DeleteOrder(arg1:number):Promise<number>;
-
-export function GetItemByID(arg1:number):Promise<main.ItemDTO>;
-
-export function GetItemByIDWithIndex(arg1:number):Promise<main.ItemDTO>;
-
-export function GetItems():Promise<Array<main.ItemDTO>>;
-
 export function GetLogs():Promise<Array<main.LogEntry>>;
-
-export function GetOrderByID(arg1:number):Promise<main.OrderDTO>;
-
-export function GetOrders():Promise<Array<main.OrderDTO>>;
-
-export function PopulateInventory(arg1:string):Promise<string>;
-
-export function PrintIndex():Promise<void>;
-
-export function RebuildIndex():Promise<void>;
