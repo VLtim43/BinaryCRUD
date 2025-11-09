@@ -15,13 +15,6 @@ type App struct {
 	logger  *Logger
 }
 
-// ItemDTO represents an item with its ID, name, and price for frontend consumption
-type ItemDTO struct {
-	ID           uint32 `json:"id"`
-	Name         string `json:"name"`
-	PriceInCents uint64 `json:"priceInCents"`
-}
-
 // NewApp creates a new App application struct
 func NewApp() *App {
 	logger := NewLogger(1000) // Store up to 1000 log entries
@@ -42,109 +35,6 @@ func (a *App) startup(ctx context.Context) {
 // AddItem writes an item to the binary file with a price in cents
 func (a *App) AddItem(text string, priceInCents uint64) error {
 	return a.itemDAO.Write(text, priceInCents)
-}
-
-// AddOrder writes an order to the binary file with an array of item names
-func (a *App) AddOrder(itemNames []string) error {
-	// Order functionality removed - do nothing
-	return nil
-}
-
-// GetItems reads items from the binary file and returns them with IDs and prices
-func (a *App) GetItems() ([]ItemDTO, error) {
-	items, err := a.itemDAO.Read()
-	if err != nil {
-		return []ItemDTO{}, err
-	}
-
-	// Convert map to slice of DTOs
-	result := make([]ItemDTO, 0, len(items))
-	for id, itemData := range items {
-		result = append(result, ItemDTO{
-			ID:           id,
-			Name:         itemData.Name,
-			PriceInCents: itemData.PriceInCents,
-		})
-	}
-
-	return result, nil
-}
-
-// OrderDTO represents an order for frontend compatibility
-type OrderDTO struct {
-	ID    uint32   `json:"id"`
-	Items []string `json:"items"`
-}
-
-// GetOrders reads all orders from the binary file
-func (a *App) GetOrders() ([]OrderDTO, error) {
-	// Order functionality removed - return empty list
-	return []OrderDTO{}, nil
-}
-
-// GetOrderByID reads a single order by its ID
-func (a *App) GetOrderByID(orderID uint32) (*OrderDTO, error) {
-	// Order functionality removed - return not found
-	return nil, fmt.Errorf("order functionality removed")
-}
-
-
-// GetItemByID retrieves an item by its record ID
-func (a *App) GetItemByID(recordID uint32) (ItemDTO, error) {
-	// Read all items
-	items, err := a.itemDAO.Read()
-	if err != nil {
-		return ItemDTO{}, fmt.Errorf("failed to read items: %w", err)
-	}
-
-	// Look up the item by ID
-	itemData, exists := items[recordID]
-	if !exists {
-		return ItemDTO{}, fmt.Errorf("item with ID %d not found", recordID)
-	}
-
-	return ItemDTO{
-		ID:           recordID,
-		Name:         itemData.Name,
-		PriceInCents: itemData.PriceInCents,
-	}, nil
-}
-
-// DeleteItem marks an item as deleted by setting its tombstone flag
-// Returns the name of the deleted item
-func (a *App) DeleteItem(recordID uint32) (string, error) {
-	return a.itemDAO.Delete(recordID)
-}
-
-// DeleteOrder marks an order as deleted by setting its tombstone flag
-// Returns the number of items in the deleted order
-func (a *App) DeleteOrder(orderID uint32) (int, error) {
-	// Order functionality removed - do nothing
-	return 0, nil
-}
-
-// RebuildIndex rebuilds the B+ tree index from scratch
-func (a *App) RebuildIndex() error {
-	return a.itemDAO.RebuildIndex()
-}
-
-// PrintIndex prints the B+ tree structure to the console (for debugging)
-func (a *App) PrintIndex() {
-	indexStr := a.itemDAO.PrintIndex()
-	a.logger.LogPrintln(indexStr)
-}
-
-// GetItemByIDWithIndex retrieves an item by its ID using the B+ tree index
-func (a *App) GetItemByIDWithIndex(recordID uint32) (ItemDTO, error) {
-	itemData, err := a.itemDAO.ReadByIDWithIndex(recordID)
-	if err != nil {
-		return ItemDTO{}, err
-	}
-	return ItemDTO{
-		ID:           recordID,
-		Name:         itemData.Name,
-		PriceInCents: itemData.PriceInCents,
-	}, nil
 }
 
 // DeleteAllFiles deletes all files in the data folder

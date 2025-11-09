@@ -15,6 +15,12 @@ func WriteFixedNumber(size int, value uint64) (string, error) {
 		return "", fmt.Errorf("size cannot exceed 8 bytes for uint64")
 	}
 
+	// Check if value fits in the specified number of bytes
+	maxValue := uint64(1<<(size*8)) - 1
+	if value > maxValue {
+		return "", fmt.Errorf("value %d exceeds maximum for %d bytes (%d)", value, size, maxValue)
+	}
+
 	// Convert number to bytes (big-endian)
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, value)

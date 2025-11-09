@@ -5,9 +5,9 @@ import (
 	"os"
 )
 
-// CreateFile creates a new file and returns it open for writing.
+// CreateFile creates a new file and returns it open for reading and writing.
 func CreateFile(filePath string) (*os.File, error) {
-	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0644)
 	if err != nil {
 		if os.IsExist(err) {
 			return nil, fmt.Errorf("file already exists: %s", filePath)
@@ -51,6 +51,56 @@ func WriteHeaderToFile(file *os.File, header string) error {
 	err = WriteToFile(file, header)
 	if err != nil {
 		return fmt.Errorf("failed to write header: %w", err)
+	}
+
+	return nil
+}
+
+// AppendEntry appends an entry to the file with auto-assigned ID
+// The entry should NOT include an ID - it will be prepended automatically
+func AppendEntry(file *os.File, entryWithoutId string) error {
+	// Read current header to get nextId
+	entitiesCount, tombstoneCount, nextId, err := ReadHeader(file)
+	if err != nil {
+		return fmt.Errorf("failed to read header: %w", err)
+	}
+
+	// Generate ID field (2 bytes)
+	idHex, err := WriteFixedNumber(IDSize, uint64(nextId))
+	if err != nil {
+		return fmt.Errorf("failed to write ID: %w", err)
+	}
+
+	// Patch the entry with the ID at the beginning
+	patchedEntry := idHex + entryWithoutId
+
+	// Seek to end of file
+	_, err = file.Seek(0, 2) // 2 = io.SeekEnd
+	if err != nil {
+		return fmt.Errorf("failed to seek to end: %w", err)
+	}
+
+	// Append the entry
+	err = WriteToFile(file, patchedEntry)
+	if err != nil {
+		return fmt.Errorf("failed to write entry: %w", err)
+	}
+
+	// Append record separator
+	separatorHex, err := WriteVariable(RecordSeparator)
+	if err != nil {
+		return fmt.Errorf("failed to write separator: %w", err)
+	}
+
+	err = WriteToFile(file, separatorHex)
+	if err != nil {
+		return fmt.Errorf("failed to write separator: %w", err)
+	}
+
+	// Update header with incremented counts
+	err = UpdateHeader(file, entitiesCount+1, tombstoneCount, nextId+1)
+	if err != nil {
+		return fmt.Errorf("failed to update header: %w", err)
 	}
 
 	return nil

@@ -110,3 +110,47 @@ func TestWriteHeaderWithLargeValues(t *testing.T) {
 		t.Errorf("expected %s, got %s", expected, result)
 	}
 }
+
+func TestWriteFixedNumberOverflow(t *testing.T) {
+	// Test 1 byte overflow (max is 255)
+	_, err := utils.WriteFixedNumber(1, 256)
+	if err == nil {
+		t.Error("expected error when value exceeds 1 byte capacity, got none")
+	}
+
+	// Test 2 byte overflow (max is 65535)
+	_, err = utils.WriteFixedNumber(2, 65536)
+	if err == nil {
+		t.Error("expected error when value exceeds 2 byte capacity, got none")
+	}
+
+	// Test valid max values
+	result, err := utils.WriteFixedNumber(1, 255)
+	if err != nil {
+		t.Errorf("unexpected error for max 1-byte value: %v", err)
+	}
+	if result != "ff" {
+		t.Errorf("expected ff, got %s", result)
+	}
+
+	result, err = utils.WriteFixedNumber(2, 65535)
+	if err != nil {
+		t.Errorf("unexpected error for max 2-byte value: %v", err)
+	}
+	if result != "ffff" {
+		t.Errorf("expected ffff, got %s", result)
+	}
+}
+
+func TestWriteFixedStringOverflow(t *testing.T) {
+	// Test string too long for size
+	_, err := utils.WriteFixedString(3, "hello")
+	if err == nil {
+		t.Error("expected error when string exceeds size, got none")
+	}
+
+	_, err = utils.WriteFixedString(1, "ab")
+	if err == nil {
+		t.Error("expected error when string exceeds size, got none")
+	}
+}
