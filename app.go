@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"time"
 )
 
@@ -56,17 +57,30 @@ func (a *App) AddItem(text string, priceInCents uint64) error {
 }
 
 // GetItem retrieves an item by ID from the binary file
-func (a *App) GetItem(id uint64) (map[string]any, error) {
-	itemID, name, priceInCents, err := a.itemDAO.Read(id)
+func (a *App) GetItem(id uint64, useIndex bool) (map[string]any, error) {
+	itemID, name, priceInCents, err := a.itemDAO.ReadWithIndex(id, useIndex)
 	if err != nil {
 		return nil, err
 	}
+
+	a.logger.Log(fmt.Sprintf("Read item ID %d using index: %v", id, useIndex))
 
 	return map[string]any{
 		"id":           itemID,
 		"name":         name,
 		"priceInCents": priceInCents,
 	}, nil
+}
+
+// DeleteItem marks an item as deleted by flipping its tombstone bit
+func (a *App) DeleteItem(id uint64) error {
+	err := a.itemDAO.Delete(id)
+	if err != nil {
+		return err
+	}
+
+	a.logger.Log(fmt.Sprintf("Deleted item with ID: %d", id))
+	return nil
 }
 
 // DeleteAllFiles deletes all files in the data folder except .json files
@@ -109,6 +123,10 @@ func (a *App) DeleteAllFiles() error {
 
 	a.logger.Log(fmt.Sprintf("Deleted %d file(s), skipped .json files", deletedCount))
 
+	// Reload ItemDAO to clear the in-memory index
+	a.itemDAO = dao.NewItemDAO("data/items.bin")
+	a.logger.Log("Cleared in-memory index")
+
 	return nil
 }
 
@@ -126,6 +144,39 @@ func (a *App) ClearLogs() {
 type ItemEntry struct {
 	Name         string `json:"name"`
 	PriceInCents uint64 `json:"priceInCents"`
+}
+
+// GetIndexContents returns the contents of the B+ tree index for debugging
+func (a *App) GetIndexContents() (map[string]any, error) {
+	// Get all entries from the tree
+	tree := a.itemDAO.GetIndexTree()
+	allEntries := tree.GetAll()
+
+	// Convert to sorted slice for display
+	type IndexEntry struct {
+		ID     uint64 `json:"id"`
+		Offset int64  `json:"offset"`
+	}
+
+	entries := make([]IndexEntry, 0, len(allEntries))
+	for id, offset := range allEntries {
+		entries = append(entries, IndexEntry{
+			ID:     id,
+			Offset: offset,
+		})
+	}
+
+	// Sort by ID
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].ID < entries[j].ID
+	})
+
+	a.logger.Log(fmt.Sprintf("Index contains %d entries", len(entries)))
+
+	return map[string]any{
+		"count":   len(entries),
+		"entries": entries,
+	}, nil
 }
 
 // PopulateInventory reads items from items.json and adds them to the database

@@ -53,11 +53,18 @@ func WriteHeaderToFile(file *os.File, header []byte) error {
 		return fmt.Errorf("failed to write header: %w", err)
 	}
 
+	// Force write to disk
+	err = file.Sync()
+	if err != nil {
+		return fmt.Errorf("failed to sync header to disk: %w", err)
+	}
+
 	return nil
 }
 
-// AppendEntry appends an entry to the file with auto-assigned ID
-// The entry should NOT include an ID - it will be prepended automatically
+// AppendEntry appends an entry to the file with auto-assigned ID and tombstone
+// The entry should NOT include an ID or tombstone - they will be prepended automatically
+// Format: [ID(2)][tombstone(1)][entry data]
 func AppendEntry(file *os.File, entryWithoutId []byte) error {
 	// Read current header to get nextId
 	entitiesCount, tombstoneCount, nextId, err := ReadHeader(file)
@@ -71,9 +78,13 @@ func AppendEntry(file *os.File, entryWithoutId []byte) error {
 		return fmt.Errorf("failed to write ID: %w", err)
 	}
 
-	// Patch the entry with the ID at the beginning
+	// Generate tombstone field (1 byte, value 0x00 for active records)
+	tombstoneBytes := []byte{0x00}
+
+	// Patch the entry with the ID and tombstone at the beginning
 	patchedEntry := make([]byte, 0)
 	patchedEntry = append(patchedEntry, idBytes...)
+	patchedEntry = append(patchedEntry, tombstoneBytes...)
 	patchedEntry = append(patchedEntry, entryWithoutId...)
 
 	// Seek to end of file
@@ -99,10 +110,22 @@ func AppendEntry(file *os.File, entryWithoutId []byte) error {
 		return fmt.Errorf("failed to write separator: %w", err)
 	}
 
+	// Force write entry data to disk before updating header
+	err = file.Sync()
+	if err != nil {
+		return fmt.Errorf("failed to sync entry to disk: %w", err)
+	}
+
 	// Update header with incremented counts
 	err = UpdateHeader(file, entitiesCount+1, tombstoneCount, nextId+1)
 	if err != nil {
 		return fmt.Errorf("failed to update header: %w", err)
+	}
+
+	// Force write header to disk
+	err = file.Sync()
+	if err != nil {
+		return fmt.Errorf("failed to sync header to disk: %w", err)
 	}
 
 	return nil

@@ -14,8 +14,16 @@ export function DeleteAllFiles() {
   return window['go']['main']['App']['DeleteAllFiles']();
 }
 
-export function GetItem(arg1) {
-  return window['go']['main']['App']['GetItem'](arg1);
+export function DeleteItem(arg1) {
+  return window['go']['main']['App']['DeleteItem'](arg1);
+}
+
+export function GetIndexContents() {
+  return window['go']['main']['App']['GetIndexContents']();
+}
+
+export function GetItem(arg1, arg2) {
+  return window['go']['main']['App']['GetItem'](arg1, arg2);
 }
 
 export function GetLogs() {

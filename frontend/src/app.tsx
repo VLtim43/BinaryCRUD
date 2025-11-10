@@ -3,10 +3,12 @@ import logo from "./assets/images/logo-universal.png";
 import {
   AddItem,
   GetItem,
+  DeleteItem,
   DeleteAllFiles,
   GetLogs,
   ClearLogs,
   PopulateInventory,
+  GetIndexContents,
 } from "../wailsjs/go/main/App";
 import { Quit } from "../wailsjs/runtime/runtime";
 import { useState, useEffect, useRef } from "preact/hooks";
@@ -46,6 +48,7 @@ export const App = () => {
     Array<{ timestamp: string; message: string }>
   >([]);
   const [logsPanelOpen, setLogsPanelOpen] = useState(false);
+  const [indexData, setIndexData] = useState<any>(null);
   const updateItemText = (e: any) => setItemText(e.target.value);
   const updateItemPrice = (e: any) => {
     const value = e.target.value;
@@ -204,16 +207,17 @@ export const App = () => {
       return;
     }
 
-    // Call backend to get item
-    GetItem(id)
+    // Call backend to get item with index preference
+    GetItem(id, useIndex)
       .then((item: any) => {
         setFoundItem({
           id: item.id,
           name: item.name,
           priceInCents: item.priceInCents,
         });
+        const method = useIndex ? "B+ Tree Index" : "Sequential Scan";
         updateResultText(
-          `Found Item #${item.id}: ${item.name} - $${(item.priceInCents / 100).toFixed(2)}`
+          `Found Item #${item.id}: ${item.name} - $${(item.priceInCents / 100).toFixed(2)} (via ${method})`
         );
         refreshLogs();
       })
@@ -253,11 +257,45 @@ export const App = () => {
   };
 
   const printIndex = () => {
-    updateResultText("Index functionality not yet implemented");
+    updateResultText("Loading index contents...");
+
+    GetIndexContents()
+      .then((data: any) => {
+        setIndexData(data);
+        updateResultText(
+          `Index loaded: ${data.count} entries. Scroll down to see details.`
+        );
+        refreshLogs();
+      })
+      .catch((err: any) => {
+        setIndexData(null);
+        updateResultText(`Error loading index: ${err}`);
+      });
   };
 
   const deleteItem = () => {
-    updateResultText("Delete functionality not yet implemented");
+    // Validate input
+    if (!deleteRecordId || deleteRecordId.trim().length === 0) {
+      updateResultText("Error: Please enter a record ID");
+      return;
+    }
+
+    const id = parseInt(deleteRecordId, 10);
+    if (isNaN(id) || id < 0) {
+      updateResultText("Error: Invalid record ID");
+      return;
+    }
+
+    // Call backend to delete item
+    DeleteItem(id)
+      .then(() => {
+        updateResultText(`Successfully deleted item with ID ${id}`);
+        setDeleteRecordId("");
+        refreshLogs();
+      })
+      .catch((err: any) => {
+        updateResultText(`Error: ${err}`);
+      });
   };
 
   // Load all items for order tab
@@ -705,10 +743,81 @@ export const App = () => {
               <button className="btn" onClick={populateInventory}>
                 Populate Inventory
               </button>
+              <button className="btn" onClick={printIndex}>
+                Print Index
+              </button>
               <button className="btn btn-danger" onClick={deleteAllFiles}>
                 Delete All Files
               </button>
             </div>
+
+            {indexData && (
+              <div
+                style={{
+                  marginTop: "20px",
+                  padding: "20px",
+                  backgroundColor: "rgba(255, 255, 255, 0.05)",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  maxHeight: "400px",
+                  overflowY: "auto",
+                }}
+              >
+                <h3 style={{ margin: "0 0 15px 0", color: "#fff" }}>
+                  B+ Tree Index Contents
+                </h3>
+                <div style={{ marginBottom: "10px", color: "#aaa" }}>
+                  Total entries: {indexData.count}
+                </div>
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    color: "#fff",
+                  }}
+                >
+                  <thead>
+                    <tr
+                      style={{
+                        borderBottom: "2px solid rgba(255, 255, 255, 0.2)",
+                      }}
+                    >
+                      <th style={{ padding: "8px", textAlign: "left" }}>
+                        Item ID
+                      </th>
+                      <th style={{ padding: "8px", textAlign: "left" }}>
+                        File Offset
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {indexData.entries.map((entry: any, idx: number) => (
+                      <tr
+                        key={idx}
+                        style={{
+                          borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+                          backgroundColor:
+                            idx % 2 === 0
+                              ? "rgba(0, 0, 0, 0.2)"
+                              : "transparent",
+                        }}
+                      >
+                        <td style={{ padding: "8px" }}>{entry.id}</td>
+                        <td
+                          style={{
+                            padding: "8px",
+                            fontFamily: "monospace",
+                            color: "#888",
+                          }}
+                        >
+                          {entry.offset} bytes
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </div>

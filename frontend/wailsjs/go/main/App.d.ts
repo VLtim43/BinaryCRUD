@@ -8,7 +8,11 @@ export function ClearLogs():Promise<void>;
 
 export function DeleteAllFiles():Promise<void>;
 
-export function GetItem(arg1:number):Promise<Record<string, any>>;
+export function DeleteItem(arg1:number):Promise<void>;
+
+export function GetIndexContents():Promise<Record<string, any>>;
+
+export function GetItem(arg1:number,arg2:boolean):Promise<Record<string, any>>;
 
 export function GetLogs():Promise<Array<main.LogEntry>>;
 
