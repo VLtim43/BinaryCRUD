@@ -5,21 +5,25 @@
 **Formato binário com campos fixos e variáveis:**
 
 **Header (15 bytes):**
+
 ```
 [entitiesCount(4)][0x1F][tombstoneCount(4)][0x1F][nextId(4)][0x1E]
 ```
 
 **Registro de Item:**
+
 ```
 [ID(2)][tombstone(1)][0x1F][nameSize(2)][name][0x1F][price(4)][0x1E]
 ```
 
 **Registro de Order/Promotion:**
+
 ```
 [ID(2)][tombstone(1)][0x1F][nameSize(2)][name][0x1F][totalPrice(4)][0x1F][itemCount(4)][0x1F][itemID1(2)][itemID2(2)]...[0x1E]
 ```
 
 **Separadores:**
+
 - `0x1F` (Unit Separator) - separa campos dentro de um registro
 - `0x1E` (Record Separator) - marca fim de cada registro
 
@@ -28,12 +32,11 @@
 ## b) Atributos Multivalorados (String)
 
 Arrays de item IDs são armazenados como:
+
 1. Campo de contagem: `[itemCount(4)]` indicando quantos itens
 2. Seguido por IDs consecutivos de 2 bytes: `[itemID1(2)][itemID2(2)]...`
 
-Durante a leitura, o código lê itemCount e então itera para ler cada itemID sequencialmente em um slice.
-
-**Localização:** `backend/dao/collection_dao.go` (linhas 136-143, 235-243)
+**Localização:** `backend/dao/collection_dao.go`
 
 ---
 
@@ -42,10 +45,12 @@ Durante a leitura, o código lê itemCount e então itera para ler cada itemID s
 **Implementação com tombstone bit:**
 
 Cada registro possui um campo tombstone de 1 byte após o ID:
+
 - `0x00` = registro ativo
 - `0x01` = registro deletado
 
 **Processo de exclusão:**
+
 1. Localizar registro por ID
 2. Verificar se tombstone já é `0x01`
 3. Seek para posição do byte tombstone no arquivo
@@ -56,7 +61,7 @@ Cada registro possui um campo tombstone de 1 byte após o ID:
 
 Dados permanecem no arquivo mas são logicamente deletados e ignorados durante leituras.
 
-**Localização:** `backend/dao/item_dao.go` (linhas 281-405), `backend/dao/collection_dao.go` (linhas 186-196)
+**Localização:** `backend/dao/item_dao.go` , `backend/dao/collection_dao.go`
 
 ---
 
@@ -70,6 +75,7 @@ Dados permanecem no arquivo mas são logicamente deletados e ignorados durante l
   - Promotions: IDs auto-incrementais sequenciais
 
 **Foreign Keys (não indexadas):**
+
 - Orders e Promotions armazenam arrays de Item IDs
 - Usadas para navegação e referência a items (relacionamento 1:N)
 - Sem índices secundários - lookups usam o índice B+ tree de items
@@ -81,6 +87,7 @@ Dados permanecem no arquivo mas são logicamente deletados e ignorados durante l
 **B+ Tree apenas para Item IDs:**
 
 **Estrutura:**
+
 - Ordem: 4 (máximo 3 chaves por nó)
 - Mapeia: `ID (uint64) -> File Offset (int64)`
 - Nós folha contêm chaves, offsets e ponteiros para próxima folha (lista ligada)
@@ -88,6 +95,7 @@ Dados permanecem no arquivo mas são logicamente deletados e ignorados durante l
 - Todos os dados reais armazenados em nós folha
 
 **Complexidade:**
+
 - Insert: O(log n) com divisão automática de nós
 - Search: O(log n) até nós folha
 - Delete: Remove entrada da árvore
@@ -103,10 +111,12 @@ Dados permanecem no arquivo mas são logicamente deletados e ignorados durante l
 **Array de foreign keys com integridade referencial:**
 
 **Estrutura:**
+
 - Orders/Promotions armazenam arrays de Item IDs: `ItemIDs []uint64`
 - Cada ID ocupa 2 bytes no formato binário
 
 **Navegação:**
+
 - **CreateOrder/CreatePromotion:**
   - Aceita array de item IDs
   - Lê cada item usando `itemDAO.ReadWithIndex()` para validar existência
@@ -114,13 +124,14 @@ Dados permanecem no arquivo mas são logicamente deletados e ignorados durante l
   - Armazena array de IDs no registro order/promotion
 
 **Integridade Referencial:**
+
 - Validada durante criação: se item não existe, criação falha
 - Sem cascading deletes: deletar item não remove de orders
 - Orders/promotions recuperadas podem referenciar items deletados (tombstoned)
 
 **Padrão:** Collection pattern - OrderDAO e PromotionDAO encapsulam CollectionDAO, que implementa lógica compartilhada para manipular arrays de items.
 
-**Localização:** `app.go` (linhas 268-276, 342-349), `backend/dao/collection_dao.go`
+**Localização:** `app.go` , `backend/dao/collection_dao.go`
 
 ---
 
@@ -129,6 +140,7 @@ Dados permanecem no arquivo mas são logicamente deletados e ignorados durante l
 **Formato binário em arquivos .idx:**
 
 **Formato:**
+
 ```
 [count(8)]
 [id(8), offset(8)]
@@ -137,18 +149,21 @@ Dados permanecem no arquivo mas são logicamente deletados e ignorados durante l
 ```
 
 **Processo de salvamento:**
+
 1. Extrai todas entradas da B+ tree usando `GetAll()`
 2. Escreve count como inteiro de 8 bytes (big-endian)
 3. Escreve cada par (id, offset) como dois inteiros de 8 bytes
 4. Chama `file.Sync()` para forçar escrita em disco
 
 **Processo de carregamento:**
+
 1. Lê count
 2. Lê cada par (id, offset)
 3. Insere em nova B+ tree
 4. Retorna árvore populada
 
 **Quando persiste:**
+
 - Após cada insert
 - Após cada delete
 - Carregado na inicialização do DAO
@@ -201,6 +216,7 @@ BinaryCRUD/
 ```
 
 **Padrões de Design:**
+
 - **DAO Pattern:** Separação de lógica de acesso a dados
 - **Wrapper Pattern:** OrderDAO/PromotionDAO encapsulam CollectionDAO
 - **Mutex Protection:** Operações concorrentes thread-safe
