@@ -4,60 +4,39 @@
 
 A restaurant manager application built with Wails (Go + Preact) featuring custom binary file storage with B+ tree indexing.
 
-## Prerequisites
+### Prerequisites
 
-### 1. Install Go
+- Go 1.18+
+- Node.js 16+
+- Wails CLI v2
 
-Download and install Go from the official website:
+### Installation
 
-- https://go.dev/doc/install
+1. Install Go
+   https://go.dev/doc/install
 
-Verify installation:
-
-```bash
-go version
-```
-
-### 2. Install Wails https://wails.io/docs/gettingstarted/installation
-
-Install Wails CLI:
+2. Install Wails CLI
+   https://wails.io/docs/gettingstarted/installation :
 
 ```bash
 go install github.com/wailsapp/wails/v2/cmd/wails@latest
 ```
 
-## Running the Application
+3. Clone the repository:
 
 ```bash
-./run.sh
+git clone <repository-url>
+cd BinaryCRUD
 ```
 
-Or manually:
+4. Install dependencies:
 
 ```bash
-wails dev
+  go mod download
 ```
 
-## Running Tests
-
-Run all backend tests:
+5. Run with
 
 ```bash
-./test.sh
+run.sh
 ```
-
-Or manually:
-
-```bash
-cd backend/test
-go test -v
-```
-
-## Development
-
-Built with:
-
-- **Backend**: Go 1.25+
-- **Frontend**: Preact + TypeScript
-- **Framework**: Wails v2
-- **Data Structure**: B+ Tree (order 4)
