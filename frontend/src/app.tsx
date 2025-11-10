@@ -9,6 +9,13 @@ import {
   ClearLogs,
   PopulateInventory,
   GetIndexContents,
+  GetAllItems,
+  CreateOrder,
+  GetOrder,
+  DeleteOrder,
+  CreatePromotion,
+  GetPromotion,
+  DeletePromotion,
 } from "../wailsjs/go/main/App";
 import { Quit } from "../wailsjs/runtime/runtime";
 import { useState, useEffect, useRef } from "preact/hooks";
@@ -16,12 +23,15 @@ import { h, Fragment } from "preact";
 
 export const App = () => {
   const [activeTab, setActiveTab] = useState<
-    "item" | "order" | "debug"
+    "item" | "order" | "promotion" | "debug"
   >("item");
   const [itemSubTab, setItemSubTab] = useState<"create" | "read" | "delete">(
     "create"
   );
   const [orderSubTab, setOrderSubTab] = useState<"create" | "read" | "delete">(
+    "create"
+  );
+  const [promotionSubTab, setPromotionSubTab] = useState<"create" | "read" | "delete">(
     "create"
   );
   const [resultText, setResultText] = useState("Enter item text below 👇");
@@ -41,8 +51,16 @@ export const App = () => {
     Array<{ id: number; name: string; quantity: number; priceInCents: number }>
   >([]);
   const [selectedItemId, setSelectedItemId] = useState<string>("");
+  const [customerName, setCustomerName] = useState("");
   const [orderReadId, setOrderReadId] = useState("");
   const [orderDeleteId, setOrderDeleteId] = useState("");
+  const [promotionName, setPromotionName] = useState("");
+  const [promotionCart, setPromotionCart] = useState<
+    Array<{ id: number; name: string; quantity: number; priceInCents: number }>
+  >([]);
+  const [selectedPromotionItemId, setSelectedPromotionItemId] = useState<string>("");
+  const [promotionReadId, setPromotionReadId] = useState("");
+  const [promotionDeleteId, setPromotionDeleteId] = useState("");
   const [useIndex, setUseIndex] = useState(true);
   const [logs, setLogs] = useState<
     Array<{ timestamp: string; message: string }>
@@ -83,15 +101,42 @@ export const App = () => {
       setOrderDeleteId(value);
     }
   };
+  const updateCustomerName = (e: any) => setCustomerName(e.target.value);
+  const updatePromotionName = (e: any) => setPromotionName(e.target.value);
+  const updatePromotionReadId = (e: any) => {
+    const value = e.target.value;
+    if (value === "" || /^\d+$/.test(value)) {
+      setPromotionReadId(value);
+    }
+  };
+  const updatePromotionDeleteId = (e: any) => {
+    const value = e.target.value;
+    if (value === "" || /^\d+$/.test(value)) {
+      setPromotionDeleteId(value);
+    }
+  };
   const updateResultText = (result: string) => setResultText(result);
 
   // Get default text for each tab/subtab combination
   const getDefaultText = (
-    tab: "item" | "order" | "debug",
+    tab: "item" | "order" | "promotion" | "debug",
     subTab?: "create" | "read" | "delete"
   ) => {
     if (tab === "debug") {
       return "Debug tools and utilities";
+    }
+
+    if (tab === "promotion") {
+      switch (subTab) {
+        case "create":
+          return "Create a new promotion by selecting items";
+        case "read":
+          return "Enter a promotion ID to fetch 👇";
+        case "delete":
+          return "Enter a promotion ID to delete 👇";
+        default:
+          return "Create a new promotion by selecting items";
+      }
     }
 
     if (tab === "order") {
@@ -124,7 +169,7 @@ export const App = () => {
   };
 
   // Handle main tab changes
-  const handleTabChange = (tab: "item" | "order" | "debug") => {
+  const handleTabChange = (tab: "item" | "order" | "promotion" | "debug") => {
     setActiveTab(tab);
     if (tab === "item") {
       // Reset to create subtab
@@ -135,8 +180,18 @@ export const App = () => {
       setOrderSubTab("create");
       setSelectedItemId("");
       setCart([]);
+      setCustomerName("");
       setResultText(getDefaultText(tab, "create"));
       // Load items when entering order tab
+      loadItems();
+    } else if (tab === "promotion") {
+      // Reset promotion page state and subtab
+      setPromotionSubTab("create");
+      setSelectedPromotionItemId("");
+      setPromotionCart([]);
+      setPromotionName("");
+      setResultText(getDefaultText(tab, "create"));
+      // Load items when entering promotion tab
       loadItems();
     } else {
       setResultText(getDefaultText(tab));
@@ -155,6 +210,16 @@ export const App = () => {
   const handleOrderSubTabChange = (subTab: "create" | "read" | "delete") => {
     setOrderSubTab(subTab);
     setResultText(getDefaultText("order", subTab));
+    // Load items when switching to create subtab
+    if (subTab === "create") {
+      loadItems();
+    }
+  };
+
+  // Handle promotion subtab changes
+  const handlePromotionSubTabChange = (subTab: "create" | "read" | "delete") => {
+    setPromotionSubTab(subTab);
+    setResultText(getDefaultText("promotion", subTab));
     // Load items when switching to create subtab
     if (subTab === "create") {
       loadItems();
@@ -298,10 +363,17 @@ export const App = () => {
       });
   };
 
-  // Load all items for order tab
+  // Load all items for order/promotion tabs
   const loadItems = () => {
-    // GetItems not implemented yet
-    setAvailableItems([]);
+    GetAllItems()
+      .then((items: any[]) => {
+        setAvailableItems(items);
+        updateResultText(`Loaded ${items.length} items`);
+      })
+      .catch((err: any) => {
+        updateResultText(`Error loading items: ${err}`);
+        setAvailableItems([]);
+      });
   };
 
   // Add item to cart
@@ -355,17 +427,217 @@ export const App = () => {
 
   // Submit order - writes order to orders.bin
   const submitOrder = () => {
-    updateResultText("Order functionality not yet implemented");
+    if (!customerName || customerName.trim().length === 0) {
+      updateResultText("Error: Please enter a customer name");
+      return;
+    }
+
+    if (cart.length === 0) {
+      updateResultText("Error: Cart is empty");
+      return;
+    }
+
+    // Convert cart to item IDs array (with duplicates for quantity)
+    const itemIDs: number[] = [];
+    cart.forEach(item => {
+      for (let i = 0; i < item.quantity; i++) {
+        itemIDs.push(item.id);
+      }
+    });
+
+    CreateOrder(customerName, itemIDs)
+      .then((orderId: number) => {
+        updateResultText(`Order #${orderId} created successfully for ${customerName}!`);
+        // Clear cart and customer name
+        setCart([]);
+        setCustomerName("");
+        setSelectedItemId("");
+        refreshLogs();
+      })
+      .catch((err: any) => {
+        updateResultText(`Error creating order: ${err}`);
+      });
   };
 
   // Get order by ID
   const getOrderById = () => {
-    updateResultText("Order functionality not yet implemented");
+    if (!orderReadId || orderReadId.trim().length === 0) {
+      updateResultText("Error: Please enter an order ID");
+      return;
+    }
+
+    const id = parseInt(orderReadId, 10);
+    if (isNaN(id) || id < 0) {
+      updateResultText("Error: Invalid order ID");
+      return;
+    }
+
+    GetOrder(id)
+      .then((order: any) => {
+        updateResultText(
+          `Order #${order.id}: ${order.customer} - ${order.itemCount} items - Total: $${(order.totalPrice / 100).toFixed(2)}`
+        );
+        refreshLogs();
+      })
+      .catch((err: any) => {
+        updateResultText(`Error: ${err}`);
+      });
   };
 
   // Delete order by ID
-  const deleteOrder = () => {
-    updateResultText("Order functionality not yet implemented");
+  const deleteOrderById = () => {
+    if (!orderDeleteId || orderDeleteId.trim().length === 0) {
+      updateResultText("Error: Please enter an order ID");
+      return;
+    }
+
+    const id = parseInt(orderDeleteId, 10);
+    if (isNaN(id) || id < 0) {
+      updateResultText("Error: Invalid order ID");
+      return;
+    }
+
+    DeleteOrder(id)
+      .then(() => {
+        updateResultText(`Successfully deleted order #${id}`);
+        setOrderDeleteId("");
+        refreshLogs();
+      })
+      .catch((err: any) => {
+        updateResultText(`Error: ${err}`);
+      });
+  };
+
+  // Add item to promotion cart
+  const addToPromotionCart = () => {
+    if (!selectedPromotionItemId) {
+      updateResultText("Error: Please select an item");
+      return;
+    }
+
+    const itemId = parseInt(selectedPromotionItemId, 10);
+    const item = availableItems.find((i) => i.id === itemId);
+
+    if (!item) {
+      updateResultText("Error: Item not found");
+      return;
+    }
+
+    // Check if item already in cart
+    const existingItem = promotionCart.find((c) => c.id === itemId);
+    if (existingItem) {
+      // Increment quantity
+      setPromotionCart(
+        promotionCart.map((c) =>
+          c.id === itemId ? { ...c, quantity: c.quantity + 1 } : c
+        )
+      );
+    } else {
+      // Add new item to cart
+      setPromotionCart([
+        ...promotionCart,
+        {
+          id: item.id,
+          name: item.name,
+          quantity: 1,
+          priceInCents: item.priceInCents,
+        },
+      ]);
+    }
+
+    updateResultText(`Added ${item.name} to promotion`);
+  };
+
+  // Remove item from promotion cart
+  const removeFromPromotionCart = (itemId: number) => {
+    const item = promotionCart.find((c) => c.id === itemId);
+    if (item) {
+      setPromotionCart(promotionCart.filter((c) => c.id !== itemId));
+      updateResultText(`Removed ${item.name} from promotion`);
+    }
+  };
+
+  // Submit promotion
+  const submitPromotion = () => {
+    if (!promotionName || promotionName.trim().length === 0) {
+      updateResultText("Error: Please enter a promotion name");
+      return;
+    }
+
+    if (promotionCart.length === 0) {
+      updateResultText("Error: Promotion cart is empty");
+      return;
+    }
+
+    // Convert cart to item IDs array (with duplicates for quantity)
+    const itemIDs: number[] = [];
+    promotionCart.forEach(item => {
+      for (let i = 0; i < item.quantity; i++) {
+        itemIDs.push(item.id);
+      }
+    });
+
+    CreatePromotion(promotionName, itemIDs)
+      .then((promotionId: number) => {
+        updateResultText(`Promotion #${promotionId} "${promotionName}" created successfully!`);
+        // Clear cart and promotion name
+        setPromotionCart([]);
+        setPromotionName("");
+        setSelectedPromotionItemId("");
+        refreshLogs();
+      })
+      .catch((err: any) => {
+        updateResultText(`Error creating promotion: ${err}`);
+      });
+  };
+
+  // Get promotion by ID
+  const getPromotionById = () => {
+    if (!promotionReadId || promotionReadId.trim().length === 0) {
+      updateResultText("Error: Please enter a promotion ID");
+      return;
+    }
+
+    const id = parseInt(promotionReadId, 10);
+    if (isNaN(id) || id < 0) {
+      updateResultText("Error: Invalid promotion ID");
+      return;
+    }
+
+    GetPromotion(id)
+      .then((promotion: any) => {
+        updateResultText(
+          `Promotion #${promotion.id}: "${promotion.name}" - ${promotion.itemCount} items - Total: $${(promotion.totalPrice / 100).toFixed(2)}`
+        );
+        refreshLogs();
+      })
+      .catch((err: any) => {
+        updateResultText(`Error: ${err}`);
+      });
+  };
+
+  // Delete promotion by ID
+  const deletePromotionById = () => {
+    if (!promotionDeleteId || promotionDeleteId.trim().length === 0) {
+      updateResultText("Error: Please enter a promotion ID");
+      return;
+    }
+
+    const id = parseInt(promotionDeleteId, 10);
+    if (isNaN(id) || id < 0) {
+      updateResultText("Error: Invalid promotion ID");
+      return;
+    }
+
+    DeletePromotion(id)
+      .then(() => {
+        updateResultText(`Successfully deleted promotion #${id}`);
+        setPromotionDeleteId("");
+        refreshLogs();
+      })
+      .catch((err: any) => {
+        updateResultText(`Error: ${err}`);
+      });
   };
 
   // Load logs once when panel is opened
@@ -428,6 +700,12 @@ export const App = () => {
           Order
         </button>
         <button
+          className={`tab ${activeTab === "promotion" ? "active" : ""}`}
+          onClick={() => handleTabChange("promotion")}
+        >
+          Promotion
+        </button>
+        <button
           className={`tab ${activeTab === "debug" ? "active" : ""}`}
           onClick={() => handleTabChange("debug")}
         >
@@ -481,8 +759,31 @@ export const App = () => {
         </div>
       )}
 
+      {activeTab === "promotion" && (
+        <div className="sub_tabs">
+          <button
+            className={`tab ${promotionSubTab === "create" ? "active" : ""}`}
+            onClick={() => handlePromotionSubTabChange("create")}
+          >
+            Create
+          </button>
+          <button
+            className={`tab ${promotionSubTab === "read" ? "active" : ""}`}
+            onClick={() => handlePromotionSubTabChange("read")}
+          >
+            Read
+          </button>
+          <button
+            className={`tab ${promotionSubTab === "delete" ? "active" : ""}`}
+            onClick={() => handlePromotionSubTabChange("delete")}
+          >
+            Delete
+          </button>
+        </div>
+      )}
+
       <div id="App">
-        {activeTab !== "order" && (
+        {activeTab !== "order" && activeTab !== "promotion" && (
           <img src={logo} id="logo" alt="logo" />
         )}
         <div id="result" className="result">
@@ -629,14 +930,21 @@ export const App = () => {
           <div id="order-section">
             <div className="cart-container">
               <div className="cart-header">
-                <h3>Cart</h3>
-                {cart.length > 0 && (
+                <h3>Order</h3>
+                {cart.length > 0 && customerName && (
                   <button className="btn btn-primary" onClick={submitOrder}>
                     Submit Order
                   </button>
                 )}
               </div>
-              .
+              <input
+                className="input"
+                type="text"
+                placeholder="Customer Name"
+                value={customerName}
+                onChange={updateCustomerName}
+                style={{ marginBottom: "10px" }}
+              />
               {cart.length > 0 && (
                 <div className="cart-total">
                   Total: $
@@ -731,8 +1039,127 @@ export const App = () => {
               placeholder="Enter Order ID"
               value={orderDeleteId}
             />
-            <button className="btn btn-danger" onClick={deleteOrder}>
+            <button className="btn btn-danger" onClick={deleteOrderById}>
               Delete Order
+            </button>
+          </div>
+        )}
+
+        {activeTab === "promotion" && promotionSubTab === "create" && (
+          <div id="promotion-section">
+            <div className="cart-container">
+              <div className="cart-header">
+                <h3>Promotion</h3>
+                {promotionCart.length > 0 && promotionName && (
+                  <button className="btn btn-primary" onClick={submitPromotion}>
+                    Create Promotion
+                  </button>
+                )}
+              </div>
+              <input
+                className="input"
+                type="text"
+                placeholder="Promotion Name"
+                value={promotionName}
+                onChange={updatePromotionName}
+                style={{ marginBottom: "10px" }}
+              />
+              {promotionCart.length > 0 && (
+                <div className="cart-total">
+                  Total: $
+                  {(
+                    promotionCart.reduce(
+                      (sum, item) => sum + item.priceInCents * item.quantity,
+                      0
+                    ) / 100
+                  ).toFixed(2)}
+                </div>
+              )}
+              <div className="cart-items">
+                {promotionCart.length === 0 ? (
+                  <div className="cart-empty">No items in promotion</div>
+                ) : (
+                  promotionCart.map((item) => (
+                    <div key={item.id} className="cart-item">
+                      <div className="cart-item-info">
+                        <div className="cart-item-name">{item.name}</div>
+                        <div className="cart-item-id">
+                          ID: {item.id} | $
+                          {(item.priceInCents / 100).toFixed(2)} each | Total: $
+                          {((item.priceInCents * item.quantity) / 100).toFixed(
+                            2
+                          )}
+                        </div>
+                      </div>
+                      <div className="cart-item-controls">
+                        <div className="cart-item-quantity">
+                          x{item.quantity}
+                        </div>
+                        <button
+                          className="btn btn-danger btn-small"
+                          onClick={() => removeFromPromotionCart(item.id)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="cart-footer">
+                <select
+                  className="cart-select"
+                  value={selectedPromotionItemId}
+                  onChange={(e: any) => setSelectedPromotionItemId(e.target.value)}
+                >
+                  <option value="">Select an item...</option>
+                  {availableItems
+                    .sort((a, b) => a.id - b.id)
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        [{item.id}] {item.name} - $
+                        {(item.priceInCents / 100).toFixed(2)}
+                      </option>
+                    ))}
+                </select>
+                <button className="btn" onClick={addToPromotionCart}>
+                  Add
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "promotion" && promotionSubTab === "read" && (
+          <div id="promotion-read-input" className="input-box">
+            <input
+              id="promotion-read-id"
+              className="input"
+              onChange={updatePromotionReadId}
+              autoComplete="off"
+              name="promotion-read-id"
+              placeholder="Enter Promotion ID"
+              value={promotionReadId}
+            />
+            <button className="btn" onClick={getPromotionById}>
+              Get Promotion
+            </button>
+          </div>
+        )}
+
+        {activeTab === "promotion" && promotionSubTab === "delete" && (
+          <div id="promotion-delete-input" className="input-box">
+            <input
+              id="promotion-delete-id"
+              className="input"
+              onChange={updatePromotionDeleteId}
+              autoComplete="off"
+              name="promotion-delete-id"
+              placeholder="Enter Promotion ID"
+              value={promotionDeleteId}
+            />
+            <button className="btn btn-danger" onClick={deletePromotionById}>
+              Delete Promotion
             </button>
           </div>
         )}

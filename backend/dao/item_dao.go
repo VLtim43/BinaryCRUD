@@ -408,3 +408,40 @@ func (dao *ItemDAO) Delete(id uint64) error {
 func (dao *ItemDAO) GetIndexTree() *index.BTree {
 	return dao.tree
 }
+
+// Item represents an item record
+type Item struct {
+	ID           uint64
+	Name         string
+	PriceInCents uint64
+}
+
+// GetAll retrieves all non-deleted items from the database
+func (dao *ItemDAO) GetAll() ([]Item, error) {
+	// Ensure file exists
+	if err := dao.ensureFileExists(); err != nil {
+		return nil, err
+	}
+
+	// Get all entries from the index
+	allEntries := dao.tree.GetAll()
+
+	items := make([]Item, 0, len(allEntries))
+
+	// Read each item by ID
+	for id := range allEntries {
+		itemID, name, priceInCents, err := dao.readWithIndex(id, true)
+		if err != nil {
+			// Skip deleted or errored items
+			continue
+		}
+
+		items = append(items, Item{
+			ID:           itemID,
+			Name:         name,
+			PriceInCents: priceInCents,
+		})
+	}
+
+	return items, nil
+}

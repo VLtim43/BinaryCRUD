@@ -111,7 +111,7 @@ BinaryCRUD/
 
 ### Index File
 
-Maps Item ID � File Offset for fast lookups:
+Maps Item ID -> File Offset for fast lookups:
 
 ```
 [count(8)]

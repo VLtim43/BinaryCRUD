@@ -10,12 +10,32 @@ export function ClearLogs() {
   return window['go']['main']['App']['ClearLogs']();
 }
 
+export function CreateOrder(arg1, arg2) {
+  return window['go']['main']['App']['CreateOrder'](arg1, arg2);
+}
+
+export function CreatePromotion(arg1, arg2) {
+  return window['go']['main']['App']['CreatePromotion'](arg1, arg2);
+}
+
 export function DeleteAllFiles() {
   return window['go']['main']['App']['DeleteAllFiles']();
 }
 
 export function DeleteItem(arg1) {
   return window['go']['main']['App']['DeleteItem'](arg1);
+}
+
+export function DeleteOrder(arg1) {
+  return window['go']['main']['App']['DeleteOrder'](arg1);
+}
+
+export function DeletePromotion(arg1) {
+  return window['go']['main']['App']['DeletePromotion'](arg1);
+}
+
+export function GetAllItems() {
+  return window['go']['main']['App']['GetAllItems']();
 }
 
 export function GetIndexContents() {
@@ -28,6 +48,14 @@ export function GetItem(arg1, arg2) {
 
 export function GetLogs() {
   return window['go']['main']['App']['GetLogs']();
+}
+
+export function GetOrder(arg1) {
+  return window['go']['main']['App']['GetOrder'](arg1);
+}
+
+export function GetPromotion(arg1) {
+  return window['go']['main']['App']['GetPromotion'](arg1);
 }
 
 export function PopulateInventory() {

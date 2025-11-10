@@ -2,6 +2,7 @@ package main
 
 import (
 	"BinaryCRUD/backend/dao"
+	"BinaryCRUD/backend/utils"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,9 +13,11 @@ import (
 
 // App struct
 type App struct {
-	ctx     context.Context
-	itemDAO *dao.ItemDAO
-	logger  *Logger
+	ctx          context.Context
+	itemDAO      *dao.ItemDAO
+	orderDAO     *dao.OrderDAO
+	promotionDAO *dao.PromotionDAO
+	logger       *Logger
 }
 
 // NewApp creates a new App application struct
@@ -22,8 +25,10 @@ func NewApp() *App {
 	logger := NewLogger(1000) // Store up to 1000 log entries
 
 	return &App{
-		itemDAO: dao.NewItemDAO("data/items.bin"),
-		logger:  logger,
+		itemDAO:      dao.NewItemDAO("data/items.bin"),
+		orderDAO:     dao.NewOrderDAO("data/orders.bin"),
+		promotionDAO: dao.NewPromotionDAO("data/promotions.bin"),
+		logger:       logger,
 	}
 }
 
@@ -225,5 +230,172 @@ func (a *App) PopulateInventory() error {
 		return fmt.Errorf("some items failed to add: %d succeeded, %d failed", successCount, failCount)
 	}
 
+	return nil
+}
+
+// GetAllItems retrieves all non-deleted items from the database
+func (a *App) GetAllItems() ([]map[string]any, error) {
+	items, err := a.itemDAO.GetAll()
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to map format for JSON serialization
+	result := make([]map[string]any, len(items))
+	for i, item := range items {
+		result[i] = map[string]any{
+			"id":           item.ID,
+			"name":         item.Name,
+			"priceInCents": item.PriceInCents,
+		}
+	}
+
+	a.logger.Log(fmt.Sprintf("Retrieved %d items", len(items)))
+	return result, nil
+}
+
+// CreateOrder creates a new order with the given customer name and item IDs
+func (a *App) CreateOrder(customerName string, itemIDs []uint64) (uint64, error) {
+	// Validate inputs
+	if customerName == "" {
+		return 0, fmt.Errorf("customer name cannot be empty")
+	}
+
+	if len(itemIDs) == 0 {
+		return 0, fmt.Errorf("order must contain at least one item")
+	}
+
+	// Calculate total price by reading each item
+	var totalPrice uint64
+	for _, itemID := range itemIDs {
+		_, _, priceInCents, err := a.itemDAO.ReadWithIndex(itemID, true)
+		if err != nil {
+			return 0, fmt.Errorf("failed to read item %d: %w", itemID, err)
+		}
+		totalPrice += priceInCents
+	}
+
+	// Read current header to get next ID
+	file, err := os.OpenFile("data/orders.bin", os.O_RDONLY, 0644)
+	var nextID uint64 = 1
+	if err == nil {
+		_, _, id, readErr := utils.ReadHeader(file)
+		if readErr == nil {
+			nextID = uint64(id)
+		}
+		file.Close()
+	}
+
+	// Write order to orders.bin
+	err = a.orderDAO.Write(customerName, totalPrice, itemIDs)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create order: %w", err)
+	}
+
+	a.logger.Log(fmt.Sprintf("Created order #%d for %s with %d items (total: $%.2f)",
+		nextID, customerName, len(itemIDs), float64(totalPrice)/100))
+
+	return nextID, nil
+}
+
+// GetOrder retrieves an order by ID
+func (a *App) GetOrder(id uint64) (map[string]any, error) {
+	order, err := a.orderDAO.Read(id)
+	if err != nil {
+		return nil, err
+	}
+
+	a.logger.Log(fmt.Sprintf("Retrieved order #%d for %s", id, order.OwnerOrName))
+
+	return map[string]any{
+		"id":         order.ID,
+		"customer":   order.OwnerOrName,
+		"totalPrice": order.TotalPrice,
+		"itemCount":  order.ItemCount,
+		"itemIDs":    order.ItemIDs,
+	}, nil
+}
+
+// DeleteOrder marks an order as deleted
+func (a *App) DeleteOrder(id uint64) error {
+	err := a.orderDAO.Delete(id)
+	if err != nil {
+		return err
+	}
+
+	a.logger.Log(fmt.Sprintf("Deleted order #%d", id))
+	return nil
+}
+
+// CreatePromotion creates a new promotion with the given name and item IDs
+func (a *App) CreatePromotion(promotionName string, itemIDs []uint64) (uint64, error) {
+	// Validate inputs
+	if promotionName == "" {
+		return 0, fmt.Errorf("promotion name cannot be empty")
+	}
+
+	if len(itemIDs) == 0 {
+		return 0, fmt.Errorf("promotion must contain at least one item")
+	}
+
+	// Calculate total price by reading each item
+	var totalPrice uint64
+	for _, itemID := range itemIDs {
+		_, _, priceInCents, err := a.itemDAO.ReadWithIndex(itemID, true)
+		if err != nil {
+			return 0, fmt.Errorf("failed to read item %d: %w", itemID, err)
+		}
+		totalPrice += priceInCents
+	}
+
+	// Read current header to get next ID
+	file, err := os.OpenFile("data/promotions.bin", os.O_RDONLY, 0644)
+	var nextID uint64 = 1
+	if err == nil {
+		_, _, id, readErr := utils.ReadHeader(file)
+		if readErr == nil {
+			nextID = uint64(id)
+		}
+		file.Close()
+	}
+
+	// Write promotion to promotions.bin
+	err = a.promotionDAO.Write(promotionName, totalPrice, itemIDs)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create promotion: %w", err)
+	}
+
+	a.logger.Log(fmt.Sprintf("Created promotion #%d: %s with %d items (total: $%.2f)",
+		nextID, promotionName, len(itemIDs), float64(totalPrice)/100))
+
+	return nextID, nil
+}
+
+// GetPromotion retrieves a promotion by ID
+func (a *App) GetPromotion(id uint64) (map[string]any, error) {
+	promotion, err := a.promotionDAO.Read(id)
+	if err != nil {
+		return nil, err
+	}
+
+	a.logger.Log(fmt.Sprintf("Retrieved promotion #%d: %s", id, promotion.OwnerOrName))
+
+	return map[string]any{
+		"id":         promotion.ID,
+		"name":       promotion.OwnerOrName,
+		"totalPrice": promotion.TotalPrice,
+		"itemCount":  promotion.ItemCount,
+		"itemIDs":    promotion.ItemIDs,
+	}, nil
+}
+
+// DeletePromotion marks a promotion as deleted
+func (a *App) DeletePromotion(id uint64) error {
+	err := a.promotionDAO.Delete(id)
+	if err != nil {
+		return err
+	}
+
+	a.logger.Log(fmt.Sprintf("Deleted promotion #%d", id))
 	return nil
 }
