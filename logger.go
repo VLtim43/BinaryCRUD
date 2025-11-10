@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"os"
 	"sync"
-	"time"
 )
 
 // LogEntry represents a single log message with timestamp and level
