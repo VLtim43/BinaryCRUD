@@ -36,7 +36,7 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	a.logger.Log("Application started")
+	a.logger.Info("Application started")
 }
 
 // AddItem writes an item to the binary file with a price in cents
@@ -56,7 +56,7 @@ func (a *App) AddItem(text string, priceInCents uint64) error {
 	}
 
 	// Log debugging information
-	a.logger.Log(fmt.Sprintf("[debugging] created item %s [%s]", text, hexName))
+	a.logger.Debug(fmt.Sprintf("Created item %s [hex: %s]", text, hexName))
 
 	return a.itemDAO.Write(text, priceInCents)
 }
@@ -68,7 +68,7 @@ func (a *App) GetItem(id uint64, useIndex bool) (map[string]any, error) {
 		return nil, err
 	}
 
-	a.logger.Log(fmt.Sprintf("Read item ID %d using index: %v", id, useIndex))
+	a.logger.Info(fmt.Sprintf("Read item ID %d using index: %v", id, useIndex))
 
 	return map[string]any{
 		"id":           itemID,
@@ -84,7 +84,7 @@ func (a *App) DeleteItem(id uint64) error {
 		return err
 	}
 
-	a.logger.Log(fmt.Sprintf("Deleted item with ID: %d", id))
+	a.logger.Info(fmt.Sprintf("Deleted item with ID: %d", id))
 	return nil
 }
 
@@ -112,25 +112,25 @@ func (a *App) DeleteAllFiles() error {
 
 			// Skip .json files
 			if len(fileName) >= 5 && fileName[len(fileName)-5:] == ".json" {
-				a.logger.Log(fmt.Sprintf("Skipping JSON file: %s", fileName))
+				a.logger.Debug(fmt.Sprintf("Skipping JSON file: %s", fileName))
 				continue
 			}
 
 			err := os.Remove(filePath)
 			if err != nil {
-				a.logger.Log(fmt.Sprintf("Failed to delete %s: %v", fileName, err))
+				a.logger.Warn(fmt.Sprintf("Failed to delete %s: %v", fileName, err))
 			} else {
-				a.logger.Log(fmt.Sprintf("Deleted file: %s", fileName))
+				a.logger.Info(fmt.Sprintf("Deleted file: %s", fileName))
 				deletedCount++
 			}
 		}
 	}
 
-	a.logger.Log(fmt.Sprintf("Deleted %d file(s), skipped .json files", deletedCount))
+	a.logger.Info(fmt.Sprintf("Deleted %d file(s), skipped .json files", deletedCount))
 
 	// Reload ItemDAO to clear the in-memory index
 	a.itemDAO = dao.NewItemDAO("data/items.bin")
-	a.logger.Log("Cleared in-memory index")
+	a.logger.Info("Cleared in-memory index")
 
 	return nil
 }
@@ -176,7 +176,7 @@ func (a *App) GetIndexContents() (map[string]any, error) {
 		return entries[i].ID < entries[j].ID
 	})
 
-	a.logger.Log(fmt.Sprintf("Index contains %d entries", len(entries)))
+	a.logger.Info(fmt.Sprintf("Index contains %d entries", len(entries)))
 
 	return map[string]any{
 		"count":   len(entries),
@@ -201,7 +201,7 @@ func (a *App) PopulateInventory() error {
 		return fmt.Errorf("failed to parse items.json: %w", err)
 	}
 
-	a.logger.Log(fmt.Sprintf("Starting inventory population with %d items", len(items)))
+	a.logger.Info(fmt.Sprintf("Starting inventory population with %d items", len(items)))
 
 	// Add each item sequentially with a delay to prevent race conditions
 	successCount := 0
@@ -211,20 +211,20 @@ func (a *App) PopulateInventory() error {
 		// Add item using the Write method (protected by mutex)
 		err := a.itemDAO.Write(item.Name, item.PriceInCents)
 		if err != nil {
-			a.logger.Log(fmt.Sprintf("Failed to add item %d (%s): %v", i+1, item.Name, err))
+			a.logger.Error(fmt.Sprintf("Failed to add item %d (%s): %v", i+1, item.Name, err))
 			failCount++
 			continue
 		}
 
 		successCount++
-		a.logger.Log(fmt.Sprintf("Added item %d/%d: %s ($%.2f)", i+1, len(items), item.Name, float64(item.PriceInCents)/100))
+		a.logger.Info(fmt.Sprintf("Added item %d/%d: %s ($%.2f)", i+1, len(items), item.Name, float64(item.PriceInCents)/100))
 
 		// Small delay to ensure file system has time to complete the write
 		// This prevents potential file corruption from rapid sequential writes
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	a.logger.Log(fmt.Sprintf("Inventory population complete: %d succeeded, %d failed", successCount, failCount))
+	a.logger.Info(fmt.Sprintf("Inventory population complete: %d succeeded, %d failed", successCount, failCount))
 
 	if failCount > 0 {
 		return fmt.Errorf("some items failed to add: %d succeeded, %d failed", successCount, failCount)
@@ -250,7 +250,7 @@ func (a *App) GetAllItems() ([]map[string]any, error) {
 		}
 	}
 
-	a.logger.Log(fmt.Sprintf("Retrieved %d items", len(items)))
+	a.logger.Info(fmt.Sprintf("Retrieved %d items", len(items)))
 	return result, nil
 }
 
@@ -292,7 +292,7 @@ func (a *App) CreateOrder(customerName string, itemIDs []uint64) (uint64, error)
 		return 0, fmt.Errorf("failed to create order: %w", err)
 	}
 
-	a.logger.Log(fmt.Sprintf("Created order #%d for %s with %d items (total: $%.2f)",
+	a.logger.Info(fmt.Sprintf("Created order #%d for %s with %d items (total: $%.2f)",
 		nextID, customerName, len(itemIDs), float64(totalPrice)/100))
 
 	return nextID, nil
@@ -305,7 +305,7 @@ func (a *App) GetOrder(id uint64) (map[string]any, error) {
 		return nil, err
 	}
 
-	a.logger.Log(fmt.Sprintf("Retrieved order #%d for %s", id, order.OwnerOrName))
+	a.logger.Info(fmt.Sprintf("Retrieved order #%d for %s", id, order.OwnerOrName))
 
 	return map[string]any{
 		"id":         order.ID,
@@ -323,7 +323,7 @@ func (a *App) DeleteOrder(id uint64) error {
 		return err
 	}
 
-	a.logger.Log(fmt.Sprintf("Deleted order #%d", id))
+	a.logger.Info(fmt.Sprintf("Deleted order #%d", id))
 	return nil
 }
 
@@ -365,7 +365,7 @@ func (a *App) CreatePromotion(promotionName string, itemIDs []uint64) (uint64, e
 		return 0, fmt.Errorf("failed to create promotion: %w", err)
 	}
 
-	a.logger.Log(fmt.Sprintf("Created promotion #%d: %s with %d items (total: $%.2f)",
+	a.logger.Info(fmt.Sprintf("Created promotion #%d: %s with %d items (total: $%.2f)",
 		nextID, promotionName, len(itemIDs), float64(totalPrice)/100))
 
 	return nextID, nil
@@ -378,7 +378,7 @@ func (a *App) GetPromotion(id uint64) (map[string]any, error) {
 		return nil, err
 	}
 
-	a.logger.Log(fmt.Sprintf("Retrieved promotion #%d: %s", id, promotion.OwnerOrName))
+	a.logger.Info(fmt.Sprintf("Retrieved promotion #%d: %s", id, promotion.OwnerOrName))
 
 	return map[string]any{
 		"id":         promotion.ID,
@@ -396,6 +396,6 @@ func (a *App) DeletePromotion(id uint64) error {
 		return err
 	}
 
-	a.logger.Log(fmt.Sprintf("Deleted promotion #%d", id))
+	a.logger.Info(fmt.Sprintf("Deleted promotion #%d", id))
 	return nil
 }

@@ -63,10 +63,11 @@ export const App = () => {
   const [promotionDeleteId, setPromotionDeleteId] = useState("");
   const [useIndex, setUseIndex] = useState(true);
   const [logs, setLogs] = useState<
-    Array<{ timestamp: string; message: string }>
+    Array<{ timestamp: string; level: string; message: string }>
   >([]);
   const [logsPanelOpen, setLogsPanelOpen] = useState(false);
   const [indexData, setIndexData] = useState<any>(null);
+  const logsContainerRef = useRef<HTMLDivElement>(null);
   const updateItemText = (e: any) => setItemText(e.target.value);
   const updateItemPrice = (e: any) => {
     const value = e.target.value;
@@ -647,10 +648,17 @@ export const App = () => {
     }
   }, [logsPanelOpen]);
 
+  // Auto-scroll to bottom when logs update
+  useEffect(() => {
+    if (logsContainerRef.current) {
+      logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight;
+    }
+  }, [logs]);
+
   // Refresh logs from backend
   const refreshLogs = () => {
     GetLogs()
-      .then((newLogs: Array<{ timestamp: string; message: string }>) => {
+      .then((newLogs: Array<{ timestamp: string; level: string; message: string }>) => {
         console.log("Logs fetched:", newLogs);
         setLogs(newLogs);
       })
@@ -674,11 +682,27 @@ export const App = () => {
   // Copy logs to clipboard
   const copyLogs = () => {
     const logText = logs
-      .map((log) => `[${log.timestamp}] ${log.message}`)
+      .map((log) => `[${log.timestamp}] [${log.level}] ${log.message}`)
       .join("\n");
     navigator.clipboard.writeText(logText).then(() => {
       updateResultText("Logs copied to clipboard!");
     });
+  };
+
+  // Get CSS class for log level
+  const getLogLevelClass = (level: string) => {
+    switch (level.toUpperCase()) {
+      case "DEBUG":
+        return "log-level-debug";
+      case "INFO":
+        return "log-level-info";
+      case "WARN":
+        return "log-level-warn";
+      case "ERROR":
+        return "log-level-error";
+      default:
+        return "log-level-info";
+    }
   };
 
   return (
@@ -1279,13 +1303,14 @@ export const App = () => {
                 </button>
               </div>
             </div>
-            <div className="logs-container">
+            <div className="logs-container" ref={logsContainerRef}>
               {logs.length === 0 ? (
                 <div className="logs-empty">No logs yet</div>
               ) : (
                 logs.map((log, index) => (
-                  <div key={index} className="log-entry">
+                  <div key={index} className={`log-entry ${getLogLevelClass(log.level)}`}>
                     <span className="log-timestamp">[{log.timestamp}]</span>
+                    <span className="log-level">[{log.level}]</span>
                     <span className="log-message">{log.message}</span>
                   </div>
                 ))

@@ -606,10 +606,47 @@
     font-weight: 600;
 }
 
+.log-level {
+    white-space: nowrap;
+    font-weight: 700;
+    font-size: 0.85em;
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+
 .log-message {
     color: #e0e0e0;
     flex: 1;
     white-space: pre-wrap;
+}
+
+// Log level colors
+.log-level-debug {
+    .log-level {
+        color: #9ca3af;
+        background-color: rgba(156, 163, 175, 0.1);
+    }
+}
+
+.log-level-info {
+    .log-level {
+        color: #60a5fa;
+        background-color: rgba(96, 165, 250, 0.1);
+    }
+}
+
+.log-level-warn {
+    .log-level {
+        color: #fbbf24;
+        background-color: rgba(251, 191, 36, 0.1);
+    }
+}
+
+.log-level-error {
+    .log-level {
+        color: #f87171;
+        background-color: rgba(248, 113, 113, 0.1);
+    }
 }
 
 // Custom scrollbar for logs
