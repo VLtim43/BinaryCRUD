@@ -1,66 +1,55 @@
 package utils
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 )
 
-// BuildFixed builds bytes for a fixed-size value with a unit separator
-func BuildFixed(size int, value uint64) ([]byte, error) {
-	buf := new(bytes.Buffer)
-
-	// Write the value based on size
-	switch size {
-	case 1:
-		if err := binary.Write(buf, binary.LittleEndian, uint8(value)); err != nil {
-			return nil, fmt.Errorf("failed to write 1-byte value: %w", err)
-		}
-	case 2:
-		if err := binary.Write(buf, binary.LittleEndian, uint16(value)); err != nil {
-			return nil, fmt.Errorf("failed to write 2-byte value: %w", err)
-		}
-	case 4:
-		if err := binary.Write(buf, binary.LittleEndian, uint32(value)); err != nil {
-			return nil, fmt.Errorf("failed to write 4-byte value: %w", err)
-		}
-	case 8:
-		if err := binary.Write(buf, binary.LittleEndian, value); err != nil {
-			return nil, fmt.Errorf("failed to write 8-byte value: %w", err)
-		}
-	default:
-		return nil, fmt.Errorf("invalid size: %d (must be 1, 2, 4, or 8)", size)
+// WriteFixedNumber writes a number as binary in a fixed-size field
+func WriteFixedNumber(size int, value uint64) ([]byte, error) {
+	if size <= 0 {
+		return nil, fmt.Errorf("size must be positive")
+	}
+	if size > 8 {
+		return nil, fmt.Errorf("size cannot exceed 8 bytes for uint64")
 	}
 
-	// Add unit separator
-	buf.WriteByte(UnitSeparator)
+	// Check if value fits in the specified number of bytes
+	maxValue := uint64(1<<(size*8)) - 1
+	if value > maxValue {
+		return nil, fmt.Errorf("value %d exceeds maximum for %d bytes (%d)", value, size, maxValue)
+	}
 
-	return buf.Bytes(), nil
+	// Convert number to bytes (big-endian)
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, value)
+
+	// Take the last 'size' bytes (right-most bytes)
+	data := buf[8-size:]
+
+	return data, nil
 }
 
-// BuildVariable builds bytes for a variable-length string with size prefix and separators
-// Format: [StringLength(4 bytes)][UnitSeparator][StringContent][UnitSeparator]
-// Example: BuildVariable("banana") returns [06 00][1F][62 61 6E 61 6E 61][1F]
-func BuildVariable(value string) ([]byte, error) {
-	data := []byte(value)
-	length := uint64(len(data))
-
-	// Build length bytes using BuildFixed (2 bytes + separator)
-	lengthBytes, err := BuildFixed(2, length)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build length: %w", err)
+// WriteFixedString writes a string as ASCII in a fixed-size field
+func WriteFixedString(size int, content string) ([]byte, error) {
+	if size <= 0 {
+		return nil, fmt.Errorf("size must be positive")
 	}
 
-	buf := new(bytes.Buffer)
+	contentBytes := []byte(content)
 
-	// Add length part [06 00][1F]
-	buf.Write(lengthBytes)
+	if len(contentBytes) > size {
+		return nil, fmt.Errorf("content length %d exceeds size %d", len(contentBytes), size)
+	}
 
-	// Add content [62 61 6E 61 6E 61]
-	buf.Write(data)
+	data := make([]byte, size)
+	// left-pad with zeros
+	copy(data[size-len(contentBytes):], contentBytes)
 
-	// Add separator after content [1F]
-	buf.WriteByte(UnitSeparator)
+	return data, nil
+}
 
-	return buf.Bytes(), nil
+// WriteVariable writes a string as ASCII with variable length
+func WriteVariable(content string) ([]byte, error) {
+	return []byte(content), nil
 }

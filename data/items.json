@@ -1,0 +1,82 @@
+[
+  {
+    "name": "Burger",
+    "priceInCents": 899
+  },
+  {
+    "name": "Fries",
+    "priceInCents": 349
+  },
+  {
+    "name": "Soda",
+    "priceInCents": 199
+  },
+  {
+    "name": "Pizza Slice",
+    "priceInCents": 599
+  },
+  {
+    "name": "Hot Dog",
+    "priceInCents": 449
+  },
+  {
+    "name": "Salad",
+    "priceInCents": 699
+  },
+  {
+    "name": "Chicken Sandwich",
+    "priceInCents": 949
+  },
+  {
+    "name": "Ice Cream",
+    "priceInCents": 299
+  },
+  {
+    "name": "Coffee",
+    "priceInCents": 249
+  },
+  {
+    "name": "Milkshake",
+    "priceInCents": 499
+  },
+  {
+    "name": "Nachos",
+    "priceInCents": 549
+  },
+  {
+    "name": "Tacos",
+    "priceInCents": 699
+  },
+  {
+    "name": "Burrito",
+    "priceInCents": 849
+  },
+  {
+    "name": "Quesadilla",
+    "priceInCents": 649
+  },
+  {
+    "name": "Wings",
+    "priceInCents": 999
+  },
+  {
+    "name": "Onion Rings",
+    "priceInCents": 399
+  },
+  {
+    "name": "Caesar Salad",
+    "priceInCents": 799
+  },
+  {
+    "name": "Grilled Cheese",
+    "priceInCents": 449
+  },
+  {
+    "name": "Club Sandwich",
+    "priceInCents": 899
+  },
+  {
+    "name": "Smoothie",
+    "priceInCents": 549
+  }
+]

@@ -6,16 +6,16 @@ export function AddItem(arg1, arg2) {
   return window['go']['main']['App']['AddItem'](arg1, arg2);
 }
 
-export function AddOrder(arg1) {
-  return window['go']['main']['App']['AddOrder'](arg1);
-}
-
-export function AddPromotion(arg1, arg2) {
-  return window['go']['main']['App']['AddPromotion'](arg1, arg2);
-}
-
 export function ClearLogs() {
   return window['go']['main']['App']['ClearLogs']();
+}
+
+export function CreateOrder(arg1, arg2) {
+  return window['go']['main']['App']['CreateOrder'](arg1, arg2);
+}
+
+export function CreatePromotion(arg1, arg2) {
+  return window['go']['main']['App']['CreatePromotion'](arg1, arg2);
 }
 
 export function DeleteAllFiles() {
@@ -34,58 +34,30 @@ export function DeletePromotion(arg1) {
   return window['go']['main']['App']['DeletePromotion'](arg1);
 }
 
-export function GetItemByID(arg1) {
-  return window['go']['main']['App']['GetItemByID'](arg1);
+export function GetAllItems() {
+  return window['go']['main']['App']['GetAllItems']();
 }
 
-export function GetItemByIDWithIndex(arg1) {
-  return window['go']['main']['App']['GetItemByIDWithIndex'](arg1);
+export function GetIndexContents() {
+  return window['go']['main']['App']['GetIndexContents']();
 }
 
-export function GetItems() {
-  return window['go']['main']['App']['GetItems']();
+export function GetItem(arg1, arg2) {
+  return window['go']['main']['App']['GetItem'](arg1, arg2);
 }
 
 export function GetLogs() {
   return window['go']['main']['App']['GetLogs']();
 }
 
-export function GetOrderByID(arg1) {
-  return window['go']['main']['App']['GetOrderByID'](arg1);
+export function GetOrder(arg1) {
+  return window['go']['main']['App']['GetOrder'](arg1);
 }
 
-export function GetOrders() {
-  return window['go']['main']['App']['GetOrders']();
+export function GetPromotion(arg1) {
+  return window['go']['main']['App']['GetPromotion'](arg1);
 }
 
-export function GetPromotionByID(arg1) {
-  return window['go']['main']['App']['GetPromotionByID'](arg1);
-}
-
-export function GetPromotions() {
-  return window['go']['main']['App']['GetPromotions']();
-}
-
-export function PopulateInventory(arg1) {
-  return window['go']['main']['App']['PopulateInventory'](arg1);
-}
-
-export function PrintBinaryFile() {
-  return window['go']['main']['App']['PrintBinaryFile']();
-}
-
-export function PrintIndex() {
-  return window['go']['main']['App']['PrintIndex']();
-}
-
-export function PrintOrdersFile() {
-  return window['go']['main']['App']['PrintOrdersFile']();
-}
-
-export function PrintPromotionsFile() {
-  return window['go']['main']['App']['PrintPromotionsFile']();
-}
-
-export function RebuildIndex() {
-  return window['go']['main']['App']['RebuildIndex']();
+export function PopulateInventory() {
+  return window['go']['main']['App']['PopulateInventory']();
 }

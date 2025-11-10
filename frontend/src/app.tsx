@@ -2,26 +2,20 @@ import "./App.scss";
 import logo from "./assets/images/logo-universal.png";
 import {
   AddItem,
-  AddOrder,
-  AddPromotion,
-  PrintBinaryFile,
-  PrintOrdersFile,
-  PrintPromotionsFile,
-  DeleteAllFiles,
-  GetItemByID,
-  GetItemByIDWithIndex,
-  GetOrderByID,
-  GetPromotionByID,
-  GetItems,
-  GetOrders,
-  GetPromotions,
-  PopulateInventory,
+  GetItem,
   DeleteItem,
-  DeleteOrder,
-  DeletePromotion,
-  PrintIndex,
+  DeleteAllFiles,
   GetLogs,
   ClearLogs,
+  PopulateInventory,
+  GetIndexContents,
+  GetAllItems,
+  CreateOrder,
+  GetOrder,
+  DeleteOrder,
+  CreatePromotion,
+  GetPromotion,
+  DeletePromotion,
 } from "../wailsjs/go/main/App";
 import { Quit } from "../wailsjs/runtime/runtime";
 import { useState, useEffect, useRef } from "preact/hooks";
@@ -37,14 +31,19 @@ export const App = () => {
   const [orderSubTab, setOrderSubTab] = useState<"create" | "read" | "delete">(
     "create"
   );
-  const [promotionSubTab, setPromotionSubTab] = useState<
-    "create" | "read" | "delete"
-  >("create");
+  const [promotionSubTab, setPromotionSubTab] = useState<"create" | "read" | "delete">(
+    "create"
+  );
   const [resultText, setResultText] = useState("Enter item text below 👇");
   const [itemText, setItemText] = useState("");
   const [itemPrice, setItemPrice] = useState("");
   const [recordId, setRecordId] = useState("");
   const [deleteRecordId, setDeleteRecordId] = useState("");
+  const [foundItem, setFoundItem] = useState<{
+    id: number;
+    name: string;
+    priceInCents: number;
+  } | null>(null);
   const [availableItems, setAvailableItems] = useState<
     Array<{ id: number; name: string; priceInCents: number }>
   >([]);
@@ -52,22 +51,23 @@ export const App = () => {
     Array<{ id: number; name: string; quantity: number; priceInCents: number }>
   >([]);
   const [selectedItemId, setSelectedItemId] = useState<string>("");
+  const [customerName, setCustomerName] = useState("");
+  const [orderReadId, setOrderReadId] = useState("");
+  const [orderDeleteId, setOrderDeleteId] = useState("");
   const [promotionName, setPromotionName] = useState("");
   const [promotionCart, setPromotionCart] = useState<
     Array<{ id: number; name: string; quantity: number; priceInCents: number }>
   >([]);
-  const [promotionSelectedItemId, setPromotionSelectedItemId] =
-    useState<string>("");
-  const [orderReadId, setOrderReadId] = useState("");
-  const [orderDeleteId, setOrderDeleteId] = useState("");
+  const [selectedPromotionItemId, setSelectedPromotionItemId] = useState<string>("");
   const [promotionReadId, setPromotionReadId] = useState("");
   const [promotionDeleteId, setPromotionDeleteId] = useState("");
   const [useIndex, setUseIndex] = useState(true);
-  const [isPopulatingInventory, setIsPopulatingInventory] = useState(false);
   const [logs, setLogs] = useState<
-    Array<{ timestamp: string; message: string }>
+    Array<{ timestamp: string; level: string; message: string }>
   >([]);
   const [logsPanelOpen, setLogsPanelOpen] = useState(false);
+  const [indexData, setIndexData] = useState<any>(null);
+  const logsContainerRef = useRef<HTMLDivElement>(null);
   const updateItemText = (e: any) => setItemText(e.target.value);
   const updateItemPrice = (e: any) => {
     const value = e.target.value;
@@ -102,6 +102,8 @@ export const App = () => {
       setOrderDeleteId(value);
     }
   };
+  const updateCustomerName = (e: any) => setCustomerName(e.target.value);
+  const updatePromotionName = (e: any) => setPromotionName(e.target.value);
   const updatePromotionReadId = (e: any) => {
     const value = e.target.value;
     if (value === "" || /^\d+$/.test(value)) {
@@ -125,6 +127,19 @@ export const App = () => {
       return "Debug tools and utilities";
     }
 
+    if (tab === "promotion") {
+      switch (subTab) {
+        case "create":
+          return "Create a new promotion by selecting items";
+        case "read":
+          return "Enter a promotion ID to fetch 👇";
+        case "delete":
+          return "Enter a promotion ID to delete 👇";
+        default:
+          return "Create a new promotion by selecting items";
+      }
+    }
+
     if (tab === "order") {
       switch (subTab) {
         case "create":
@@ -135,19 +150,6 @@ export const App = () => {
           return "Enter an order ID to delete 👇";
         default:
           return "Select items to add to your order";
-      }
-    }
-
-    if (tab === "promotion") {
-      switch (subTab) {
-        case "create":
-          return "Create a promotion with a name and items";
-        case "read":
-          return "Enter a promotion ID to fetch 👇";
-        case "delete":
-          return "Enter a promotion ID to delete 👇";
-        default:
-          return "Create a promotion with a name and items";
       }
     }
 
@@ -179,13 +181,14 @@ export const App = () => {
       setOrderSubTab("create");
       setSelectedItemId("");
       setCart([]);
+      setCustomerName("");
       setResultText(getDefaultText(tab, "create"));
       // Load items when entering order tab
       loadItems();
     } else if (tab === "promotion") {
       // Reset promotion page state and subtab
       setPromotionSubTab("create");
-      setPromotionSelectedItemId("");
+      setSelectedPromotionItemId("");
       setPromotionCart([]);
       setPromotionName("");
       setResultText(getDefaultText(tab, "create"));
@@ -200,6 +203,8 @@ export const App = () => {
   const handleItemSubTabChange = (subTab: "create" | "read" | "delete") => {
     setItemSubTab(subTab);
     setResultText(getDefaultText("item", subTab));
+    // Clear found item when switching tabs
+    setFoundItem(null);
   };
 
   // Handle order subtab changes
@@ -213,9 +218,7 @@ export const App = () => {
   };
 
   // Handle promotion subtab changes
-  const handlePromotionSubTabChange = (
-    subTab: "create" | "read" | "delete"
-  ) => {
+  const handlePromotionSubTabChange = (subTab: "create" | "read" | "delete") => {
     setPromotionSubTab(subTab);
     setResultText(getDefaultText("promotion", subTab));
     // Load items when switching to create subtab
@@ -255,44 +258,37 @@ export const App = () => {
       });
   };
 
-  const printFile = () => {
-    PrintBinaryFile()
-      .then(() => {
-        updateResultText("Binary file printed to application console!");
-        refreshLogs();
-      })
-      .catch((err: any) => {
-        updateResultText(`Error: ${err}`);
-      });
-  };
-
   const getRecordById = () => {
-    // Validate input before sending to backend
+    // Validate input
     if (!recordId || recordId.trim().length === 0) {
       updateResultText("Error: Please enter a record ID");
+      setFoundItem(null);
       return;
     }
 
-    // Parse the record ID as a number
     const id = parseInt(recordId, 10);
     if (isNaN(id) || id < 0) {
-      updateResultText("Error: Record ID must be a valid non-negative number");
+      updateResultText("Error: Invalid record ID");
+      setFoundItem(null);
       return;
     }
 
-    // Use index or sequential search based on checkbox
-    const searchMethod = useIndex ? GetItemByIDWithIndex : GetItemByID;
-    const methodName = useIndex ? "B+ Tree Index" : "Sequential Search";
-
-    searchMethod(id)
+    // Call backend to get item with index preference
+    GetItem(id, useIndex)
       .then((item: any) => {
-        const price = (item.priceInCents / 100).toFixed(2);
+        setFoundItem({
+          id: item.id,
+          name: item.name,
+          priceInCents: item.priceInCents,
+        });
+        const method = useIndex ? "B+ Tree Index" : "Sequential Scan";
         updateResultText(
-          `Record ${id}: ${item.name} - $${price} (using ${methodName})`
+          `Found Item #${item.id}: ${item.name} - $${(item.priceInCents / 100).toFixed(2)} (via ${method})`
         );
         refreshLogs();
       })
       .catch((err: any) => {
+        setFoundItem(null);
         updateResultText(`Error: ${err}`);
       });
   };
@@ -303,10 +299,7 @@ export const App = () => {
         // Clear all cached state
         setAvailableItems([]);
         setCart([]);
-        setPromotionCart([]);
         setSelectedItemId("");
-        setPromotionSelectedItemId("");
-        setPromotionName("");
         updateResultText("All generated files deleted successfully!");
         refreshLogs();
       })
@@ -316,53 +309,53 @@ export const App = () => {
   };
 
   const populateInventory = () => {
-    if (isPopulatingInventory) {
-      return; // Prevent multiple simultaneous calls
-    }
+    updateResultText("Populating inventory from items.json...");
 
-    setIsPopulatingInventory(true);
-    updateResultText("Populating inventory...");
-
-    PopulateInventory("inventory.json")
-      .then((result: string) => {
-        updateResultText(`Inventory populated! ${result}`);
-        setIsPopulatingInventory(false);
+    PopulateInventory()
+      .then(() => {
+        updateResultText("Inventory populated successfully! Check logs for details.");
         refreshLogs();
       })
       .catch((err: any) => {
-        updateResultText(`Error: ${err}`);
-        setIsPopulatingInventory(false);
+        updateResultText(`Error populating inventory: ${err}`);
+        refreshLogs();
       });
   };
 
   const printIndex = () => {
-    PrintIndex()
-      .then(() => {
-        updateResultText("Index printed to application console!");
+    updateResultText("Loading index contents...");
+
+    GetIndexContents()
+      .then((data: any) => {
+        setIndexData(data);
+        updateResultText(
+          `Index loaded: ${data.count} entries. Scroll down to see details.`
+        );
         refreshLogs();
       })
       .catch((err: any) => {
-        updateResultText(`Error: ${err}`);
+        setIndexData(null);
+        updateResultText(`Error loading index: ${err}`);
       });
   };
 
   const deleteItem = () => {
-    // Validate input before sending to backend
+    // Validate input
     if (!deleteRecordId || deleteRecordId.trim().length === 0) {
       updateResultText("Error: Please enter a record ID");
       return;
     }
 
-    // Parse the record ID as a number
     const id = parseInt(deleteRecordId, 10);
     if (isNaN(id) || id < 0) {
-      updateResultText("Error: Record ID must be a valid non-negative number");
+      updateResultText("Error: Invalid record ID");
       return;
     }
 
+    // Call backend to delete item
     DeleteItem(id)
-      .then((itemName: string) => {
-        updateResultText(`Record [${id}] [${itemName}] was deleted`);
+      .then(() => {
+        updateResultText(`Successfully deleted item with ID ${id}`);
         setDeleteRecordId("");
         refreshLogs();
       })
@@ -371,16 +364,16 @@ export const App = () => {
       });
   };
 
-  // Load all items for order tab
+  // Load all items for order/promotion tabs
   const loadItems = () => {
-    GetItems()
-      .then(
-        (items: Array<{ id: number; name: string; priceInCents: number }>) => {
-          setAvailableItems(items);
-        }
-      )
+    GetAllItems()
+      .then((items: any[]) => {
+        setAvailableItems(items);
+        updateResultText(`Loaded ${items.length} items`);
+      })
       .catch((err: any) => {
         updateResultText(`Error loading items: ${err}`);
+        setAvailableItems([]);
       });
   };
 
@@ -435,25 +428,80 @@ export const App = () => {
 
   // Submit order - writes order to orders.bin
   const submitOrder = () => {
+    if (!customerName || customerName.trim().length === 0) {
+      updateResultText("Error: Please enter a customer name");
+      return;
+    }
+
     if (cart.length === 0) {
       updateResultText("Error: Cart is empty");
       return;
     }
 
-    // Build array of item names based on quantities
-    const itemNames: string[] = [];
-    cart.forEach((item) => {
+    // Convert cart to item IDs array (with duplicates for quantity)
+    const itemIDs: number[] = [];
+    cart.forEach(item => {
       for (let i = 0; i < item.quantity; i++) {
-        itemNames.push(item.name);
+        itemIDs.push(item.id);
       }
     });
 
-    AddOrder(itemNames)
-      .then(() => {
-        updateResultText(
-          `Order submitted with ${cart.length} unique item(s) (${itemNames.length} total)!`
-        );
+    CreateOrder(customerName, itemIDs)
+      .then((orderId: number) => {
+        updateResultText(`Order #${orderId} created successfully for ${customerName}!`);
+        // Clear cart and customer name
         setCart([]);
+        setCustomerName("");
+        setSelectedItemId("");
+        refreshLogs();
+      })
+      .catch((err: any) => {
+        updateResultText(`Error creating order: ${err}`);
+      });
+  };
+
+  // Get order by ID
+  const getOrderById = () => {
+    if (!orderReadId || orderReadId.trim().length === 0) {
+      updateResultText("Error: Please enter an order ID");
+      return;
+    }
+
+    const id = parseInt(orderReadId, 10);
+    if (isNaN(id) || id < 0) {
+      updateResultText("Error: Invalid order ID");
+      return;
+    }
+
+    GetOrder(id)
+      .then((order: any) => {
+        updateResultText(
+          `Order #${order.id}: ${order.customer} - ${order.itemCount} items - Total: $${(order.totalPrice / 100).toFixed(2)}`
+        );
+        refreshLogs();
+      })
+      .catch((err: any) => {
+        updateResultText(`Error: ${err}`);
+      });
+  };
+
+  // Delete order by ID
+  const deleteOrderById = () => {
+    if (!orderDeleteId || orderDeleteId.trim().length === 0) {
+      updateResultText("Error: Please enter an order ID");
+      return;
+    }
+
+    const id = parseInt(orderDeleteId, 10);
+    if (isNaN(id) || id < 0) {
+      updateResultText("Error: Invalid order ID");
+      return;
+    }
+
+    DeleteOrder(id)
+      .then(() => {
+        updateResultText(`Successfully deleted order #${id}`);
+        setOrderDeleteId("");
         refreshLogs();
       })
       .catch((err: any) => {
@@ -463,12 +511,12 @@ export const App = () => {
 
   // Add item to promotion cart
   const addToPromotionCart = () => {
-    if (!promotionSelectedItemId) {
+    if (!selectedPromotionItemId) {
       updateResultText("Error: Please select an item");
       return;
     }
 
-    const itemId = parseInt(promotionSelectedItemId, 10);
+    const itemId = parseInt(selectedPromotionItemId, 10);
     const item = availableItems.find((i) => i.id === itemId);
 
     if (!item) {
@@ -476,7 +524,7 @@ export const App = () => {
       return;
     }
 
-    // Check if item already in promotion cart
+    // Check if item already in cart
     const existingItem = promotionCart.find((c) => c.id === itemId);
     if (existingItem) {
       // Increment quantity
@@ -486,7 +534,7 @@ export const App = () => {
         )
       );
     } else {
-      // Add new item to promotion cart
+      // Add new item to cart
       setPromotionCart([
         ...promotionCart,
         {
@@ -510,7 +558,7 @@ export const App = () => {
     }
   };
 
-  // Submit promotion - writes promotion to promotions.bin
+  // Submit promotion
   const submitPromotion = () => {
     if (!promotionName || promotionName.trim().length === 0) {
       updateResultText("Error: Please enter a promotion name");
@@ -522,87 +570,25 @@ export const App = () => {
       return;
     }
 
-    // Build array of item names based on quantities
-    const itemNames: string[] = [];
-    promotionCart.forEach((item) => {
+    // Convert cart to item IDs array (with duplicates for quantity)
+    const itemIDs: number[] = [];
+    promotionCart.forEach(item => {
       for (let i = 0; i < item.quantity; i++) {
-        itemNames.push(item.name);
+        itemIDs.push(item.id);
       }
     });
 
-    AddPromotion(promotionName, itemNames)
-      .then(() => {
-        updateResultText(
-          `Promotion "${promotionName}" created with ${promotionCart.length} unique item(s) (${itemNames.length} total)!`
-        );
-        setPromotionName("");
+    CreatePromotion(promotionName, itemIDs)
+      .then((promotionId: number) => {
+        updateResultText(`Promotion #${promotionId} "${promotionName}" created successfully!`);
+        // Clear cart and promotion name
         setPromotionCart([]);
+        setPromotionName("");
+        setSelectedPromotionItemId("");
         refreshLogs();
       })
       .catch((err: any) => {
-        updateResultText(`Error: ${err}`);
-      });
-  };
-
-  // Get order by ID
-  const getOrderById = () => {
-    if (!orderReadId || orderReadId.trim().length === 0) {
-      updateResultText("Error: Please enter an order ID");
-      return;
-    }
-
-    const id = parseInt(orderReadId, 10);
-    if (isNaN(id) || id < 0) {
-      updateResultText("Error: Order ID must be a valid non-negative number");
-      return;
-    }
-
-    GetOrderByID(id)
-      .then((order: any) => {
-        const itemsList = order.items.join(", ");
-        updateResultText(
-          `Order ${id}: ${order.items.length} item(s) - ${itemsList}`
-        );
-        refreshLogs();
-      })
-      .catch((err: any) => {
-        updateResultText(`Error: ${err}`);
-      });
-  };
-
-  // Print orders file
-  const printOrdersFile = () => {
-    PrintOrdersFile()
-      .then(() => {
-        updateResultText("Orders file printed to application console!");
-        refreshLogs();
-      })
-      .catch((err: any) => {
-        updateResultText(`Error: ${err}`);
-      });
-  };
-
-  // Delete order by ID
-  const deleteOrder = () => {
-    if (!orderDeleteId || orderDeleteId.trim().length === 0) {
-      updateResultText("Error: Please enter an order ID");
-      return;
-    }
-
-    const id = parseInt(orderDeleteId, 10);
-    if (isNaN(id) || id < 0) {
-      updateResultText("Error: Order ID must be a valid non-negative number");
-      return;
-    }
-
-    DeleteOrder(id)
-      .then((itemCount: number) => {
-        updateResultText(`Order [${id}] with ${itemCount} item(s) was deleted`);
-        setOrderDeleteId("");
-        refreshLogs();
-      })
-      .catch((err: any) => {
-        updateResultText(`Error: ${err}`);
+        updateResultText(`Error creating promotion: ${err}`);
       });
   };
 
@@ -615,17 +601,14 @@ export const App = () => {
 
     const id = parseInt(promotionReadId, 10);
     if (isNaN(id) || id < 0) {
-      updateResultText(
-        "Error: Promotion ID must be a valid non-negative number"
-      );
+      updateResultText("Error: Invalid promotion ID");
       return;
     }
 
-    GetPromotionByID(id)
+    GetPromotion(id)
       .then((promotion: any) => {
-        const itemsList = promotion.items.join(", ");
         updateResultText(
-          `Promotion ${id} "${promotion.name}": ${promotion.items.length} item(s) - ${itemsList}`
+          `Promotion #${promotion.id}: "${promotion.name}" - ${promotion.itemCount} items - Total: $${(promotion.totalPrice / 100).toFixed(2)}`
         );
         refreshLogs();
       })
@@ -634,20 +617,8 @@ export const App = () => {
       });
   };
 
-  // Print promotions file
-  const printPromotionsFile = () => {
-    PrintPromotionsFile()
-      .then(() => {
-        updateResultText("Promotions file printed to application console!");
-        refreshLogs();
-      })
-      .catch((err: any) => {
-        updateResultText(`Error: ${err}`);
-      });
-  };
-
   // Delete promotion by ID
-  const deletePromotion = () => {
+  const deletePromotionById = () => {
     if (!promotionDeleteId || promotionDeleteId.trim().length === 0) {
       updateResultText("Error: Please enter a promotion ID");
       return;
@@ -655,15 +626,13 @@ export const App = () => {
 
     const id = parseInt(promotionDeleteId, 10);
     if (isNaN(id) || id < 0) {
-      updateResultText(
-        "Error: Promotion ID must be a valid non-negative number"
-      );
+      updateResultText("Error: Invalid promotion ID");
       return;
     }
 
     DeletePromotion(id)
-      .then((promotionName: string) => {
-        updateResultText(`Promotion [${id}] [${promotionName}] was deleted`);
+      .then(() => {
+        updateResultText(`Successfully deleted promotion #${id}`);
         setPromotionDeleteId("");
         refreshLogs();
       })
@@ -679,10 +648,17 @@ export const App = () => {
     }
   }, [logsPanelOpen]);
 
+  // Auto-scroll to bottom when logs update
+  useEffect(() => {
+    if (logsContainerRef.current) {
+      logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight;
+    }
+  }, [logs]);
+
   // Refresh logs from backend
   const refreshLogs = () => {
     GetLogs()
-      .then((newLogs: Array<{ timestamp: string; message: string }>) => {
+      .then((newLogs: Array<{ timestamp: string; level: string; message: string }>) => {
         console.log("Logs fetched:", newLogs);
         setLogs(newLogs);
       })
@@ -706,11 +682,27 @@ export const App = () => {
   // Copy logs to clipboard
   const copyLogs = () => {
     const logText = logs
-      .map((log) => `[${log.timestamp}] ${log.message}`)
+      .map((log) => `[${log.timestamp}] [${log.level}] ${log.message}`)
       .join("\n");
     navigator.clipboard.writeText(logText).then(() => {
       updateResultText("Logs copied to clipboard!");
     });
+  };
+
+  // Get CSS class for log level
+  const getLogLevelClass = (level: string) => {
+    switch (level.toUpperCase()) {
+      case "DEBUG":
+        return "log-level-debug";
+      case "INFO":
+        return "log-level-info";
+      case "WARN":
+        return "log-level-warn";
+      case "ERROR":
+        return "log-level-error";
+      default:
+        return "log-level-info";
+    }
   };
 
   return (
@@ -851,35 +843,94 @@ export const App = () => {
         )}
 
         {activeTab === "item" && itemSubTab === "read" && (
-          <div id="read-input" className="input-box">
-            <input
-              id="record-id"
-              className="input"
-              onChange={updateRecordId}
-              autoComplete="off"
-              name="record-id"
-              placeholder="Enter Record ID"
-              value={recordId}
-            />
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <label
-                style={{ display: "flex", alignItems: "center", gap: "4px" }}
-              >
-                <input
-                  type="checkbox"
-                  checked={useIndex}
-                  onChange={(e: any) => setUseIndex(e.target.checked)}
-                />
-                Use B+ Tree Index
-              </label>
+          <>
+            <div id="read-input" className="input-box">
+              <input
+                id="record-id"
+                className="input"
+                onChange={updateRecordId}
+                autoComplete="off"
+                name="record-id"
+                placeholder="Enter Record ID"
+                value={recordId}
+              />
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <label
+                  style={{ display: "flex", alignItems: "center", gap: "4px" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={useIndex}
+                    onChange={(e: any) => setUseIndex(e.target.checked)}
+                  />
+                  Use B+ Tree Index
+                </label>
+              </div>
+              <button className="btn" onClick={getRecordById}>
+                Get Record
+              </button>
             </div>
-            <button className="btn" onClick={getRecordById}>
-              Get Record
-            </button>
-            <button className="btn" onClick={printFile}>
-              Print
-            </button>
-          </div>
+
+            {foundItem && (
+              <div
+                style={{
+                  marginTop: "20px",
+                  padding: "20px",
+                  backgroundColor: "rgba(255, 255, 255, 0.1)",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(255, 255, 255, 0.2)",
+                }}
+              >
+                <h3 style={{ margin: "0 0 15px 0", color: "#fff" }}>
+                  Item Details
+                </h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      padding: "8px",
+                      backgroundColor: "rgba(0, 0, 0, 0.2)",
+                      borderRadius: "4px",
+                    }}
+                  >
+                    <span style={{ color: "#aaa", fontWeight: "bold" }}>ID:</span>
+                    <span style={{ color: "#fff" }}>{foundItem.id}</span>
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      padding: "8px",
+                      backgroundColor: "rgba(0, 0, 0, 0.2)",
+                      borderRadius: "4px",
+                    }}
+                  >
+                    <span style={{ color: "#aaa", fontWeight: "bold" }}>
+                      Name:
+                    </span>
+                    <span style={{ color: "#fff" }}>{foundItem.name}</span>
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      padding: "8px",
+                      backgroundColor: "rgba(0, 0, 0, 0.2)",
+                      borderRadius: "4px",
+                    }}
+                  >
+                    <span style={{ color: "#aaa", fontWeight: "bold" }}>
+                      Price:
+                    </span>
+                    <span style={{ color: "#fff" }}>
+                      ${(foundItem.priceInCents / 100).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {activeTab === "item" && itemSubTab === "delete" && (
@@ -903,14 +954,21 @@ export const App = () => {
           <div id="order-section">
             <div className="cart-container">
               <div className="cart-header">
-                <h3>Cart</h3>
-                {cart.length > 0 && (
+                <h3>Order</h3>
+                {cart.length > 0 && customerName && (
                   <button className="btn btn-primary" onClick={submitOrder}>
                     Submit Order
                   </button>
                 )}
               </div>
-              .
+              <input
+                className="input"
+                type="text"
+                placeholder="Customer Name"
+                value={customerName}
+                onChange={updateCustomerName}
+                style={{ marginBottom: "10px" }}
+              />
               {cart.length > 0 && (
                 <div className="cart-total">
                   Total: $
@@ -991,9 +1049,6 @@ export const App = () => {
             <button className="btn" onClick={getOrderById}>
               Get Order
             </button>
-            <button className="btn" onClick={printOrdersFile}>
-              Print
-            </button>
           </div>
         )}
 
@@ -1008,7 +1063,7 @@ export const App = () => {
               placeholder="Enter Order ID"
               value={orderDeleteId}
             />
-            <button className="btn btn-danger" onClick={deleteOrder}>
+            <button className="btn btn-danger" onClick={deleteOrderById}>
               Delete Order
             </button>
           </div>
@@ -1018,19 +1073,21 @@ export const App = () => {
           <div id="promotion-section">
             <div className="cart-container">
               <div className="cart-header">
-                <h3>Create Promotion</h3>
+                <h3>Promotion</h3>
+                {promotionCart.length > 0 && promotionName && (
+                  <button className="btn btn-primary" onClick={submitPromotion}>
+                    Create Promotion
+                  </button>
+                )}
               </div>
-
-              <div className="promotion-name-input">
-                <input
-                  className="input"
-                  placeholder="Promotion Name"
-                  value={promotionName}
-                  onChange={(e: any) => setPromotionName(e.target.value)}
-                  autoComplete="off"
-                />
-              </div>
-
+              <input
+                className="input"
+                type="text"
+                placeholder="Promotion Name"
+                value={promotionName}
+                onChange={updatePromotionName}
+                style={{ marginBottom: "10px" }}
+              />
               {promotionCart.length > 0 && (
                 <div className="cart-total">
                   Total: $
@@ -1042,7 +1099,6 @@ export const App = () => {
                   ).toFixed(2)}
                 </div>
               )}
-
               <div className="cart-items">
                 {promotionCart.length === 0 ? (
                   <div className="cart-empty">No items in promotion</div>
@@ -1074,14 +1130,11 @@ export const App = () => {
                   ))
                 )}
               </div>
-
               <div className="cart-footer">
                 <select
                   className="cart-select"
-                  value={promotionSelectedItemId}
-                  onChange={(e: any) =>
-                    setPromotionSelectedItemId(e.target.value)
-                  }
+                  value={selectedPromotionItemId}
+                  onChange={(e: any) => setSelectedPromotionItemId(e.target.value)}
                 >
                   <option value="">Select an item...</option>
                   {availableItems
@@ -1097,14 +1150,6 @@ export const App = () => {
                   Add
                 </button>
               </div>
-
-              {promotionName && promotionCart.length > 0 && (
-                <div className="promotion-submit">
-                  <button className="btn btn-primary" onClick={submitPromotion}>
-                    Create Promotion
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -1123,9 +1168,6 @@ export const App = () => {
             <button className="btn" onClick={getPromotionById}>
               Get Promotion
             </button>
-            <button className="btn" onClick={printPromotionsFile}>
-              Print
-            </button>
           </div>
         )}
 
@@ -1140,7 +1182,7 @@ export const App = () => {
               placeholder="Enter Promotion ID"
               value={promotionDeleteId}
             />
-            <button className="btn btn-danger" onClick={deletePromotion}>
+            <button className="btn btn-danger" onClick={deletePromotionById}>
               Delete Promotion
             </button>
           </div>
@@ -1149,16 +1191,8 @@ export const App = () => {
         {activeTab === "debug" && (
           <div id="debug-controls" className="debug-section">
             <div className="input-box">
-              <button
-                className="btn btn-warning"
-                onClick={populateInventory}
-                disabled={isPopulatingInventory}
-                style={{
-                  opacity: isPopulatingInventory ? 0.5 : 1,
-                  cursor: isPopulatingInventory ? "not-allowed" : "pointer",
-                }}
-              >
-                {isPopulatingInventory ? "Populating..." : "Populate Inventory"}
+              <button className="btn" onClick={populateInventory}>
+                Populate Inventory
               </button>
               <button className="btn" onClick={printIndex}>
                 Print Index
@@ -1167,6 +1201,74 @@ export const App = () => {
                 Delete All Files
               </button>
             </div>
+
+            {indexData && (
+              <div
+                style={{
+                  marginTop: "20px",
+                  padding: "20px",
+                  backgroundColor: "rgba(255, 255, 255, 0.05)",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  maxHeight: "400px",
+                  overflowY: "auto",
+                }}
+              >
+                <h3 style={{ margin: "0 0 15px 0", color: "#fff" }}>
+                  B+ Tree Index Contents
+                </h3>
+                <div style={{ marginBottom: "10px", color: "#aaa" }}>
+                  Total entries: {indexData.count}
+                </div>
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    color: "#fff",
+                  }}
+                >
+                  <thead>
+                    <tr
+                      style={{
+                        borderBottom: "2px solid rgba(255, 255, 255, 0.2)",
+                      }}
+                    >
+                      <th style={{ padding: "8px", textAlign: "left" }}>
+                        Item ID
+                      </th>
+                      <th style={{ padding: "8px", textAlign: "left" }}>
+                        File Offset
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {indexData.entries.map((entry: any, idx: number) => (
+                      <tr
+                        key={idx}
+                        style={{
+                          borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+                          backgroundColor:
+                            idx % 2 === 0
+                              ? "rgba(0, 0, 0, 0.2)"
+                              : "transparent",
+                        }}
+                      >
+                        <td style={{ padding: "8px" }}>{entry.id}</td>
+                        <td
+                          style={{
+                            padding: "8px",
+                            fontFamily: "monospace",
+                            color: "#888",
+                          }}
+                        >
+                          {entry.offset} bytes
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1201,13 +1303,14 @@ export const App = () => {
                 </button>
               </div>
             </div>
-            <div className="logs-container">
+            <div className="logs-container" ref={logsContainerRef}>
               {logs.length === 0 ? (
                 <div className="logs-empty">No logs yet</div>
               ) : (
                 logs.map((log, index) => (
-                  <div key={index} className="log-entry">
+                  <div key={index} className={`log-entry ${getLogLevelClass(log.level)}`}>
                     <span className="log-timestamp">[{log.timestamp}]</span>
+                    <span className="log-level">[{log.level}]</span>
                     <span className="log-message">{log.message}</span>
                   </div>
                 ))

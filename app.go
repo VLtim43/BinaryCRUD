@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
+	"time"
 )
 
 // App struct
@@ -18,17 +20,9 @@ type App struct {
 	logger       *Logger
 }
 
-// ItemDTO represents an item with its ID, name, and price for frontend consumption
-type ItemDTO struct {
-	ID           uint32 `json:"id"`
-	Name         string `json:"name"`
-	PriceInCents uint64 `json:"priceInCents"`
-}
-
 // NewApp creates a new App application struct
 func NewApp() *App {
 	logger := NewLogger(1000) // Store up to 1000 log entries
-	utils.SetLogger(logger)   // Set global logger for utils package
 
 	return &App{
 		itemDAO:      dao.NewItemDAO("data/items.bin"),
@@ -42,177 +36,64 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	a.logger.Log("Application started")
-	utils.DebugPrint("BinaryCRUD application initialized")
+	a.logger.Info("Application started")
 }
 
 // AddItem writes an item to the binary file with a price in cents
 func (a *App) AddItem(text string, priceInCents uint64) error {
+	// Convert item name to hexadecimal for debugging (with spaces between bytes)
+	bytes := []byte(text)
+	hexParts := make([]string, len(bytes))
+	for i, b := range bytes {
+		hexParts[i] = fmt.Sprintf("%02x", b)
+	}
+	hexName := ""
+	for i, part := range hexParts {
+		if i > 0 {
+			hexName += " "
+		}
+		hexName += part
+	}
+
+	// Log debugging information
+	a.logger.Debug(fmt.Sprintf("Created item %s [hex: %s]", text, hexName))
+
 	return a.itemDAO.Write(text, priceInCents)
 }
 
-// AddOrder writes an order to the binary file with an array of item names
-func (a *App) AddOrder(itemNames []string) error {
-	return a.orderDAO.Write(itemNames)
-}
-
-// AddPromotion writes a promotion to the binary file with a name and an array of item names
-func (a *App) AddPromotion(promotionName string, itemNames []string) error {
-	return a.promotionDAO.Write(promotionName, itemNames)
-}
-
-// GetItems reads items from the binary file and returns them with IDs and prices
-func (a *App) GetItems() ([]ItemDTO, error) {
-	items, err := a.itemDAO.Read()
+// GetItem retrieves an item by ID from the binary file
+func (a *App) GetItem(id uint64, useIndex bool) (map[string]any, error) {
+	itemID, name, priceInCents, err := a.itemDAO.ReadWithIndex(id, useIndex)
 	if err != nil {
-		return []ItemDTO{}, err
+		return nil, err
 	}
 
-	// Convert map to slice of DTOs
-	result := make([]ItemDTO, 0, len(items))
-	for id, itemData := range items {
-		result = append(result, ItemDTO{
-			ID:           id,
-			Name:         itemData.Name,
-			PriceInCents: itemData.PriceInCents,
-		})
-	}
+	a.logger.Info(fmt.Sprintf("Read item ID %d using index: %v", id, useIndex))
 
-	return result, nil
-}
-
-// GetOrders reads all orders from the binary file
-func (a *App) GetOrders() ([]dao.OrderDTO, error) {
-	return a.orderDAO.Read()
-}
-
-// GetOrderByID reads a single order by its ID
-func (a *App) GetOrderByID(orderID uint32) (*dao.OrderDTO, error) {
-	return a.orderDAO.ReadByID(orderID)
-}
-
-// PrintOrdersFile prints the orders binary file to the application console
-func (a *App) PrintOrdersFile() error {
-	output, err := a.orderDAO.Print()
-	if err != nil {
-		return err
-	}
-
-	a.logger.LogPrintln(output)
-	return nil
-}
-
-// GetPromotions reads all promotions from the binary file
-func (a *App) GetPromotions() ([]dao.PromotionDTO, error) {
-	return a.promotionDAO.Read()
-}
-
-// GetPromotionByID reads a single promotion by its ID
-func (a *App) GetPromotionByID(promotionID uint32) (*dao.PromotionDTO, error) {
-	return a.promotionDAO.ReadByID(promotionID)
-}
-
-// PrintPromotionsFile prints the promotions binary file to the application console
-func (a *App) PrintPromotionsFile() error {
-	output, err := a.promotionDAO.Print()
-	if err != nil {
-		return err
-	}
-
-	a.logger.LogPrintln(output)
-	return nil
-}
-
-// PrintBinaryFile prints the binary file to the application console
-func (a *App) PrintBinaryFile() error {
-	output, err := a.itemDAO.Print()
-	if err != nil {
-		return err
-	}
-
-	// Print to application console (same as debug logs)
-	a.logger.LogPrintln(output)
-
-	return nil
-}
-
-// GetItemByID retrieves an item by its record ID
-func (a *App) GetItemByID(recordID uint32) (ItemDTO, error) {
-	utils.DebugPrint("Searching ID: %d", recordID)
-
-	// Read all items
-	items, err := a.itemDAO.Read()
-	if err != nil {
-		return ItemDTO{}, fmt.Errorf("failed to read items: %w", err)
-	}
-
-	// Look up the item by ID
-	itemData, exists := items[recordID]
-	if !exists {
-		utils.DebugPrint("No ID found")
-		return ItemDTO{}, fmt.Errorf("item with ID %d not found", recordID)
-	}
-
-	utils.DebugPrint("Found entry: \"%s\" ($%.2f)", itemData.Name, float64(itemData.PriceInCents)/100.0)
-	return ItemDTO{
-		ID:           recordID,
-		Name:         itemData.Name,
-		PriceInCents: itemData.PriceInCents,
+	return map[string]any{
+		"id":           itemID,
+		"name":         name,
+		"priceInCents": priceInCents,
 	}, nil
 }
 
-// DeleteItem marks an item as deleted by setting its tombstone flag
-// Returns the name of the deleted item
-func (a *App) DeleteItem(recordID uint32) (string, error) {
-	return a.itemDAO.Delete(recordID)
-}
-
-// DeleteOrder marks an order as deleted by setting its tombstone flag
-// Returns the number of items in the deleted order
-func (a *App) DeleteOrder(orderID uint32) (int, error) {
-	return a.orderDAO.Delete(orderID)
-}
-
-// DeletePromotion marks a promotion as deleted by setting its tombstone flag
-// Returns the name of the deleted promotion
-func (a *App) DeletePromotion(promotionID uint32) (string, error) {
-	return a.promotionDAO.Delete(promotionID)
-}
-
-// RebuildIndex rebuilds the B+ tree index from scratch
-func (a *App) RebuildIndex() error {
-	utils.DebugPrint("Rebuilding B+ tree index...")
-	return a.itemDAO.RebuildIndex()
-}
-
-// PrintIndex prints the B+ tree structure to the console (for debugging)
-func (a *App) PrintIndex() {
-	utils.DebugPrint("B+ Tree Index Structure:")
-	indexStr := a.itemDAO.PrintIndex()
-	a.logger.LogPrintln(indexStr)
-}
-
-// GetItemByIDWithIndex retrieves an item by its ID using the B+ tree index
-func (a *App) GetItemByIDWithIndex(recordID uint32) (ItemDTO, error) {
-	utils.DebugPrint("Searching ID: %d using B+ tree index", recordID)
-	itemData, err := a.itemDAO.ReadByIDWithIndex(recordID)
+// DeleteItem marks an item as deleted by flipping its tombstone bit
+func (a *App) DeleteItem(id uint64) error {
+	err := a.itemDAO.Delete(id)
 	if err != nil {
-		return ItemDTO{}, err
+		return err
 	}
-	return ItemDTO{
-		ID:           recordID,
-		Name:         itemData.Name,
-		PriceInCents: itemData.PriceInCents,
-	}, nil
+
+	a.logger.Info(fmt.Sprintf("Deleted item with ID: %d", id))
+	return nil
 }
 
-// DeleteAllFiles deletes all files in the data folder
+// DeleteAllFiles deletes all files in the data folder except .json files
 func (a *App) DeleteAllFiles() error {
 	dataDir := "data"
 
 	// Check if data directory exists
 	if _, err := os.Stat(dataDir); os.IsNotExist(err) {
-		utils.DebugPrint("Data directory does not exist: %s", dataDir)
 		return nil
 	}
 
@@ -222,76 +103,36 @@ func (a *App) DeleteAllFiles() error {
 		return fmt.Errorf("failed to read data directory: %w", err)
 	}
 
-	// Delete each file
+	// Delete each file except .json files
 	deletedCount := 0
 	for _, entry := range entries {
 		if !entry.IsDir() {
-			filePath := fmt.Sprintf("%s/%s", dataDir, entry.Name())
-			if err := os.Remove(filePath); err != nil {
-				utils.DebugPrint("Failed to delete %s: %v", filePath, err)
+			fileName := entry.Name()
+			filePath := fmt.Sprintf("%s/%s", dataDir, fileName)
+
+			// Skip .json files
+			if len(fileName) >= 5 && fileName[len(fileName)-5:] == ".json" {
+				a.logger.Debug(fmt.Sprintf("Skipping JSON file: %s", fileName))
+				continue
+			}
+
+			err := os.Remove(filePath)
+			if err != nil {
+				a.logger.Warn(fmt.Sprintf("Failed to delete %s: %v", fileName, err))
 			} else {
-				utils.DebugPrint("Deleted", filePath)
+				a.logger.Info(fmt.Sprintf("Deleted file: %s", fileName))
 				deletedCount++
 			}
 		}
 	}
 
-	utils.DebugPrint("Deleted %d files from %s", deletedCount, dataDir)
+	a.logger.Info(fmt.Sprintf("Deleted %d file(s), skipped .json files", deletedCount))
+
+	// Reload ItemDAO to clear the in-memory index
+	a.itemDAO = dao.NewItemDAO("data/items.bin")
+	a.logger.Info("Cleared in-memory index")
+
 	return nil
-}
-
-// InventoryData represents the JSON structure for inventory population
-type InventoryData struct {
-	Items []struct {
-		Name         string `json:"name"`
-		PriceInCents uint64 `json:"priceInCents"`
-	} `json:"items"`
-}
-
-// PopulateInventory reads a JSON file and adds all items to the binary file
-func (a *App) PopulateInventory(filePath string) (string, error) {
-	// Read the JSON file
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read file: %w", err)
-	}
-
-	// Parse JSON
-	var inventory InventoryData
-	if err := json.Unmarshal(data, &inventory); err != nil {
-		return "", fmt.Errorf("failed to parse JSON: %w", err)
-	}
-
-	// Validate that we have items
-	if len(inventory.Items) == 0 {
-		return "No items found in JSON", nil
-	}
-
-	// Add each item
-	successCount := 0
-	errorCount := 0
-
-	for _, item := range inventory.Items {
-		if item.Name == "" {
-			errorCount++
-			continue
-		}
-
-		if err := a.itemDAO.Write(item.Name, item.PriceInCents); err != nil {
-			utils.DebugPrint("Failed to add item '%s': %v", item.Name, err)
-			errorCount++
-		} else {
-			successCount++
-		}
-	}
-
-	// Return summary
-	result := fmt.Sprintf("Added %d items", successCount)
-	if errorCount > 0 {
-		result += fmt.Sprintf(", %d failed", errorCount)
-	}
-
-	return result, nil
 }
 
 // GetLogs returns all current log entries
@@ -302,4 +143,259 @@ func (a *App) GetLogs() []LogEntry {
 // ClearLogs clears all log entries
 func (a *App) ClearLogs() {
 	a.logger.Clear()
+}
+
+// ItemEntry represents an item in the JSON file
+type ItemEntry struct {
+	Name         string `json:"name"`
+	PriceInCents uint64 `json:"priceInCents"`
+}
+
+// GetIndexContents returns the contents of the B+ tree index for debugging
+func (a *App) GetIndexContents() (map[string]any, error) {
+	// Get all entries from the tree
+	tree := a.itemDAO.GetIndexTree()
+	allEntries := tree.GetAll()
+
+	// Convert to sorted slice for display
+	type IndexEntry struct {
+		ID     uint64 `json:"id"`
+		Offset int64  `json:"offset"`
+	}
+
+	entries := make([]IndexEntry, 0, len(allEntries))
+	for id, offset := range allEntries {
+		entries = append(entries, IndexEntry{
+			ID:     id,
+			Offset: offset,
+		})
+	}
+
+	// Sort by ID
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].ID < entries[j].ID
+	})
+
+	a.logger.Info(fmt.Sprintf("Index contains %d entries", len(entries)))
+
+	return map[string]any{
+		"count":   len(entries),
+		"entries": entries,
+	}, nil
+}
+
+// PopulateInventory reads items from items.json and adds them to the database
+// with delays to ensure safe sequential writes
+func (a *App) PopulateInventory() error {
+	// Read the JSON file
+	jsonPath := "data/items.json"
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return fmt.Errorf("failed to read items.json: %w", err)
+	}
+
+	// Parse JSON into slice of items
+	var items []ItemEntry
+	err = json.Unmarshal(data, &items)
+	if err != nil {
+		return fmt.Errorf("failed to parse items.json: %w", err)
+	}
+
+	a.logger.Info(fmt.Sprintf("Starting inventory population with %d items", len(items)))
+
+	// Add each item sequentially with a delay to prevent race conditions
+	successCount := 0
+	failCount := 0
+
+	for i, item := range items {
+		// Add item using the Write method (protected by mutex)
+		err := a.itemDAO.Write(item.Name, item.PriceInCents)
+		if err != nil {
+			a.logger.Error(fmt.Sprintf("Failed to add item %d (%s): %v", i+1, item.Name, err))
+			failCount++
+			continue
+		}
+
+		successCount++
+		a.logger.Info(fmt.Sprintf("Added item %d/%d: %s ($%.2f)", i+1, len(items), item.Name, float64(item.PriceInCents)/100))
+
+		// Small delay to ensure file system has time to complete the write
+		// This prevents potential file corruption from rapid sequential writes
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	a.logger.Info(fmt.Sprintf("Inventory population complete: %d succeeded, %d failed", successCount, failCount))
+
+	if failCount > 0 {
+		return fmt.Errorf("some items failed to add: %d succeeded, %d failed", successCount, failCount)
+	}
+
+	return nil
+}
+
+// GetAllItems retrieves all non-deleted items from the database
+func (a *App) GetAllItems() ([]map[string]any, error) {
+	items, err := a.itemDAO.GetAll()
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to map format for JSON serialization
+	result := make([]map[string]any, len(items))
+	for i, item := range items {
+		result[i] = map[string]any{
+			"id":           item.ID,
+			"name":         item.Name,
+			"priceInCents": item.PriceInCents,
+		}
+	}
+
+	a.logger.Info(fmt.Sprintf("Retrieved %d items", len(items)))
+	return result, nil
+}
+
+// CreateOrder creates a new order with the given customer name and item IDs
+func (a *App) CreateOrder(customerName string, itemIDs []uint64) (uint64, error) {
+	// Validate inputs
+	if customerName == "" {
+		return 0, fmt.Errorf("customer name cannot be empty")
+	}
+
+	if len(itemIDs) == 0 {
+		return 0, fmt.Errorf("order must contain at least one item")
+	}
+
+	// Calculate total price by reading each item
+	var totalPrice uint64
+	for _, itemID := range itemIDs {
+		_, _, priceInCents, err := a.itemDAO.ReadWithIndex(itemID, true)
+		if err != nil {
+			return 0, fmt.Errorf("failed to read item %d: %w", itemID, err)
+		}
+		totalPrice += priceInCents
+	}
+
+	// Read current header to get next ID
+	file, err := os.OpenFile("data/orders.bin", os.O_RDONLY, 0644)
+	var nextID uint64 = 1
+	if err == nil {
+		_, _, id, readErr := utils.ReadHeader(file)
+		if readErr == nil {
+			nextID = uint64(id)
+		}
+		file.Close()
+	}
+
+	// Write order to orders.bin
+	err = a.orderDAO.Write(customerName, totalPrice, itemIDs)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create order: %w", err)
+	}
+
+	a.logger.Info(fmt.Sprintf("Created order #%d for %s with %d items (total: $%.2f)",
+		nextID, customerName, len(itemIDs), float64(totalPrice)/100))
+
+	return nextID, nil
+}
+
+// GetOrder retrieves an order by ID
+func (a *App) GetOrder(id uint64) (map[string]any, error) {
+	order, err := a.orderDAO.Read(id)
+	if err != nil {
+		return nil, err
+	}
+
+	a.logger.Info(fmt.Sprintf("Retrieved order #%d for %s", id, order.OwnerOrName))
+
+	return map[string]any{
+		"id":         order.ID,
+		"customer":   order.OwnerOrName,
+		"totalPrice": order.TotalPrice,
+		"itemCount":  order.ItemCount,
+		"itemIDs":    order.ItemIDs,
+	}, nil
+}
+
+// DeleteOrder marks an order as deleted
+func (a *App) DeleteOrder(id uint64) error {
+	err := a.orderDAO.Delete(id)
+	if err != nil {
+		return err
+	}
+
+	a.logger.Info(fmt.Sprintf("Deleted order #%d", id))
+	return nil
+}
+
+// CreatePromotion creates a new promotion with the given name and item IDs
+func (a *App) CreatePromotion(promotionName string, itemIDs []uint64) (uint64, error) {
+	// Validate inputs
+	if promotionName == "" {
+		return 0, fmt.Errorf("promotion name cannot be empty")
+	}
+
+	if len(itemIDs) == 0 {
+		return 0, fmt.Errorf("promotion must contain at least one item")
+	}
+
+	// Calculate total price by reading each item
+	var totalPrice uint64
+	for _, itemID := range itemIDs {
+		_, _, priceInCents, err := a.itemDAO.ReadWithIndex(itemID, true)
+		if err != nil {
+			return 0, fmt.Errorf("failed to read item %d: %w", itemID, err)
+		}
+		totalPrice += priceInCents
+	}
+
+	// Read current header to get next ID
+	file, err := os.OpenFile("data/promotions.bin", os.O_RDONLY, 0644)
+	var nextID uint64 = 1
+	if err == nil {
+		_, _, id, readErr := utils.ReadHeader(file)
+		if readErr == nil {
+			nextID = uint64(id)
+		}
+		file.Close()
+	}
+
+	// Write promotion to promotions.bin
+	err = a.promotionDAO.Write(promotionName, totalPrice, itemIDs)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create promotion: %w", err)
+	}
+
+	a.logger.Info(fmt.Sprintf("Created promotion #%d: %s with %d items (total: $%.2f)",
+		nextID, promotionName, len(itemIDs), float64(totalPrice)/100))
+
+	return nextID, nil
+}
+
+// GetPromotion retrieves a promotion by ID
+func (a *App) GetPromotion(id uint64) (map[string]any, error) {
+	promotion, err := a.promotionDAO.Read(id)
+	if err != nil {
+		return nil, err
+	}
+
+	a.logger.Info(fmt.Sprintf("Retrieved promotion #%d: %s", id, promotion.OwnerOrName))
+
+	return map[string]any{
+		"id":         promotion.ID,
+		"name":       promotion.OwnerOrName,
+		"totalPrice": promotion.TotalPrice,
+		"itemCount":  promotion.ItemCount,
+		"itemIDs":    promotion.ItemIDs,
+	}, nil
+}
+
+// DeletePromotion marks a promotion as deleted
+func (a *App) DeletePromotion(id uint64) error {
+	err := a.promotionDAO.Delete(id)
+	if err != nil {
+		return err
+	}
+
+	a.logger.Info(fmt.Sprintf("Deleted promotion #%d", id))
+	return nil
 }

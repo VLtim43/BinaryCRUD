@@ -9,6 +9,4 @@ claude
 *.bin
 *.idx
 *.txt
-
-/data
-/build
+logs/
