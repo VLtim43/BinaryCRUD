@@ -8,7 +8,6 @@ import {
   GetLogs,
   ClearLogs,
   PopulateInventory,
-  PopulatePromotions,
   GetIndexContents,
   GetAllItems,
   GetAllPromotions,
@@ -327,29 +326,15 @@ export const App = () => {
   };
 
   const populateInventory = () => {
-    updateResultText("Populating inventory from items.json...");
+    updateResultText("Populating data from items.json and promotions.json...");
 
     PopulateInventory()
       .then(() => {
-        updateResultText("Inventory populated successfully! Check logs for details.");
+        updateResultText("Data populated successfully! Check logs for details.");
         refreshLogs();
       })
       .catch((err: any) => {
-        updateResultText(`Error populating inventory: ${err}`);
-        refreshLogs();
-      });
-  };
-
-  const populatePromotions = () => {
-    updateResultText("Populating promotions from promotions.json...");
-
-    PopulatePromotions()
-      .then(() => {
-        updateResultText("Promotions populated successfully! Check logs for details.");
-        refreshLogs();
-      })
-      .catch((err: any) => {
-        updateResultText(`Error populating promotions: ${err}`);
+        updateResultText(`Error populating data: ${err}`);
         refreshLogs();
       });
   };
@@ -1606,10 +1591,7 @@ export const App = () => {
           <div id="debug-controls" className="debug-section">
             <div className="input-box">
               <button className="btn" onClick={populateInventory}>
-                Populate Inventory
-              </button>
-              <button className="btn" onClick={populatePromotions}>
-                Populate Promotions
+                Populate Data
               </button>
               <button className="btn" onClick={printIndex}>
                 Print Index

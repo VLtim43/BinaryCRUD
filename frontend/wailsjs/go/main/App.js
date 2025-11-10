@@ -86,10 +86,6 @@ export function PopulateInventory() {
   return window['go']['main']['App']['PopulateInventory']();
 }
 
-export function PopulatePromotions() {
-  return window['go']['main']['App']['PopulatePromotions']();
-}
-
 export function RemovePromotionFromOrder(arg1, arg2) {
   return window['go']['main']['App']['RemovePromotionFromOrder'](arg1, arg2);
 }

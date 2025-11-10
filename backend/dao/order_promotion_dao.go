@@ -37,7 +37,7 @@ func (dao *OrderPromotionDAO) ensureFileExists() error {
 	}
 	defer file.Close()
 
-	// Write empty header (0 entities, 0 tombstones, nextId=0)
+	// Write empty header (0 entities, 0 tombstones, nextId unused for composite key)
 	header, err := utils.WriteHeader(0, 0, 0)
 	if err != nil {
 		return fmt.Errorf("failed to create header: %w", err)
@@ -52,7 +52,8 @@ func (dao *OrderPromotionDAO) ensureFileExists() error {
 }
 
 // Write creates a new order-promotion relationship
-// Binary format: [ID(2)][tombstone(1)][0x1F][orderID(2)][0x1F][promotionID(2)][0x1E]
+// Binary format with composite primary key: [orderID(2)][0x1F][promotionID(2)][0x1F][tombstone(1)][0x1E]
+// The composite key is (orderID, promotionID) - no auto-generated ID
 func (dao *OrderPromotionDAO) Write(orderID, promotionID uint64) error {
 	dao.mu.Lock()
 	defer dao.mu.Unlock()
@@ -62,20 +63,29 @@ func (dao *OrderPromotionDAO) Write(orderID, promotionID uint64) error {
 		return err
 	}
 
+	// Check for duplicate composite key
+	exists, err := dao.existsUnlocked(orderID, promotionID)
+	if err != nil {
+		return fmt.Errorf("failed to check for duplicates: %w", err)
+	}
+	if exists {
+		return fmt.Errorf("order-promotion relationship already exists (orderID=%d, promotionID=%d)", orderID, promotionID)
+	}
+
 	// Open file for read/write
-	file, err := os.OpenFile(dao.filePath, os.O_RDWR, 0644)
+	file, err := os.OpenFile(dao.filePath, os.O_RDWR|os.O_APPEND, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open order_promotion file: %w", err)
 	}
 	defer file.Close()
 
-	// Build entry without ID: [0x1F][orderID(2)][0x1F][promotionID(2)]
-
-	// Separator before orderID
-	sep1, err := utils.WriteVariable(utils.UnitSeparator)
+	// Read header to update entity count
+	entitiesCount, tombstoneCount, nextId, err := utils.ReadHeader(file)
 	if err != nil {
-		return fmt.Errorf("failed to write separator: %w", err)
+		return fmt.Errorf("failed to read header: %w", err)
 	}
+
+	// Build entry: [orderID(2)][0x1F][promotionID(2)][0x1F][tombstone(1)][0x1E]
 
 	// Order ID (2 bytes)
 	orderIDBytes, err := utils.WriteFixedNumber(utils.IDSize, orderID)
@@ -83,8 +93,8 @@ func (dao *OrderPromotionDAO) Write(orderID, promotionID uint64) error {
 		return fmt.Errorf("failed to write order ID: %w", err)
 	}
 
-	// Separator before promotionID
-	sep2, err := utils.WriteVariable(utils.UnitSeparator)
+	// Separator
+	sep1, err := utils.WriteVariable(utils.UnitSeparator)
 	if err != nil {
 		return fmt.Errorf("failed to write separator: %w", err)
 	}
@@ -95,20 +105,116 @@ func (dao *OrderPromotionDAO) Write(orderID, promotionID uint64) error {
 		return fmt.Errorf("failed to write promotion ID: %w", err)
 	}
 
+	// Separator
+	sep2, err := utils.WriteVariable(utils.UnitSeparator)
+	if err != nil {
+		return fmt.Errorf("failed to write separator: %w", err)
+	}
+
+	// Tombstone (1 byte) - 0x00 for active
+	tombstone := []byte{0x00}
+
+	// Record separator
+	recSep, err := utils.WriteVariable(utils.RecordSeparator)
+	if err != nil {
+		return fmt.Errorf("failed to write record separator: %w", err)
+	}
+
 	// Combine all fields
 	entry := make([]byte, 0)
-	entry = append(entry, sep1...)
 	entry = append(entry, orderIDBytes...)
-	entry = append(entry, sep2...)
+	entry = append(entry, sep1...)
 	entry = append(entry, promotionIDBytes...)
+	entry = append(entry, sep2...)
+	entry = append(entry, tombstone...)
+	entry = append(entry, recSep...)
 
-	// Append the entry (ID and tombstone auto-assigned, record separator added)
-	err = utils.AppendEntry(file, entry)
+	// Write entry to file
+	_, err = file.Write(entry)
 	if err != nil {
-		return fmt.Errorf("failed to append order_promotion: %w", err)
+		return fmt.Errorf("failed to write entry: %w", err)
+	}
+
+	// Update header with new entity count
+	err = utils.UpdateHeader(file, entitiesCount+1, tombstoneCount, nextId)
+	if err != nil {
+		return fmt.Errorf("failed to update header: %w", err)
+	}
+
+	// Sync to disk
+	err = file.Sync()
+	if err != nil {
+		return fmt.Errorf("failed to sync to disk: %w", err)
 	}
 
 	return nil
+}
+
+// existsUnlocked checks if a relationship already exists (must be called with lock held)
+func (dao *OrderPromotionDAO) existsUnlocked(orderID, promotionID uint64) (bool, error) {
+	// Read all file data
+	fileData, err := os.ReadFile(dao.filePath)
+	if err != nil {
+		return false, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	// Calculate header size
+	headerSize := (utils.HeaderFieldSize * 3) + 3 // 15 bytes
+
+	if len(fileData) <= headerSize {
+		return false, nil // No entries yet
+	}
+
+	// Split by record separator
+	recordSeparatorByte := []byte(utils.RecordSeparator)[0]
+	entries := make([][]byte, 0)
+
+	entryStart := headerSize
+	for i := headerSize; i < len(fileData); i++ {
+		if fileData[i] == recordSeparatorByte {
+			entries = append(entries, fileData[entryStart:i])
+			entryStart = i + 1
+		}
+	}
+
+	// Check each entry for matching composite key
+	for _, entryData := range entries {
+		if len(entryData) < utils.IDSize*2+utils.TombstoneSize+2 {
+			continue
+		}
+
+		offset := 0
+
+		// Read orderID
+		entryOrderID, newOffset, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
+		if err != nil {
+			continue
+		}
+		offset = newOffset
+
+		// Skip separator
+		offset += 1
+
+		// Read promotionID
+		entryPromotionID, newOffset, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
+		if err != nil {
+			continue
+		}
+		offset = newOffset
+
+		// Skip separator
+		offset += 1
+
+		// Read tombstone
+		tombstone := entryData[offset]
+
+		// Check if this is an active entry with matching composite key
+		if tombstone == 0x00 && entryOrderID == orderID && entryPromotionID == promotionID {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // GetByOrderID retrieves all promotions applied to an order
@@ -147,43 +253,41 @@ func (dao *OrderPromotionDAO) GetByOrderID(orderID uint64) ([]*OrderPromotion, e
 	}
 
 	// Parse each entry and filter by orderID
+	// New format: [orderID(2)][0x1F][promotionID(2)][0x1F][tombstone(1)]
 	result := make([]*OrderPromotion, 0)
 
 	for _, entryData := range entries {
-		if len(entryData) < utils.IDSize+utils.TombstoneSize {
+		if len(entryData) < utils.IDSize*2+utils.TombstoneSize+2 {
 			continue
 		}
 
-		// Read ID
-		_, offset, err := utils.ReadFixedNumber(utils.IDSize, entryData, 0)
-		if err != nil {
-			continue
-		}
-
-		// Read tombstone
-		tombstone := entryData[offset]
-		offset += utils.TombstoneSize
-
-		// Skip deleted entries
-		if tombstone != 0x00 {
-			continue
-		}
-
-		// Skip unit separator
-		offset += 1
+		offset := 0
 
 		// Read orderID
-		entryOrderID, offset, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
+		entryOrderID, newOffset, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
 		if err != nil {
 			continue
 		}
+		offset = newOffset
 
 		// Skip unit separator
 		offset += 1
 
 		// Read promotionID
-		entryPromotionID, _, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
+		entryPromotionID, newOffset, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
 		if err != nil {
+			continue
+		}
+		offset = newOffset
+
+		// Skip unit separator
+		offset += 1
+
+		// Read tombstone
+		tombstone := entryData[offset]
+
+		// Skip deleted entries
+		if tombstone != 0x00 {
 			continue
 		}
 
@@ -235,43 +339,41 @@ func (dao *OrderPromotionDAO) GetByPromotionID(promotionID uint64) ([]*OrderProm
 	}
 
 	// Parse each entry and filter by promotionID
+	// New format: [orderID(2)][0x1F][promotionID(2)][0x1F][tombstone(1)]
 	result := make([]*OrderPromotion, 0)
 
 	for _, entryData := range entries {
-		if len(entryData) < utils.IDSize+utils.TombstoneSize {
+		if len(entryData) < utils.IDSize*2+utils.TombstoneSize+2 {
 			continue
 		}
 
-		// Read ID
-		_, offset, err := utils.ReadFixedNumber(utils.IDSize, entryData, 0)
-		if err != nil {
-			continue
-		}
-
-		// Read tombstone
-		tombstone := entryData[offset]
-		offset += utils.TombstoneSize
-
-		// Skip deleted entries
-		if tombstone != 0x00 {
-			continue
-		}
-
-		// Skip unit separator
-		offset += 1
+		offset := 0
 
 		// Read orderID
-		entryOrderID, offset, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
+		entryOrderID, newOffset, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
 		if err != nil {
 			continue
 		}
+		offset = newOffset
 
 		// Skip unit separator
 		offset += 1
 
 		// Read promotionID
-		entryPromotionID, _, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
+		entryPromotionID, newOffset, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
 		if err != nil {
+			continue
+		}
+		offset = newOffset
+
+		// Skip unit separator
+		offset += 1
+
+		// Read tombstone
+		tombstone := entryData[offset]
+
+		// Skip deleted entries
+		if tombstone != 0x00 {
 			continue
 		}
 
@@ -288,6 +390,7 @@ func (dao *OrderPromotionDAO) GetByPromotionID(promotionID uint64) ([]*OrderProm
 }
 
 // Delete removes an order-promotion relationship by marking it as deleted
+// Finds entry by composite key (orderID, promotionID)
 func (dao *OrderPromotionDAO) Delete(orderID, promotionID uint64) error {
 	dao.mu.Lock()
 	defer dao.mu.Unlock()
@@ -333,50 +436,47 @@ func (dao *OrderPromotionDAO) Delete(orderID, promotionID uint64) error {
 		}
 	}
 
-	// Find the entry with matching orderID and promotionID
+	// Find the entry with matching composite key (orderID, promotionID)
+	// New format: [orderID(2)][0x1F][promotionID(2)][0x1F][tombstone(1)]
 	for idx, entryData := range entries {
-		if len(entryData) < utils.IDSize+utils.TombstoneSize {
+		if len(entryData) < utils.IDSize*2+utils.TombstoneSize+2 {
 			continue
 		}
 
 		offset := 0
 
-		// Read ID
-		_, offset, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
-		if err != nil {
-			continue
-		}
-
-		// Check tombstone
-		tombstone := entryData[offset]
-		offset += utils.TombstoneSize
-
-		if tombstone != 0x00 {
-			continue // Already deleted
-		}
-
-		// Skip unit separator
-		offset += 1
-
 		// Read orderID
-		entryOrderID, offset, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
+		entryOrderID, newOffset, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
 		if err != nil {
 			continue
 		}
+		offset = newOffset
 
 		// Skip unit separator
 		offset += 1
 
 		// Read promotionID
-		entryPromotionID, _, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
+		entryPromotionID, newOffset, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
 		if err != nil {
 			continue
 		}
+		offset = newOffset
 
-		// Check if this is the entry we want to delete
+		// Skip unit separator
+		offset += 1
+
+		// Check tombstone
+		tombstone := entryData[offset]
+
+		if tombstone != 0x00 {
+			continue // Already deleted
+		}
+
+		// Check if this is the entry we want to delete (by composite key)
 		if entryOrderID == orderID && entryPromotionID == promotionID {
 			// Calculate tombstone position
-			tombstonePos := entryPositions[idx] + int64(utils.IDSize)
+			// Position = entryStart + orderID(2) + sep(1) + promotionID(2) + sep(1)
+			tombstonePos := entryPositions[idx] + int64(utils.IDSize) + 1 + int64(utils.IDSize) + 1
 
 			// Seek to tombstone position
 			_, err = file.Seek(tombstonePos, 0)
@@ -396,8 +496,8 @@ func (dao *OrderPromotionDAO) Delete(orderID, promotionID uint64) error {
 				return fmt.Errorf("failed to sync tombstone to disk: %w", err)
 			}
 
-			// Update header
-			err = utils.UpdateHeader(file, entitiesCount, tombstoneCount+1, nextId)
+			// Update header (decrement entities, increment tombstones)
+			err = utils.UpdateHeader(file, entitiesCount-1, tombstoneCount+1, nextId)
 			if err != nil {
 				return fmt.Errorf("failed to update header: %w", err)
 			}

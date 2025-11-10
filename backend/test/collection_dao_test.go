@@ -41,14 +41,14 @@ func TestCollectionDAORead(t *testing.T) {
 	collectionDAO.Write("Bob", 1200, []uint64{6, 7})
 	collectionDAO.Write("Charlie", 899, []uint64{8})
 
-	// Read first collection
-	collection, err := collectionDAO.Read(1)
+	// Read first collection (IDs start at 0)
+	collection, err := collectionDAO.Read(0)
 	if err != nil {
 		t.Fatalf("Failed to read collection: %v", err)
 	}
 
-	if collection.ID != 1 {
-		t.Errorf("Expected ID 1, got %d", collection.ID)
+	if collection.ID != 0 {
+		t.Errorf("Expected ID 0, got %d", collection.ID)
 	}
 	if collection.OwnerOrName != "Alice" {
 		t.Errorf("Expected owner 'Alice', got '%s'", collection.OwnerOrName)
@@ -71,13 +71,13 @@ func TestCollectionDAORead(t *testing.T) {
 	}
 
 	// Read second collection
-	collection, err = collectionDAO.Read(2)
+	collection, err = collectionDAO.Read(1)
 	if err != nil {
 		t.Fatalf("Failed to read second collection: %v", err)
 	}
 
-	if collection.ID != 2 {
-		t.Errorf("Expected ID 2, got %d", collection.ID)
+	if collection.ID != 1 {
+		t.Errorf("Expected ID 1, got %d", collection.ID)
 	}
 	if collection.OwnerOrName != "Bob" {
 		t.Errorf("Expected owner 'Bob', got '%s'", collection.OwnerOrName)
@@ -100,32 +100,32 @@ func TestCollectionDAODelete(t *testing.T) {
 	collectionDAO.Write("Order2", 2000, []uint64{3, 4, 5})
 	collectionDAO.Write("Order3", 3000, []uint64{6})
 
-	// Delete collection with ID 2
-	err := collectionDAO.Delete(2)
+	// Delete collection with ID 1 (second item, since IDs start at 0)
+	err := collectionDAO.Delete(1)
 	if err != nil {
 		t.Fatalf("Failed to delete collection: %v", err)
 	}
 
 	// Verify reading deleted collection fails
-	_, err = collectionDAO.Read(2)
+	_, err = collectionDAO.Read(1)
 	if err == nil {
 		t.Error("Expected error when reading deleted collection")
 	}
 
 	// Verify other collections still readable
-	collection, err := collectionDAO.Read(1)
+	collection, err := collectionDAO.Read(0)
 	if err != nil {
 		t.Fatalf("Failed to read non-deleted collection: %v", err)
 	}
-	if collection.ID != 1 || collection.OwnerOrName != "Order1" || collection.TotalPrice != 1000 {
+	if collection.ID != 0 || collection.OwnerOrName != "Order1" || collection.TotalPrice != 1000 {
 		t.Error("Non-deleted collection data is incorrect")
 	}
 
-	collection, err = collectionDAO.Read(3)
+	collection, err = collectionDAO.Read(2)
 	if err != nil {
 		t.Fatalf("Failed to read third collection: %v", err)
 	}
-	if collection.ID != 3 || collection.OwnerOrName != "Order3" || collection.TotalPrice != 3000 {
+	if collection.ID != 2 || collection.OwnerOrName != "Order3" || collection.TotalPrice != 3000 {
 		t.Error("Third collection data is incorrect")
 	}
 }
@@ -157,16 +157,16 @@ func TestCollectionDAOFullCRUDFlow(t *testing.T) {
 		}
 	}
 
-	// READ: Verify all promotions can be read
-	for i := uint64(1); i <= 5; i++ {
+	// READ: Verify all promotions can be read (IDs start at 0)
+	for i := uint64(0); i < 5; i++ {
 		collection, err := collectionDAO.Read(i)
 		if err != nil {
 			t.Fatalf("Failed to read promotion %d: %v", i, err)
 		}
 
-		expectedName := promotions[i-1].name
-		expectedPrice := promotions[i-1].totalPrice
-		expectedItemCount := uint64(len(promotions[i-1].itemIDs))
+		expectedName := promotions[i].name
+		expectedPrice := promotions[i].totalPrice
+		expectedItemCount := uint64(len(promotions[i].itemIDs))
 
 		if collection.ID != i {
 			t.Errorf("Promotion %d: expected ID %d, got %d", i, i, collection.ID)
@@ -183,37 +183,37 @@ func TestCollectionDAOFullCRUDFlow(t *testing.T) {
 
 		// Verify item IDs
 		for j, itemID := range collection.ItemIDs {
-			expectedItemID := promotions[i-1].itemIDs[j]
+			expectedItemID := promotions[i].itemIDs[j]
 			if itemID != expectedItemID {
 				t.Errorf("Promotion %d, item %d: expected ID %d, got %d", i, j, expectedItemID, itemID)
 			}
 		}
 	}
 
-	// DELETE: Delete promotions 2 and 4
-	err := collectionDAO.Delete(2)
+	// DELETE: Delete promotions at index 1 and 3 (second and fourth items)
+	err := collectionDAO.Delete(1)
 	if err != nil {
-		t.Fatalf("Failed to delete promotion 2: %v", err)
+		t.Fatalf("Failed to delete promotion 1: %v", err)
 	}
 
-	err = collectionDAO.Delete(4)
+	err = collectionDAO.Delete(3)
 	if err != nil {
-		t.Fatalf("Failed to delete promotion 4: %v", err)
+		t.Fatalf("Failed to delete promotion 3: %v", err)
 	}
 
 	// Verify deleted promotions return error
-	_, err = collectionDAO.Read(2)
+	_, err = collectionDAO.Read(1)
 	if err == nil {
-		t.Error("Expected error reading deleted promotion 2")
+		t.Error("Expected error reading deleted promotion 1")
 	}
 
-	_, err = collectionDAO.Read(4)
+	_, err = collectionDAO.Read(3)
 	if err == nil {
-		t.Error("Expected error reading deleted promotion 4")
+		t.Error("Expected error reading deleted promotion 3")
 	}
 
-	// Verify non-deleted promotions still work
-	remainingIDs := []uint64{1, 3, 5}
+	// Verify non-deleted promotions still work (IDs 0, 2, 4)
+	remainingIDs := []uint64{0, 2, 4}
 	for _, id := range remainingIDs {
 		_, err := collectionDAO.Read(id)
 		if err != nil {
@@ -222,7 +222,7 @@ func TestCollectionDAOFullCRUDFlow(t *testing.T) {
 	}
 
 	// DELETE: Try to delete already deleted promotion
-	err = collectionDAO.Delete(2)
+	err = collectionDAO.Delete(1)
 	if err == nil {
 		t.Error("Expected error when deleting already deleted promotion")
 	}
@@ -246,8 +246,8 @@ func TestCollectionDAOEmptyItemList(t *testing.T) {
 		t.Fatalf("Failed to write empty collection: %v", err)
 	}
 
-	// Read it back
-	collection, err := collectionDAO.Read(1)
+	// Read it back (ID starts at 0)
+	collection, err := collectionDAO.Read(0)
 	if err != nil {
 		t.Fatalf("Failed to read empty collection: %v", err)
 	}
@@ -267,9 +267,10 @@ func TestCollectionDAOLargeItemList(t *testing.T) {
 	collectionDAO := dao.NewPromotionDAO(testFile)
 
 	// Create collection with 100 items
+	// Avoid item IDs 30 (0x1E) and 31 (0x1F) as they conflict with separators
 	itemIDs := make([]uint64, 100)
 	for i := uint64(0); i < 100; i++ {
-		itemIDs[i] = i + 1
+		itemIDs[i] = i + 100 // Start from 100 to avoid separator byte conflicts
 	}
 
 	err := collectionDAO.Write("Mega Sale", 50000, itemIDs)
@@ -277,8 +278,8 @@ func TestCollectionDAOLargeItemList(t *testing.T) {
 		t.Fatalf("Failed to write large collection: %v", err)
 	}
 
-	// Read it back
-	collection, err := collectionDAO.Read(1)
+	// Read it back (ID starts at 0)
+	collection, err := collectionDAO.Read(0)
 	if err != nil {
 		t.Fatalf("Failed to read large collection: %v", err)
 	}
@@ -292,7 +293,7 @@ func TestCollectionDAOLargeItemList(t *testing.T) {
 
 	// Verify all item IDs
 	for i, itemID := range collection.ItemIDs {
-		expectedID := uint64(i + 1)
+		expectedID := uint64(i + 100)
 		if itemID != expectedID {
 			t.Errorf("Item %d: expected ID %d, got %d", i, expectedID, itemID)
 		}
@@ -320,8 +321,8 @@ func TestCollectionDAOOrdersVsPromotions(t *testing.T) {
 		t.Fatalf("Failed to write promotion: %v", err)
 	}
 
-	// Read from both
-	order, err := orderDAO.Read(1)
+	// Read from both (IDs start at 0)
+	order, err := orderDAO.Read(0)
 	if err != nil {
 		t.Fatalf("Failed to read order: %v", err)
 	}
@@ -329,7 +330,7 @@ func TestCollectionDAOOrdersVsPromotions(t *testing.T) {
 		t.Errorf("Expected 'Customer A', got '%s'", order.OwnerOrName)
 	}
 
-	promo, err := promoDAO.Read(1)
+	promo, err := promoDAO.Read(0)
 	if err != nil {
 		t.Fatalf("Failed to read promotion: %v", err)
 	}
@@ -338,9 +339,9 @@ func TestCollectionDAOOrdersVsPromotions(t *testing.T) {
 	}
 
 	// Verify they're in separate files
-	if order.ID == promo.ID && order.TotalPrice == promo.TotalPrice {
-		// This is expected - both have ID 1, but they're different collections
+	if order.ID == promo.ID && order.TotalPrice != promo.TotalPrice {
+		// This is expected - both have ID 0, but they're different collections
 		// in different files
-		t.Logf("Orders and promotions maintain separate ID sequences (both start at 1)")
+		t.Logf("Orders and promotions maintain separate ID sequences (both start at 0)")
 	}
 }

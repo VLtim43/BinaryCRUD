@@ -192,10 +192,10 @@ func (a *App) GetIndexContents() (map[string]any, error) {
 	}, nil
 }
 
-// PopulateInventory reads items from items.json and adds them to the database
+// PopulateInventory reads items and promotions from JSON files and adds them to the database
 // with delays to ensure safe sequential writes
 func (a *App) PopulateInventory() error {
-	// Read the JSON file
+	// First, populate items
 	jsonPath := "data/items.json"
 	data, err := os.ReadFile(jsonPath)
 	if err != nil {
@@ -209,22 +209,22 @@ func (a *App) PopulateInventory() error {
 		return fmt.Errorf("failed to parse items.json: %w", err)
 	}
 
-	a.logger.Info(fmt.Sprintf("Starting inventory population with %d items", len(items)))
+	a.logger.Info(fmt.Sprintf("Starting data population with %d items", len(items)))
 
 	// Add each item sequentially with a delay to prevent race conditions
-	successCount := 0
-	failCount := 0
+	itemSuccessCount := 0
+	itemFailCount := 0
 
 	for i, item := range items {
 		// Add item using the Write method (protected by mutex)
 		err := a.itemDAO.Write(item.Name, item.PriceInCents)
 		if err != nil {
 			a.logger.Error(fmt.Sprintf("Failed to add item %d (%s): %v", i+1, item.Name, err))
-			failCount++
+			itemFailCount++
 			continue
 		}
 
-		successCount++
+		itemSuccessCount++
 		a.logger.Info(fmt.Sprintf("Added item %d/%d: %s ($%.2f)", i+1, len(items), item.Name, float64(item.PriceInCents)/100))
 
 		// Small delay to ensure file system has time to complete the write
@@ -232,27 +232,18 @@ func (a *App) PopulateInventory() error {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	a.logger.Info(fmt.Sprintf("Inventory population complete: %d succeeded, %d failed", successCount, failCount))
+	a.logger.Info(fmt.Sprintf("Items population complete: %d succeeded, %d failed", itemSuccessCount, itemFailCount))
 
-	if failCount > 0 {
-		return fmt.Errorf("some items failed to add: %d succeeded, %d failed", successCount, failCount)
-	}
-
-	return nil
-}
-
-// PopulatePromotions reads promotions from promotions.json and adds them to the database
-func (a *App) PopulatePromotions() error {
-	// Read the JSON file
-	jsonPath := "data/promotions.json"
-	data, err := os.ReadFile(jsonPath)
+	// Now populate promotions
+	promoJsonPath := "data/promotions.json"
+	promoData, err := os.ReadFile(promoJsonPath)
 	if err != nil {
 		return fmt.Errorf("failed to read promotions.json: %w", err)
 	}
 
 	// Parse JSON into slice of promotions
 	var promotions []PromotionEntry
-	err = json.Unmarshal(data, &promotions)
+	err = json.Unmarshal(promoData, &promotions)
 	if err != nil {
 		return fmt.Errorf("failed to parse promotions.json: %w", err)
 	}
@@ -260,8 +251,8 @@ func (a *App) PopulatePromotions() error {
 	a.logger.Info(fmt.Sprintf("Starting promotion population with %d promotions", len(promotions)))
 
 	// Add each promotion sequentially
-	successCount := 0
-	failCount := 0
+	promoSuccessCount := 0
+	promoFailCount := 0
 
 	for i, promo := range promotions {
 		// Calculate total price for promotion
@@ -280,11 +271,11 @@ func (a *App) PopulatePromotions() error {
 		err := a.promotionDAO.Write(promo.Name, totalPrice, promo.ItemIDs)
 		if err != nil {
 			a.logger.Error(fmt.Sprintf("Failed to add promotion %d (%s): %v", i+1, promo.Name, err))
-			failCount++
+			promoFailCount++
 			continue
 		}
 
-		successCount++
+		promoSuccessCount++
 		a.logger.Info(fmt.Sprintf("Added promotion %d/%d: %s with %d items ($%.2f)",
 			i+1, len(promotions), promo.Name, len(promo.ItemIDs), float64(totalPrice)/100))
 
@@ -292,10 +283,17 @@ func (a *App) PopulatePromotions() error {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	a.logger.Info(fmt.Sprintf("Promotion population complete: %d succeeded, %d failed", successCount, failCount))
+	a.logger.Info(fmt.Sprintf("Promotions population complete: %d succeeded, %d failed", promoSuccessCount, promoFailCount))
 
-	if failCount > 0 {
-		return fmt.Errorf("some promotions failed to add: %d succeeded, %d failed", successCount, failCount)
+	// Final summary
+	totalSuccess := itemSuccessCount + promoSuccessCount
+	totalFail := itemFailCount + promoFailCount
+
+	a.logger.Info(fmt.Sprintf("Total population complete: %d items + %d promotions = %d total (%d failed)",
+		itemSuccessCount, promoSuccessCount, totalSuccess, totalFail))
+
+	if totalFail > 0 {
+		return fmt.Errorf("some entries failed to add: %d succeeded, %d failed", totalSuccess, totalFail)
 	}
 
 	return nil
@@ -389,16 +387,17 @@ func (a *App) CreateOrder(customerName string, itemIDs []uint64) (uint64, error)
 		totalPrice += priceInCents
 	}
 
-	// Read current header to get next ID
+	// Read current header to get next ID BEFORE writing
 	file, err := os.OpenFile("data/orders.bin", os.O_RDONLY, 0644)
-	var nextID uint64 = 1
+	var assignedID uint64 = 0
 	if err == nil {
-		_, _, id, readErr := utils.ReadHeader(file)
+		_, _, nextId, readErr := utils.ReadHeader(file)
 		if readErr == nil {
-			nextID = uint64(id)
+			assignedID = uint64(nextId)
 		}
 		file.Close()
 	}
+	// If file doesn't exist, assignedID stays 0 (first order will be ID 0)
 
 	// Write order to orders.bin
 	err = a.orderDAO.Write(customerName, totalPrice, itemIDs)
@@ -407,9 +406,9 @@ func (a *App) CreateOrder(customerName string, itemIDs []uint64) (uint64, error)
 	}
 
 	a.logger.Info(fmt.Sprintf("Created order #%d for %s with %d items (total: $%.2f)",
-		nextID, customerName, len(itemIDs), float64(totalPrice)/100))
+		assignedID, customerName, len(itemIDs), float64(totalPrice)/100))
 
-	return nextID, nil
+	return assignedID, nil
 }
 
 // GetOrder retrieves an order by ID
@@ -462,16 +461,17 @@ func (a *App) CreatePromotion(promotionName string, itemIDs []uint64) (uint64, e
 		totalPrice += priceInCents
 	}
 
-	// Read current header to get next ID
+	// Read current header to get next ID BEFORE writing
 	file, err := os.OpenFile("data/promotions.bin", os.O_RDONLY, 0644)
-	var nextID uint64 = 1
+	var assignedID uint64 = 0
 	if err == nil {
-		_, _, id, readErr := utils.ReadHeader(file)
+		_, _, nextId, readErr := utils.ReadHeader(file)
 		if readErr == nil {
-			nextID = uint64(id)
+			assignedID = uint64(nextId)
 		}
 		file.Close()
 	}
+	// If file doesn't exist, assignedID stays 0 (first promotion will be ID 0)
 
 	// Write promotion to promotions.bin
 	err = a.promotionDAO.Write(promotionName, totalPrice, itemIDs)
@@ -480,9 +480,9 @@ func (a *App) CreatePromotion(promotionName string, itemIDs []uint64) (uint64, e
 	}
 
 	a.logger.Info(fmt.Sprintf("Created promotion #%d: %s with %d items (total: $%.2f)",
-		nextID, promotionName, len(itemIDs), float64(totalPrice)/100))
+		assignedID, promotionName, len(itemIDs), float64(totalPrice)/100))
 
-	return nextID, nil
+	return assignedID, nil
 }
 
 // GetPromotion retrieves a promotion by ID
