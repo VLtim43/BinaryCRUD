@@ -1,6 +1,7 @@
 # BinaryCRUD
 
 A restaurant manager application built with Wails (Go + Preact) featuring custom binary file storage with B+ tree indexing.
+(Relatório TPII https://github.com/VLtim43/BinaryCRUD/blob/master/relatorioTPII.md e TPIII https://github.com/VLtim43/BinaryCRUD/blob/master/relatorioTPIII.md )
 
 ## Prerequisites
 
