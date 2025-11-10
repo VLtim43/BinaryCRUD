@@ -8,14 +8,20 @@ import {
   GetLogs,
   ClearLogs,
   PopulateInventory,
+  PopulatePromotions,
   GetIndexContents,
   GetAllItems,
+  GetAllPromotions,
   CreateOrder,
   GetOrder,
   DeleteOrder,
   CreatePromotion,
   GetPromotion,
   DeletePromotion,
+  ApplyPromotionToOrder,
+  GetOrderPromotions,
+  RemovePromotionFromOrder,
+  GetOrderWithPromotions,
 } from "../wailsjs/go/main/App";
 import { Quit } from "../wailsjs/runtime/runtime";
 import { useState, useEffect, useRef } from "preact/hooks";
@@ -68,6 +74,15 @@ export const App = () => {
   const [logsPanelOpen, setLogsPanelOpen] = useState(false);
   const [indexData, setIndexData] = useState<any>(null);
   const logsContainerRef = useRef<HTMLDivElement>(null);
+  const [availablePromotions, setAvailablePromotions] = useState<
+    Array<{ id: number; name: string; totalPrice: number; itemCount: number }>
+  >([]);
+  const [selectedPromotionForOrder, setSelectedPromotionForOrder] = useState<string>("");
+  const [currentOrderDetails, setCurrentOrderDetails] = useState<any>(null);
+  const [selectedPromotionsForNewOrder, setSelectedPromotionsForNewOrder] = useState<
+    Array<{ id: number; name: string; totalPrice: number; itemCount: number }>
+  >([]);
+  const [selectedPromotionIdToAdd, setSelectedPromotionIdToAdd] = useState<string>("");
   const updateItemText = (e: any) => setItemText(e.target.value);
   const updateItemPrice = (e: any) => {
     const value = e.target.value;
@@ -182,9 +197,12 @@ export const App = () => {
       setSelectedItemId("");
       setCart([]);
       setCustomerName("");
+      setSelectedPromotionsForNewOrder([]);
+      setSelectedPromotionIdToAdd("");
       setResultText(getDefaultText(tab, "create"));
-      // Load items when entering order tab
+      // Load items and promotions when entering order tab
       loadItems();
+      loadPromotions();
     } else if (tab === "promotion") {
       // Reset promotion page state and subtab
       setPromotionSubTab("create");
@@ -211,9 +229,10 @@ export const App = () => {
   const handleOrderSubTabChange = (subTab: "create" | "read" | "delete") => {
     setOrderSubTab(subTab);
     setResultText(getDefaultText("order", subTab));
-    // Load items when switching to create subtab
+    // Load items and promotions when switching to create subtab
     if (subTab === "create") {
       loadItems();
+      loadPromotions();
     }
   };
 
@@ -322,6 +341,20 @@ export const App = () => {
       });
   };
 
+  const populatePromotions = () => {
+    updateResultText("Populating promotions from promotions.json...");
+
+    PopulatePromotions()
+      .then(() => {
+        updateResultText("Promotions populated successfully! Check logs for details.");
+        refreshLogs();
+      })
+      .catch((err: any) => {
+        updateResultText(`Error populating promotions: ${err}`);
+        refreshLogs();
+      });
+  };
+
   const printIndex = () => {
     updateResultText("Loading index contents...");
 
@@ -426,7 +459,44 @@ export const App = () => {
     }
   };
 
-  // Submit order - writes order to orders.bin
+  // Add promotion to order creation list
+  const addPromotionToNewOrder = () => {
+    if (!selectedPromotionIdToAdd) {
+      updateResultText("Error: Please select a promotion");
+      return;
+    }
+
+    const promotionId = parseInt(selectedPromotionIdToAdd, 10);
+    const promotion = availablePromotions.find((p) => p.id === promotionId);
+
+    if (!promotion) {
+      updateResultText("Error: Promotion not found");
+      return;
+    }
+
+    // Check if promotion already selected
+    if (selectedPromotionsForNewOrder.some((p) => p.id === promotionId)) {
+      updateResultText("Error: Promotion already added");
+      return;
+    }
+
+    setSelectedPromotionsForNewOrder([...selectedPromotionsForNewOrder, promotion]);
+    setSelectedPromotionIdToAdd("");
+    updateResultText(`Added promotion: ${promotion.name}`);
+  };
+
+  // Remove promotion from order creation list
+  const removePromotionFromNewOrder = (promotionId: number) => {
+    const promotion = selectedPromotionsForNewOrder.find((p) => p.id === promotionId);
+    if (promotion) {
+      setSelectedPromotionsForNewOrder(
+        selectedPromotionsForNewOrder.filter((p) => p.id !== promotionId)
+      );
+      updateResultText(`Removed promotion: ${promotion.name}`);
+    }
+  };
+
+  // Submit order - writes order to orders.bin, then applies promotions
   const submitOrder = () => {
     if (!customerName || customerName.trim().length === 0) {
       updateResultText("Error: Please enter a customer name");
@@ -448,40 +518,127 @@ export const App = () => {
 
     CreateOrder(customerName, itemIDs)
       .then((orderId: number) => {
-        updateResultText(`Order #${orderId} created successfully for ${customerName}!`);
-        // Clear cart and customer name
-        setCart([]);
-        setCustomerName("");
-        setSelectedItemId("");
-        refreshLogs();
+        // If promotions are selected, apply them
+        if (selectedPromotionsForNewOrder.length > 0) {
+          // Apply all promotions sequentially
+          const applyPromotions = selectedPromotionsForNewOrder.reduce((promise, promo) => {
+            return promise.then(() => ApplyPromotionToOrder(orderId, promo.id));
+          }, Promise.resolve());
+
+          applyPromotions
+            .then(() => {
+              updateResultText(
+                `Order #${orderId} created for ${customerName} with ${selectedPromotionsForNewOrder.length} promotion(s)!`
+              );
+              // Clear everything
+              setCart([]);
+              setCustomerName("");
+              setSelectedItemId("");
+              setSelectedPromotionsForNewOrder([]);
+              setSelectedPromotionIdToAdd("");
+              refreshLogs();
+            })
+            .catch((err: any) => {
+              updateResultText(`Order created but error applying promotions: ${err}`);
+              refreshLogs();
+            });
+        } else {
+          updateResultText(`Order #${orderId} created successfully for ${customerName}!`);
+          // Clear cart and customer name
+          setCart([]);
+          setCustomerName("");
+          setSelectedItemId("");
+          refreshLogs();
+        }
       })
       .catch((err: any) => {
         updateResultText(`Error creating order: ${err}`);
       });
   };
 
-  // Get order by ID
+  // Load all promotions
+  const loadPromotions = () => {
+    GetAllPromotions()
+      .then((promotions: any[]) => {
+        setAvailablePromotions(promotions);
+      })
+      .catch((err: any) => {
+        updateResultText(`Error loading promotions: ${err}`);
+        setAvailablePromotions([]);
+      });
+  };
+
+  // Get order by ID with promotions
   const getOrderById = () => {
     if (!orderReadId || orderReadId.trim().length === 0) {
       updateResultText("Error: Please enter an order ID");
+      setCurrentOrderDetails(null);
       return;
     }
 
     const id = parseInt(orderReadId, 10);
     if (isNaN(id) || id < 0) {
       updateResultText("Error: Invalid order ID");
+      setCurrentOrderDetails(null);
       return;
     }
 
-    GetOrder(id)
-      .then((order: any) => {
+    // Get order with promotions
+    GetOrderWithPromotions(id)
+      .then((orderDetails: any) => {
+        setCurrentOrderDetails(orderDetails);
         updateResultText(
-          `Order #${order.id}: ${order.customer} - ${order.itemCount} items - Total: $${(order.totalPrice / 100).toFixed(2)}`
+          `Order #${orderDetails.id}: ${orderDetails.customerName} - ${orderDetails.itemCount} items - Total: $${(orderDetails.totalPrice / 100).toFixed(2)}`
         );
+        // Load promotions for selector
+        loadPromotions();
         refreshLogs();
       })
       .catch((err: any) => {
+        setCurrentOrderDetails(null);
         updateResultText(`Error: ${err}`);
+      });
+  };
+
+  // Apply promotion to order
+  const applyPromotionToOrder = () => {
+    if (!currentOrderDetails) {
+      updateResultText("Error: No order loaded");
+      return;
+    }
+
+    if (!selectedPromotionForOrder) {
+      updateResultText("Error: Please select a promotion");
+      return;
+    }
+
+    const promotionId = parseInt(selectedPromotionForOrder, 10);
+    ApplyPromotionToOrder(currentOrderDetails.id, promotionId)
+      .then(() => {
+        updateResultText(`Promotion #${promotionId} applied to order #${currentOrderDetails.id}`);
+        setSelectedPromotionForOrder("");
+        // Reload order details to show updated promotions
+        getOrderById();
+      })
+      .catch((err: any) => {
+        updateResultText(`Error applying promotion: ${err}`);
+      });
+  };
+
+  // Remove promotion from order
+  const removePromotionFromOrder = (promotionId: number) => {
+    if (!currentOrderDetails) {
+      return;
+    }
+
+    RemovePromotionFromOrder(currentOrderDetails.id, promotionId)
+      .then(() => {
+        updateResultText(`Promotion #${promotionId} removed from order #${currentOrderDetails.id}`);
+        // Reload order details to show updated promotions
+        getOrderById();
+      })
+      .catch((err: any) => {
+        updateResultText(`Error removing promotion: ${err}`);
       });
   };
 
@@ -969,6 +1126,8 @@ export const App = () => {
                 onChange={updateCustomerName}
                 style={{ marginBottom: "10px" }}
               />
+
+              <h4 style={{ margin: "15px 0 10px 0", color: "#fff", fontSize: "1em" }}>Items</h4>
               {cart.length > 0 && (
                 <div className="cart-total">
                   Total: $
@@ -982,7 +1141,7 @@ export const App = () => {
               )}
               <div className="cart-items">
                 {cart.length === 0 ? (
-                  <div className="cart-empty">Cart is empty</div>
+                  <div className="cart-empty">No items in cart</div>
                 ) : (
                   cart.map((item) => (
                     <div key={item.id} className="cart-item">
@@ -1028,7 +1187,58 @@ export const App = () => {
                     ))}
                 </select>
                 <button className="btn" onClick={addToCart}>
-                  Add
+                  Add Item
+                </button>
+              </div>
+
+              <h4 style={{ margin: "20px 0 10px 0", color: "#fff", fontSize: "1em" }}>Promotions</h4>
+              <div className="cart-items">
+                {selectedPromotionsForNewOrder.length === 0 ? (
+                  <div className="cart-empty">No promotions selected</div>
+                ) : (
+                  selectedPromotionsForNewOrder.map((promo) => (
+                    <div key={promo.id} className="cart-item" style={{
+                      backgroundColor: "rgba(100, 200, 100, 0.05)",
+                      border: "1px solid rgba(100, 200, 100, 0.2)",
+                    }}>
+                      <div className="cart-item-info">
+                        <div className="cart-item-name">{promo.name}</div>
+                        <div className="cart-item-id">
+                          ID: {promo.id} | {promo.itemCount} items | $
+                          {(promo.totalPrice / 100).toFixed(2)}
+                        </div>
+                      </div>
+                      <div className="cart-item-controls">
+                        <button
+                          className="btn btn-danger btn-small"
+                          onClick={() => removePromotionFromNewOrder(promo.id)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="cart-footer">
+                <select
+                  className="cart-select"
+                  value={selectedPromotionIdToAdd}
+                  onChange={(e: any) => setSelectedPromotionIdToAdd(e.target.value)}
+                >
+                  <option value="">Select a promotion...</option>
+                  {availablePromotions
+                    .filter(p => !selectedPromotionsForNewOrder.some(sp => sp.id === p.id))
+                    .sort((a, b) => a.id - b.id)
+                    .map((promo) => (
+                      <option key={promo.id} value={promo.id}>
+                        [{promo.id}] {promo.name} - $
+                        {(promo.totalPrice / 100).toFixed(2)}
+                      </option>
+                    ))}
+                </select>
+                <button className="btn" onClick={addPromotionToNewOrder}>
+                  Add Promo
                 </button>
               </div>
             </div>
@@ -1036,20 +1246,149 @@ export const App = () => {
         )}
 
         {activeTab === "order" && orderSubTab === "read" && (
-          <div id="order-read-input" className="input-box">
-            <input
-              id="order-read-id"
-              className="input"
-              onChange={updateOrderReadId}
-              autoComplete="off"
-              name="order-read-id"
-              placeholder="Enter Order ID"
-              value={orderReadId}
-            />
-            <button className="btn" onClick={getOrderById}>
-              Get Order
-            </button>
-          </div>
+          <>
+            <div id="order-read-input" className="input-box">
+              <input
+                id="order-read-id"
+                className="input"
+                onChange={updateOrderReadId}
+                autoComplete="off"
+                name="order-read-id"
+                placeholder="Enter Order ID"
+                value={orderReadId}
+              />
+              <button className="btn" onClick={getOrderById}>
+                Get Order
+              </button>
+            </div>
+
+            {currentOrderDetails && (
+              <div style={{
+                marginTop: "20px",
+                padding: "20px",
+                backgroundColor: "rgba(255, 255, 255, 0.1)",
+                borderRadius: "8px",
+                border: "1px solid rgba(255, 255, 255, 0.2)",
+              }}>
+                <h3 style={{ margin: "0 0 15px 0", color: "#fff" }}>
+                  Order Details
+                </h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "20px" }}>
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "8px",
+                    backgroundColor: "rgba(0, 0, 0, 0.2)",
+                    borderRadius: "4px",
+                  }}>
+                    <span style={{ color: "#aaa", fontWeight: "bold" }}>Order ID:</span>
+                    <span style={{ color: "#fff" }}>{currentOrderDetails.id}</span>
+                  </div>
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "8px",
+                    backgroundColor: "rgba(0, 0, 0, 0.2)",
+                    borderRadius: "4px",
+                  }}>
+                    <span style={{ color: "#aaa", fontWeight: "bold" }}>Customer:</span>
+                    <span style={{ color: "#fff" }}>{currentOrderDetails.customerName}</span>
+                  </div>
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "8px",
+                    backgroundColor: "rgba(0, 0, 0, 0.2)",
+                    borderRadius: "4px",
+                  }}>
+                    <span style={{ color: "#aaa", fontWeight: "bold" }}>Total:</span>
+                    <span style={{ color: "#fff" }}>
+                      ${(currentOrderDetails.totalPrice / 100).toFixed(2)}
+                    </span>
+                  </div>
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "8px",
+                    backgroundColor: "rgba(0, 0, 0, 0.2)",
+                    borderRadius: "4px",
+                  }}>
+                    <span style={{ color: "#aaa", fontWeight: "bold" }}>Items:</span>
+                    <span style={{ color: "#fff" }}>{currentOrderDetails.itemCount}</span>
+                  </div>
+                </div>
+
+                <h4 style={{ margin: "20px 0 10px 0", color: "#fff" }}>
+                  Applied Promotions
+                </h4>
+                {currentOrderDetails.promotions && currentOrderDetails.promotions.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "15px" }}>
+                    {currentOrderDetails.promotions.map((promo: any) => (
+                      <div key={promo.id} style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        padding: "10px",
+                        backgroundColor: "rgba(100, 200, 100, 0.1)",
+                        borderRadius: "4px",
+                        border: "1px solid rgba(100, 200, 100, 0.3)",
+                      }}>
+                        <div>
+                          <div style={{ color: "#fff", fontWeight: "bold" }}>
+                            #{promo.id} - {promo.name}
+                          </div>
+                          <div style={{ color: "#aaa", fontSize: "0.9em" }}>
+                            {promo.itemCount} items - ${(promo.totalPrice / 100).toFixed(2)}
+                          </div>
+                        </div>
+                        <button
+                          className="btn btn-danger btn-small"
+                          onClick={() => removePromotionFromOrder(promo.id)}
+                          title="Remove promotion"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{
+                    padding: "10px",
+                    color: "#aaa",
+                    fontStyle: "italic",
+                    marginBottom: "15px",
+                  }}>
+                    No promotions applied to this order
+                  </div>
+                )}
+
+                <h4 style={{ margin: "20px 0 10px 0", color: "#fff" }}>
+                  Add Promotion
+                </h4>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <select
+                    className="cart-select"
+                    value={selectedPromotionForOrder}
+                    onChange={(e: any) => setSelectedPromotionForOrder(e.target.value)}
+                    style={{ flex: 1 }}
+                  >
+                    <option value="">Select a promotion...</option>
+                    {availablePromotions
+                      .filter(p => !currentOrderDetails.promotions?.some((ap: any) => ap.id === p.id))
+                      .sort((a, b) => a.id - b.id)
+                      .map((promo) => (
+                        <option key={promo.id} value={promo.id}>
+                          [#{promo.id}] {promo.name} - ${(promo.totalPrice / 100).toFixed(2)}
+                        </option>
+                      ))}
+                  </select>
+                  <button className="btn" onClick={applyPromotionToOrder}>
+                    Apply
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {activeTab === "order" && orderSubTab === "delete" && (
@@ -1193,6 +1532,9 @@ export const App = () => {
             <div className="input-box">
               <button className="btn" onClick={populateInventory}>
                 Populate Inventory
+              </button>
+              <button className="btn" onClick={populatePromotions}>
+                Populate Promotions
               </button>
               <button className="btn" onClick={printIndex}>
                 Print Index

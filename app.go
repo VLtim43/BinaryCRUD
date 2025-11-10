@@ -13,11 +13,12 @@ import (
 
 // App struct
 type App struct {
-	ctx          context.Context
-	itemDAO      *dao.ItemDAO
-	orderDAO     *dao.OrderDAO
-	promotionDAO *dao.PromotionDAO
-	logger       *Logger
+	ctx               context.Context
+	itemDAO           *dao.ItemDAO
+	orderDAO          *dao.OrderDAO
+	promotionDAO      *dao.PromotionDAO
+	orderPromotionDAO *dao.OrderPromotionDAO
+	logger            *Logger
 }
 
 // NewApp creates a new App application struct
@@ -25,10 +26,11 @@ func NewApp() *App {
 	logger := NewLogger(1000) // Store up to 1000 log entries
 
 	return &App{
-		itemDAO:      dao.NewItemDAO("data/items.bin"),
-		orderDAO:     dao.NewOrderDAO("data/orders.bin"),
-		promotionDAO: dao.NewPromotionDAO("data/promotions.bin"),
-		logger:       logger,
+		itemDAO:           dao.NewItemDAO("data/items.bin"),
+		orderDAO:          dao.NewOrderDAO("data/orders.bin"),
+		promotionDAO:      dao.NewPromotionDAO("data/promotions.bin"),
+		orderPromotionDAO: dao.NewOrderPromotionDAO("data/order_promotions.bin"),
+		logger:            logger,
 	}
 }
 
@@ -151,6 +153,12 @@ type ItemEntry struct {
 	PriceInCents uint64 `json:"priceInCents"`
 }
 
+// PromotionEntry represents a promotion in the JSON file
+type PromotionEntry struct {
+	Name    string   `json:"name"`
+	ItemIDs []uint64 `json:"itemIDs"`
+}
+
 // GetIndexContents returns the contents of the B+ tree index for debugging
 func (a *App) GetIndexContents() (map[string]any, error) {
 	// Get all entries from the tree
@@ -233,6 +241,66 @@ func (a *App) PopulateInventory() error {
 	return nil
 }
 
+// PopulatePromotions reads promotions from promotions.json and adds them to the database
+func (a *App) PopulatePromotions() error {
+	// Read the JSON file
+	jsonPath := "data/promotions.json"
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return fmt.Errorf("failed to read promotions.json: %w", err)
+	}
+
+	// Parse JSON into slice of promotions
+	var promotions []PromotionEntry
+	err = json.Unmarshal(data, &promotions)
+	if err != nil {
+		return fmt.Errorf("failed to parse promotions.json: %w", err)
+	}
+
+	a.logger.Info(fmt.Sprintf("Starting promotion population with %d promotions", len(promotions)))
+
+	// Add each promotion sequentially
+	successCount := 0
+	failCount := 0
+
+	for i, promo := range promotions {
+		// Calculate total price for promotion
+		totalPrice := uint64(0)
+		for _, itemID := range promo.ItemIDs {
+			// Get item to calculate price
+			_, _, priceInCents, err := a.itemDAO.Read(itemID)
+			if err != nil {
+				a.logger.Warn(fmt.Sprintf("Item ID %d in promotion '%s' not found, skipping price calculation", itemID, promo.Name))
+				continue
+			}
+			totalPrice += priceInCents
+		}
+
+		// Create promotion using CollectionDAO
+		err := a.promotionDAO.Write(promo.Name, totalPrice, promo.ItemIDs)
+		if err != nil {
+			a.logger.Error(fmt.Sprintf("Failed to add promotion %d (%s): %v", i+1, promo.Name, err))
+			failCount++
+			continue
+		}
+
+		successCount++
+		a.logger.Info(fmt.Sprintf("Added promotion %d/%d: %s with %d items ($%.2f)",
+			i+1, len(promotions), promo.Name, len(promo.ItemIDs), float64(totalPrice)/100))
+
+		// Small delay to ensure file system has time to complete the write
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	a.logger.Info(fmt.Sprintf("Promotion population complete: %d succeeded, %d failed", successCount, failCount))
+
+	if failCount > 0 {
+		return fmt.Errorf("some promotions failed to add: %d succeeded, %d failed", successCount, failCount)
+	}
+
+	return nil
+}
+
 // GetAllItems retrieves all non-deleted items from the database
 func (a *App) GetAllItems() ([]map[string]any, error) {
 	items, err := a.itemDAO.GetAll()
@@ -251,6 +319,52 @@ func (a *App) GetAllItems() ([]map[string]any, error) {
 	}
 
 	a.logger.Info(fmt.Sprintf("Retrieved %d items", len(items)))
+	return result, nil
+}
+
+// GetAllOrders retrieves all orders
+func (a *App) GetAllOrders() ([]map[string]any, error) {
+	orders, err := a.orderDAO.GetAll()
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to map format for JSON serialization
+	result := make([]map[string]any, len(orders))
+	for i, order := range orders {
+		result[i] = map[string]any{
+			"id":          order.ID,
+			"customerName": order.OwnerOrName,
+			"totalPrice":  order.TotalPrice,
+			"itemCount":   order.ItemCount,
+			"itemIDs":     order.ItemIDs,
+		}
+	}
+
+	a.logger.Info(fmt.Sprintf("Retrieved %d orders", len(orders)))
+	return result, nil
+}
+
+// GetAllPromotions retrieves all promotions
+func (a *App) GetAllPromotions() ([]map[string]any, error) {
+	promotions, err := a.promotionDAO.GetAll()
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to map format for JSON serialization
+	result := make([]map[string]any, len(promotions))
+	for i, promotion := range promotions {
+		result[i] = map[string]any{
+			"id":          promotion.ID,
+			"name":        promotion.OwnerOrName,
+			"totalPrice":  promotion.TotalPrice,
+			"itemCount":   promotion.ItemCount,
+			"itemIDs":     promotion.ItemIDs,
+		}
+	}
+
+	a.logger.Info(fmt.Sprintf("Retrieved %d promotions", len(promotions)))
 	return result, nil
 }
 
@@ -398,4 +512,130 @@ func (a *App) DeletePromotion(id uint64) error {
 
 	a.logger.Info(fmt.Sprintf("Deleted promotion #%d", id))
 	return nil
+}
+
+// ApplyPromotionToOrder applies a promotion to an order (N:N relationship)
+func (a *App) ApplyPromotionToOrder(orderID, promotionID uint64) error {
+	// Validate order exists
+	_, err := a.orderDAO.Read(orderID)
+	if err != nil {
+		return fmt.Errorf("failed to read order: %w", err)
+	}
+
+	// Validate promotion exists
+	_, err = a.promotionDAO.Read(promotionID)
+	if err != nil {
+		return fmt.Errorf("failed to read promotion: %w", err)
+	}
+
+	// Write the order-promotion relationship
+	err = a.orderPromotionDAO.Write(orderID, promotionID)
+	if err != nil {
+		return fmt.Errorf("failed to apply promotion: %w", err)
+	}
+
+	a.logger.Info(fmt.Sprintf("Applied promotion #%d to order #%d", promotionID, orderID))
+
+	return nil
+}
+
+// GetOrderPromotions retrieves all promotions applied to an order
+func (a *App) GetOrderPromotions(orderID uint64) ([]map[string]any, error) {
+	orderPromotions, err := a.orderPromotionDAO.GetByOrderID(orderID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]map[string]any, len(orderPromotions))
+	for i, op := range orderPromotions {
+		// Get promotion details
+		promotion, err := a.promotionDAO.Read(op.PromotionID)
+		if err != nil {
+			// If promotion is deleted, still show the relationship with basic info
+			result[i] = map[string]any{
+				"promotionID":   op.PromotionID,
+				"promotionName": "Deleted Promotion",
+			}
+			continue
+		}
+
+		result[i] = map[string]any{
+			"promotionID":   op.PromotionID,
+			"promotionName": promotion.OwnerOrName,
+			"totalPrice":    promotion.TotalPrice,
+			"itemCount":     promotion.ItemCount,
+		}
+	}
+
+	a.logger.Info(fmt.Sprintf("Retrieved %d promotions for order #%d", len(result), orderID))
+	return result, nil
+}
+
+// GetPromotionOrders retrieves all orders that have a specific promotion applied
+func (a *App) GetPromotionOrders(promotionID uint64) ([]map[string]any, error) {
+	orderPromotions, err := a.orderPromotionDAO.GetByPromotionID(promotionID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]map[string]any, len(orderPromotions))
+	for i, op := range orderPromotions {
+		// Get order details
+		order, err := a.orderDAO.Read(op.OrderID)
+		if err != nil {
+			// If order is deleted, still show the relationship with basic info
+			result[i] = map[string]any{
+				"orderID":      op.OrderID,
+				"customerName": "Deleted Order",
+			}
+			continue
+		}
+
+		result[i] = map[string]any{
+			"orderID":      op.OrderID,
+			"customerName": order.OwnerOrName,
+			"totalPrice":   order.TotalPrice,
+			"itemCount":    order.ItemCount,
+		}
+	}
+
+	a.logger.Info(fmt.Sprintf("Retrieved %d orders for promotion #%d", len(result), promotionID))
+	return result, nil
+}
+
+// RemovePromotionFromOrder removes a promotion from an order
+func (a *App) RemovePromotionFromOrder(orderID, promotionID uint64) error {
+	err := a.orderPromotionDAO.Delete(orderID, promotionID)
+	if err != nil {
+		return err
+	}
+
+	a.logger.Info(fmt.Sprintf("Removed promotion #%d from order #%d", promotionID, orderID))
+	return nil
+}
+
+// GetOrderWithPromotions retrieves an order with all its promotions
+func (a *App) GetOrderWithPromotions(orderID uint64) (map[string]any, error) {
+	// Get order
+	order, err := a.orderDAO.Read(orderID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get promotions
+	promotions, err := a.GetOrderPromotions(orderID)
+	if err != nil {
+		return nil, err
+	}
+
+	a.logger.Info(fmt.Sprintf("Retrieved order #%d with %d promotions", orderID, len(promotions)))
+
+	return map[string]any{
+		"id":         order.ID,
+		"customer":   order.OwnerOrName,
+		"totalPrice": order.TotalPrice,
+		"promotions": promotions,
+		"itemCount":  order.ItemCount,
+		"itemIDs":    order.ItemIDs,
+	}, nil
 }

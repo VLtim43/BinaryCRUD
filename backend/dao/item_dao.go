@@ -49,8 +49,8 @@ func (dao *ItemDAO) ensureFileExists() error {
 	}
 	defer file.Close()
 
-	// Write empty header (0 entities, 0 tombstones, nextId=1)
-	header, err := utils.WriteHeader(0, 0, 1)
+	// Write empty header (0 entities, 0 tombstones, nextId=0)
+	header, err := utils.WriteHeader(0, 0, 0)
 	if err != nil {
 		return fmt.Errorf("failed to create header: %w", err)
 	}

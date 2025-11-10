@@ -6,6 +6,10 @@ export function AddItem(arg1, arg2) {
   return window['go']['main']['App']['AddItem'](arg1, arg2);
 }
 
+export function ApplyPromotionToOrder(arg1, arg2) {
+  return window['go']['main']['App']['ApplyPromotionToOrder'](arg1, arg2);
+}
+
 export function ClearLogs() {
   return window['go']['main']['App']['ClearLogs']();
 }
@@ -38,6 +42,14 @@ export function GetAllItems() {
   return window['go']['main']['App']['GetAllItems']();
 }
 
+export function GetAllOrders() {
+  return window['go']['main']['App']['GetAllOrders']();
+}
+
+export function GetAllPromotions() {
+  return window['go']['main']['App']['GetAllPromotions']();
+}
+
 export function GetIndexContents() {
   return window['go']['main']['App']['GetIndexContents']();
 }
@@ -54,10 +66,30 @@ export function GetOrder(arg1) {
   return window['go']['main']['App']['GetOrder'](arg1);
 }
 
+export function GetOrderPromotions(arg1) {
+  return window['go']['main']['App']['GetOrderPromotions'](arg1);
+}
+
+export function GetOrderWithPromotions(arg1) {
+  return window['go']['main']['App']['GetOrderWithPromotions'](arg1);
+}
+
 export function GetPromotion(arg1) {
   return window['go']['main']['App']['GetPromotion'](arg1);
 }
 
+export function GetPromotionOrders(arg1) {
+  return window['go']['main']['App']['GetPromotionOrders'](arg1);
+}
+
 export function PopulateInventory() {
   return window['go']['main']['App']['PopulateInventory']();
+}
+
+export function PopulatePromotions() {
+  return window['go']['main']['App']['PopulatePromotions']();
+}
+
+export function RemovePromotionFromOrder(arg1, arg2) {
+  return window['go']['main']['App']['RemovePromotionFromOrder'](arg1, arg2);
 }

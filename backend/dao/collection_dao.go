@@ -38,8 +38,8 @@ func (dao *CollectionDAO) ensureFileExists() error {
 	}
 	defer file.Close()
 
-	// Write empty header (0 entities, 0 tombstones, nextId=1)
-	header, err := utils.WriteHeader(0, 0, 1)
+	// Write empty header (0 entities, 0 tombstones, nextId=0)
+	header, err := utils.WriteHeader(0, 0, 0)
 	if err != nil {
 		return fmt.Errorf("failed to create header: %w", err)
 	}
@@ -360,4 +360,123 @@ func (dao *CollectionDAO) Delete(id uint64) error {
 	}
 
 	return fmt.Errorf("entry with ID %d not found", id)
+}
+
+// GetAll retrieves all non-deleted collections using sequential scan
+func (dao *CollectionDAO) GetAll() ([]*Collection, error) {
+	dao.mu.Lock()
+	defer dao.mu.Unlock()
+
+	// Ensure file exists
+	if err := dao.ensureFileExists(); err != nil {
+		return nil, err
+	}
+
+	// Read all file data
+	fileData, err := os.ReadFile(dao.filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	// Calculate header size
+	headerSize := (utils.HeaderFieldSize * 3) + 3 // 15 bytes
+
+	if len(fileData) <= headerSize {
+		return []*Collection{}, nil // No entries yet
+	}
+
+	// Split by record separator
+	recordSeparatorByte := []byte(utils.RecordSeparator)[0]
+	entries := make([][]byte, 0)
+
+	entryStart := headerSize
+	for i := headerSize; i < len(fileData); i++ {
+		if fileData[i] == recordSeparatorByte {
+			entries = append(entries, fileData[entryStart:i])
+			entryStart = i + 1
+		}
+	}
+
+	// Parse each entry
+	result := make([]*Collection, 0)
+
+	for _, entryData := range entries {
+		if len(entryData) < utils.IDSize+utils.TombstoneSize {
+			continue
+		}
+
+		offset := 0
+
+		// Read ID
+		entryID, offset, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
+		if err != nil {
+			continue
+		}
+
+		// Read tombstone
+		tombstone := entryData[offset]
+		offset += utils.TombstoneSize
+
+		// Skip deleted entries
+		if tombstone != 0x00 {
+			continue
+		}
+
+		// Skip unit separator
+		offset += 1
+
+		// Read name size
+		nameSize, offset, err := utils.ReadFixedNumber(2, entryData, offset)
+		if err != nil {
+			continue
+		}
+
+		// Read name
+		ownerOrName, offset, err := utils.ReadFixedString(int(nameSize), entryData, offset)
+		if err != nil {
+			continue
+		}
+
+		// Skip unit separator
+		offset += 1
+
+		// Read total price
+		totalPrice, offset, err := utils.ReadFixedNumber(4, entryData, offset)
+		if err != nil {
+			continue
+		}
+
+		// Skip unit separator
+		offset += 1
+
+		// Read item count
+		itemCount, offset, err := utils.ReadFixedNumber(4, entryData, offset)
+		if err != nil {
+			continue
+		}
+
+		// Skip unit separator
+		offset += 1
+
+		// Read item IDs
+		itemIDs := make([]uint64, itemCount)
+		for i := uint64(0); i < itemCount; i++ {
+			itemID, newOffset, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
+			if err != nil {
+				break
+			}
+			itemIDs[i] = itemID
+			offset = newOffset
+		}
+
+		result = append(result, &Collection{
+			ID:          entryID,
+			OwnerOrName: ownerOrName,
+			TotalPrice:  totalPrice,
+			ItemCount:   itemCount,
+			ItemIDs:     itemIDs,
+		})
+	}
+
+	return result, nil
 }

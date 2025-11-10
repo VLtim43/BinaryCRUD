@@ -16,7 +16,7 @@ Verify installation:
 go version
 ```
 
-### 2. Install Wails
+### 2. Install Wails https://wails.io/docs/gettingstarted/installation
 
 Install Wails CLI:
 
@@ -24,19 +24,7 @@ Install Wails CLI:
 go install github.com/wailsapp/wails/v2/cmd/wails@latest
 ```
 
-Verify installation:
-
-```bash
-wails doctor
-```
-
-For detailed Wails installation instructions, visit:
-
-- https://wails.io/docs/gettingstarted/installation
-
 ## Running the Application
-
-From the project root directory:
 
 ```bash
 ./run.sh

@@ -4,6 +4,8 @@ import {main} from '../models';
 
 export function AddItem(arg1:string,arg2:number):Promise<void>;
 
+export function ApplyPromotionToOrder(arg1:number,arg2:number):Promise<void>;
+
 export function ClearLogs():Promise<void>;
 
 export function CreateOrder(arg1:string,arg2:Array<number>):Promise<number>;
@@ -20,6 +22,10 @@ export function DeletePromotion(arg1:number):Promise<void>;
 
 export function GetAllItems():Promise<Array<Record<string, any>>>;
 
+export function GetAllOrders():Promise<Array<Record<string, any>>>;
+
+export function GetAllPromotions():Promise<Array<Record<string, any>>>;
+
 export function GetIndexContents():Promise<Record<string, any>>;
 
 export function GetItem(arg1:number,arg2:boolean):Promise<Record<string, any>>;
@@ -28,6 +34,16 @@ export function GetLogs():Promise<Array<main.LogEntry>>;
 
 export function GetOrder(arg1:number):Promise<Record<string, any>>;
 
+export function GetOrderPromotions(arg1:number):Promise<Array<Record<string, any>>>;
+
+export function GetOrderWithPromotions(arg1:number):Promise<Record<string, any>>;
+
 export function GetPromotion(arg1:number):Promise<Record<string, any>>;
 
+export function GetPromotionOrders(arg1:number):Promise<Array<Record<string, any>>>;
+
 export function PopulateInventory():Promise<void>;
+
+export function PopulatePromotions():Promise<void>;
+
+export function RemovePromotionFromOrder(arg1:number,arg2:number):Promise<void>;
