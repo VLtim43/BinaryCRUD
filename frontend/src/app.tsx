@@ -1111,8 +1111,8 @@ export const App = () => {
           <div id="order-section">
             <div className="cart-container">
               <div className="cart-header">
-                <h3>Order</h3>
-                {cart.length > 0 && customerName && (
+                <h3>Create Order</h3>
+                {(cart.length > 0 || selectedPromotionsForNewOrder.length > 0) && customerName && (
                   <button className="btn btn-primary" onClick={submitOrder}>
                     Submit Order
                   </button>
@@ -1127,10 +1127,13 @@ export const App = () => {
                 style={{ marginBottom: "10px" }}
               />
 
-              <h4 style={{ margin: "15px 0 10px 0", color: "#fff", fontSize: "1em" }}>Items</h4>
+              <h4 style={{ margin: "15px 0 10px 0", color: "#fff", fontSize: "1em" }}>Order Contents</h4>
               {cart.length > 0 && (
-                <div className="cart-total">
-                  Total: $
+                <div className="cart-total" style={{
+                  backgroundColor: "rgba(100, 150, 255, 0.1)",
+                  border: "1px solid rgba(100, 150, 255, 0.3)",
+                }}>
+                  Items Total: $
                   {(
                     cart.reduce(
                       (sum, item) => sum + item.priceInCents * item.quantity,
@@ -1139,107 +1142,146 @@ export const App = () => {
                   ).toFixed(2)}
                 </div>
               )}
+              {selectedPromotionsForNewOrder.length > 0 && (
+                <div className="cart-total" style={{
+                  backgroundColor: "rgba(100, 200, 100, 0.1)",
+                  border: "1px solid rgba(100, 200, 100, 0.3)",
+                  marginTop: "5px",
+                }}>
+                  Promotions Total: $
+                  {(
+                    selectedPromotionsForNewOrder.reduce(
+                      (sum, promo) => sum + promo.totalPrice,
+                      0
+                    ) / 100
+                  ).toFixed(2)}
+                </div>
+              )}
               <div className="cart-items">
-                {cart.length === 0 ? (
-                  <div className="cart-empty">No items in cart</div>
+                {cart.length === 0 && selectedPromotionsForNewOrder.length === 0 ? (
+                  <div className="cart-empty">No items or promotions added</div>
                 ) : (
-                  cart.map((item) => (
-                    <div key={item.id} className="cart-item">
-                      <div className="cart-item-info">
-                        <div className="cart-item-name">{item.name}</div>
-                        <div className="cart-item-id">
-                          ID: {item.id} | $
-                          {(item.priceInCents / 100).toFixed(2)} each | Total: $
-                          {((item.priceInCents * item.quantity) / 100).toFixed(
-                            2
-                          )}
+                  <>
+                    {cart.map((item) => (
+                      <div key={`item-${item.id}`} className="cart-item" style={{
+                        backgroundColor: "rgba(100, 150, 255, 0.05)",
+                        border: "1px solid rgba(100, 150, 255, 0.2)",
+                      }}>
+                        <div className="cart-item-info">
+                          <div className="cart-item-name">
+                            <span style={{
+                              display: "inline-block",
+                              padding: "2px 6px",
+                              backgroundColor: "rgba(100, 150, 255, 0.3)",
+                              borderRadius: "3px",
+                              fontSize: "0.75em",
+                              fontWeight: "bold",
+                              marginRight: "8px",
+                            }}>ITEM</span>
+                            {item.name}
+                          </div>
+                          <div className="cart-item-id">
+                            ID: {item.id} | $
+                            {(item.priceInCents / 100).toFixed(2)} each | Total: $
+                            {((item.priceInCents * item.quantity) / 100).toFixed(2)}
+                          </div>
+                        </div>
+                        <div className="cart-item-controls">
+                          <div className="cart-item-quantity">
+                            x{item.quantity}
+                          </div>
+                          <button
+                            className="btn btn-danger btn-small"
+                            onClick={() => removeFromCart(item.id)}
+                          >
+                            ×
+                          </button>
                         </div>
                       </div>
-                      <div className="cart-item-controls">
-                        <div className="cart-item-quantity">
-                          x{item.quantity}
-                        </div>
-                        <button
-                          className="btn btn-danger btn-small"
-                          onClick={() => removeFromCart(item.id)}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-              <div className="cart-footer">
-                <select
-                  className="cart-select"
-                  value={selectedItemId}
-                  onChange={(e: any) => setSelectedItemId(e.target.value)}
-                >
-                  <option value="">Select an item...</option>
-                  {availableItems
-                    .sort((a, b) => a.id - b.id)
-                    .map((item) => (
-                      <option key={item.id} value={item.id}>
-                        [{item.id}] {item.name} - $
-                        {(item.priceInCents / 100).toFixed(2)}
-                      </option>
                     ))}
-                </select>
-                <button className="btn" onClick={addToCart}>
-                  Add Item
-                </button>
+                    {selectedPromotionsForNewOrder.map((promo) => (
+                      <div key={`promo-${promo.id}`} className="cart-item" style={{
+                        backgroundColor: "rgba(100, 200, 100, 0.05)",
+                        border: "1px solid rgba(100, 200, 100, 0.2)",
+                      }}>
+                        <div className="cart-item-info">
+                          <div className="cart-item-name">
+                            <span style={{
+                              display: "inline-block",
+                              padding: "2px 6px",
+                              backgroundColor: "rgba(100, 200, 100, 0.3)",
+                              borderRadius: "3px",
+                              fontSize: "0.75em",
+                              fontWeight: "bold",
+                              marginRight: "8px",
+                            }}>PROMO</span>
+                            {promo.name}
+                          </div>
+                          <div className="cart-item-id">
+                            ID: {promo.id} | {promo.itemCount} items | $
+                            {(promo.totalPrice / 100).toFixed(2)}
+                          </div>
+                        </div>
+                        <div className="cart-item-controls">
+                          <button
+                            className="btn btn-danger btn-small"
+                            onClick={() => removePromotionFromNewOrder(promo.id)}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
 
-              <h4 style={{ margin: "20px 0 10px 0", color: "#fff", fontSize: "1em" }}>Promotions</h4>
-              <div className="cart-items">
-                {selectedPromotionsForNewOrder.length === 0 ? (
-                  <div className="cart-empty">No promotions selected</div>
-                ) : (
-                  selectedPromotionsForNewOrder.map((promo) => (
-                    <div key={promo.id} className="cart-item" style={{
-                      backgroundColor: "rgba(100, 200, 100, 0.05)",
-                      border: "1px solid rgba(100, 200, 100, 0.2)",
-                    }}>
-                      <div className="cart-item-info">
-                        <div className="cart-item-name">{promo.name}</div>
-                        <div className="cart-item-id">
-                          ID: {promo.id} | {promo.itemCount} items | $
+              <h4 style={{ margin: "20px 0 10px 0", color: "#fff", fontSize: "0.9em" }}>Add to Order</h4>
+              <div style={{ display: "flex", gap: "10px", flexDirection: "row" }}>
+                <div style={{ flex: 1, display: "flex", gap: "8px" }}>
+                  <select
+                    className="cart-select"
+                    value={selectedItemId}
+                    onChange={(e: any) => setSelectedItemId(e.target.value)}
+                    style={{ flex: 1 }}
+                  >
+                    <option value="">Select an item...</option>
+                    {availableItems
+                      .sort((a, b) => a.id - b.id)
+                      .map((item) => (
+                        <option key={item.id} value={item.id}>
+                          [{item.id}] {item.name} - $
+                          {(item.priceInCents / 100).toFixed(2)}
+                        </option>
+                      ))}
+                  </select>
+                  <button className="btn" onClick={addToCart}>
+                    Add Item
+                  </button>
+                </div>
+
+                <div style={{ flex: 1, display: "flex", gap: "8px" }}>
+                  <select
+                    className="cart-select"
+                    value={selectedPromotionIdToAdd}
+                    onChange={(e: any) => setSelectedPromotionIdToAdd(e.target.value)}
+                    style={{ flex: 1 }}
+                  >
+                    <option value="">Select a promotion...</option>
+                    {availablePromotions
+                      .filter(p => !selectedPromotionsForNewOrder.some(sp => sp.id === p.id))
+                      .sort((a, b) => a.id - b.id)
+                      .map((promo) => (
+                        <option key={promo.id} value={promo.id}>
+                          [{promo.id}] {promo.name} - $
                           {(promo.totalPrice / 100).toFixed(2)}
-                        </div>
-                      </div>
-                      <div className="cart-item-controls">
-                        <button
-                          className="btn btn-danger btn-small"
-                          onClick={() => removePromotionFromNewOrder(promo.id)}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-              <div className="cart-footer">
-                <select
-                  className="cart-select"
-                  value={selectedPromotionIdToAdd}
-                  onChange={(e: any) => setSelectedPromotionIdToAdd(e.target.value)}
-                >
-                  <option value="">Select a promotion...</option>
-                  {availablePromotions
-                    .filter(p => !selectedPromotionsForNewOrder.some(sp => sp.id === p.id))
-                    .sort((a, b) => a.id - b.id)
-                    .map((promo) => (
-                      <option key={promo.id} value={promo.id}>
-                        [{promo.id}] {promo.name} - $
-                        {(promo.totalPrice / 100).toFixed(2)}
-                      </option>
-                    ))}
-                </select>
-                <button className="btn" onClick={addPromotionToNewOrder}>
-                  Add Promo
-                </button>
+                        </option>
+                      ))}
+                  </select>
+                  <button className="btn" onClick={addPromotionToNewOrder}>
+                    Add Promo
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1313,32 +1355,72 @@ export const App = () => {
                     backgroundColor: "rgba(0, 0, 0, 0.2)",
                     borderRadius: "4px",
                   }}>
-                    <span style={{ color: "#aaa", fontWeight: "bold" }}>Items:</span>
+                    <span style={{ color: "#aaa", fontWeight: "bold" }}>Items Count:</span>
                     <span style={{ color: "#fff" }}>{currentOrderDetails.itemCount}</span>
                   </div>
                 </div>
 
                 <h4 style={{ margin: "20px 0 10px 0", color: "#fff" }}>
-                  Applied Promotions
+                  Order Contents
                 </h4>
-                {currentOrderDetails.promotions && currentOrderDetails.promotions.length > 0 ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "15px" }}>
-                    {currentOrderDetails.promotions.map((promo: any) => (
-                      <div key={promo.id} style={{
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "15px" }}>
+                  {currentOrderDetails.itemIDs && currentOrderDetails.itemIDs.length > 0 && (
+                    <>
+                      {(() => {
+                        const itemCounts = currentOrderDetails.itemIDs.reduce((acc: any, id: number) => {
+                          acc[id] = (acc[id] || 0) + 1;
+                          return acc;
+                        }, {});
+                        return Object.entries(itemCounts).map(([id, count]: [string, any]) => (
+                          <div key={`item-${id}`} style={{
+                            padding: "10px",
+                            backgroundColor: "rgba(100, 150, 255, 0.05)",
+                            borderRadius: "4px",
+                            border: "1px solid rgba(100, 150, 255, 0.2)",
+                          }}>
+                            <div style={{ color: "#fff" }}>
+                              <span style={{
+                                display: "inline-block",
+                                padding: "2px 6px",
+                                backgroundColor: "rgba(100, 150, 255, 0.3)",
+                                borderRadius: "3px",
+                                fontSize: "0.75em",
+                                fontWeight: "bold",
+                                marginRight: "8px",
+                              }}>ITEM</span>
+                              Item ID: {id} × {count}
+                            </div>
+                          </div>
+                        ));
+                      })()}
+                    </>
+                  )}
+                  {currentOrderDetails.promotions && currentOrderDetails.promotions.length > 0 ? (
+                    currentOrderDetails.promotions.map((promo: any) => (
+                      <div key={`promo-${promo.id}`} style={{
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
                         padding: "10px",
-                        backgroundColor: "rgba(100, 200, 100, 0.1)",
+                        backgroundColor: "rgba(100, 200, 100, 0.05)",
                         borderRadius: "4px",
-                        border: "1px solid rgba(100, 200, 100, 0.3)",
+                        border: "1px solid rgba(100, 200, 100, 0.2)",
                       }}>
                         <div>
-                          <div style={{ color: "#fff", fontWeight: "bold" }}>
-                            #{promo.id} - {promo.name}
+                          <div style={{ color: "#fff" }}>
+                            <span style={{
+                              display: "inline-block",
+                              padding: "2px 6px",
+                              backgroundColor: "rgba(100, 200, 100, 0.3)",
+                              borderRadius: "3px",
+                              fontSize: "0.75em",
+                              fontWeight: "bold",
+                              marginRight: "8px",
+                            }}>PROMO</span>
+                            {promo.name}
                           </div>
-                          <div style={{ color: "#aaa", fontSize: "0.9em" }}>
-                            {promo.itemCount} items - ${(promo.totalPrice / 100).toFixed(2)}
+                          <div style={{ color: "#aaa", fontSize: "0.9em", marginLeft: "50px" }}>
+                            ID: {promo.id} | {promo.itemCount} items | ${(promo.totalPrice / 100).toFixed(2)}
                           </div>
                         </div>
                         <button
@@ -1349,18 +1431,19 @@ export const App = () => {
                           ×
                         </button>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{
-                    padding: "10px",
-                    color: "#aaa",
-                    fontStyle: "italic",
-                    marginBottom: "15px",
-                  }}>
-                    No promotions applied to this order
-                  </div>
-                )}
+                    ))
+                  ) : (
+                    !currentOrderDetails.itemIDs?.length && (
+                      <div style={{
+                        padding: "10px",
+                        color: "#aaa",
+                        fontStyle: "italic",
+                      }}>
+                        No items or promotions in this order
+                      </div>
+                    )
+                  )}
+                </div>
 
                 <h4 style={{ margin: "20px 0 10px 0", color: "#fff" }}>
                   Add Promotion
