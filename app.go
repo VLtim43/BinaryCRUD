@@ -35,6 +35,23 @@ func (a *App) startup(ctx context.Context) {
 
 // AddItem writes an item to the binary file with a price in cents
 func (a *App) AddItem(text string, priceInCents uint64) error {
+	// Convert item name to hexadecimal for debugging (with spaces between bytes)
+	bytes := []byte(text)
+	hexParts := make([]string, len(bytes))
+	for i, b := range bytes {
+		hexParts[i] = fmt.Sprintf("%02x", b)
+	}
+	hexName := ""
+	for i, part := range hexParts {
+		if i > 0 {
+			hexName += " "
+		}
+		hexName += part
+	}
+
+	// Log debugging information
+	a.logger.Log(fmt.Sprintf("[debugging] created item %s [%s]", text, hexName))
+
 	return a.itemDAO.Write(text, priceInCents)
 }
 
