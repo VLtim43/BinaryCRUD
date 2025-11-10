@@ -100,9 +100,9 @@ Dados permanecem no arquivo mas são logicamente deletados e ignorados durante l
 - Search: O(log n) até nós folha
 - Delete: Remove entrada da árvore
 
-**Orders e Promotions:** Apenas scan sequencial (sem indexação)
+**Orders e Promotions:** Também usam B+ Tree com fallback automático para scan sequencial
 
-**Localização:** `backend/index/btree.go`, `backend/dao/item_dao.go`
+**Localização:** `backend/index/btree.go`, `backend/dao/item_dao.go`, `backend/dao/collection_dao.go`
 
 ---
 

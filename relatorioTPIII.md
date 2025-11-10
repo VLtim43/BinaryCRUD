@@ -16,7 +16,6 @@
 - `orders.bin` - Pedidos do restaurante (ID, customer name, total price, item IDs)
 - `promotions.bin` - Promoções disponíveis (ID, promotion name, total price, item IDs)
 
-
 ---
 
 ### 2. Qual estrutura de índice foi utilizada (B+ ou Hash Extensível)? Justifique a escolha.
@@ -24,11 +23,13 @@
 **Estrutura:** **B+ Tree** (ordem 4)
 
 **Aplicado em:**
+
 - `items.bin` → `items.idx`
 - `orders.bin` → `orders.idx`
 - `promotions.bin` → `promotions.idx`
 
 **Não indexado:**
+
 - `order_promotions.bin` (tabela intermediária N:N)
 
 **Justificativa para B+ Tree:**
@@ -70,6 +71,7 @@
 Duas operações de busca são fornecidas:
 
 #### a) GetByOrderID - Buscar promoções de um pedido
+
 #### b) GetByPromotionID - Buscar pedidos com uma promoção
 
 ---
@@ -139,7 +141,6 @@ Duas operações de busca são fornecidas:
 - `tombstone` (1 byte): 0x00 = ativo, 0x01 = deletado
 - `0x1E`: Record separator (fim do registro)
 
-
 ---
 
 ### 7. Descreva como o código da tabela intermediária se integra com o CRUD das tabelas principais.
@@ -175,6 +176,7 @@ for (const rel of promos) {
   console.log(promotion.OwnerOrName);
 }
 ```
+
 ---
 
 ### 8. Descreva como está organizada a estrutura de diretórios e módulos no repositório após esta fase.
@@ -211,8 +213,31 @@ BinaryCRUD/
 │       └── file_test.go          # Testes de operações de arquivo
 ├── frontend/
 │   ├── src/
-│   │   ├── app.tsx               # Aplicação Preact
-│   │   └── App.scss              # Estilos
+│   │   ├── app.tsx               # Aplicação principal (121 linhas)
+│   │   ├── App.scss              # Estilos
+│   │   ├── components/           # Componentes reutilizáveis
+│   │   │   ├── Button.tsx        # Componente de botão
+│   │   │   ├── Input.tsx         # Componente de input
+│   │   │   ├── Select.tsx        # Componente de select
+│   │   │   ├── LogsPanel.tsx     # Painel lateral de logs
+│   │   │   ├── OrderCreateForm.tsx     # Formulário de criação de pedidos
+│   │   │   ├── PromotionCreateForm.tsx # Formulário de criação de promoções
+│   │   │   └── tabs/             # Componentes de abas
+│   │   │       ├── ItemTab.tsx
+│   │   │       ├── OrderTab.tsx
+│   │   │       ├── PromotionTab.tsx
+│   │   │       └── DebugTab.tsx
+│   │   ├── services/             # Wrappers de API
+│   │   │   ├── itemService.ts
+│   │   │   ├── orderService.ts
+│   │   │   ├── promotionService.ts
+│   │   │   ├── systemService.ts
+│   │   │   └── logService.ts
+│   │   ├── hooks/                # Custom hooks
+│   │   │   ├── useCart.ts        # Gerenciamento de carrinho
+│   │   │   └── useMessage.ts     # Gerenciamento de mensagens
+│   │   └── utils/                # Utilitários
+│   │       └── formatters.ts     # Formatação de preços e validações
 │   └── wailsjs/                  # Bindings Wails auto-gerados
 ├── data/                         # Persistência binária
 │   ├── items.bin                 # Registros de items
@@ -244,8 +269,6 @@ BinaryCRUD/
    - Exemplo: preço 798 (0x031E) quebra parsing
    - **Solução temporária:** Evitar valores com esses bytes
    - **Solução definitiva:** Implementar escaping ou usar length-prefixed encoding
-
-2. **✅ RESOLVIDO:** Orders e Promotions agora usam B+ Tree indexing (O(log n) lookups)
 
 ### Melhorias Futuras:
 
