@@ -553,17 +553,17 @@ func (a *App) GetOrderPromotions(orderID uint64) ([]map[string]any, error) {
 		if err != nil {
 			// If promotion is deleted, still show the relationship with basic info
 			result[i] = map[string]any{
-				"promotionID":   op.PromotionID,
-				"promotionName": "Deleted Promotion",
+				"id":   op.PromotionID,
+				"name": "Deleted Promotion",
 			}
 			continue
 		}
 
 		result[i] = map[string]any{
-			"promotionID":   op.PromotionID,
-			"promotionName": promotion.OwnerOrName,
-			"totalPrice":    promotion.TotalPrice,
-			"itemCount":     promotion.ItemCount,
+			"id":         op.PromotionID,
+			"name":       promotion.OwnerOrName,
+			"totalPrice": promotion.TotalPrice,
+			"itemCount":  promotion.ItemCount,
 		}
 	}
 
@@ -628,12 +628,20 @@ func (a *App) GetOrderWithPromotions(orderID uint64) (map[string]any, error) {
 		return nil, err
 	}
 
+	// Calculate combined total price (items + promotions)
+	combinedTotal := order.TotalPrice
+	for _, promo := range promotions {
+		if totalPrice, ok := promo["totalPrice"].(uint64); ok {
+			combinedTotal += totalPrice
+		}
+	}
+
 	a.logger.Info(fmt.Sprintf("Retrieved order #%d with %d promotions", orderID, len(promotions)))
 
 	return map[string]any{
 		"id":           order.ID,
 		"customerName": order.OwnerOrName,
-		"totalPrice":   order.TotalPrice,
+		"totalPrice":   combinedTotal,
 		"promotions":   promotions,
 		"itemCount":    order.ItemCount,
 		"itemIDs":      order.ItemIDs,
