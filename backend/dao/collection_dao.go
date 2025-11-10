@@ -1,6 +1,7 @@
 package dao
 
 import (
+	"BinaryCRUD/backend/index"
 	"BinaryCRUD/backend/utils"
 	"fmt"
 	"os"
@@ -19,8 +20,10 @@ type Collection struct {
 }
 
 type CollectionDAO struct {
-	filePath string
-	mu       sync.Mutex
+	filePath  string
+	indexPath string
+	mu        sync.Mutex
+	tree      *index.BTree // B+ tree index for fast lookups
 }
 
 // ensureFileExists creates the file with empty header if it doesn't exist
@@ -142,16 +145,43 @@ func (dao *CollectionDAO) Write(ownerOrName string, totalPrice uint64, itemIDs [
 		entry = append(entry, itemIDBytes...)
 	}
 
+	// Read header to get the next ID
+	_, _, nextId, err := utils.ReadHeader(file)
+	if err != nil {
+		return fmt.Errorf("failed to read header: %w", err)
+	}
+
+	// Seek back to end
+	_, err = file.Seek(0, 2)
+	if err != nil {
+		return fmt.Errorf("failed to seek to end: %w", err)
+	}
+
+	// Get actual append position
+	appendPos, err := file.Seek(0, 1)
+	if err != nil {
+		return fmt.Errorf("failed to get append position: %w", err)
+	}
+
 	// Append the entry (ID and tombstone auto-assigned, record separator added)
 	err = utils.AppendEntry(file, entry)
 	if err != nil {
 		return fmt.Errorf("failed to append collection: %w", err)
 	}
 
+	// Add to B+ tree index: ID -> file offset
+	dao.tree.Insert(uint64(nextId), appendPos)
+
+	// Save index to disk
+	err = dao.tree.Save(dao.indexPath)
+	if err != nil {
+		return fmt.Errorf("failed to save index: %w", err)
+	}
+
 	return nil
 }
 
-// Read retrieves a collection by ID using sequential scan
+// Read retrieves a collection by ID using B+ tree index with automatic fallback to sequential scan
 func (dao *CollectionDAO) Read(id uint64) (*Collection, error) {
 	dao.mu.Lock()
 	defer dao.mu.Unlock()
@@ -168,27 +198,58 @@ func (dao *CollectionDAO) Read(id uint64) (*Collection, error) {
 	}
 	defer file.Close()
 
-	// Find entry by ID sequentially
-	entryData, err := utils.FindByIDSequential(file, id)
-	if err != nil {
-		return nil, err
+	var entryData []byte
+
+	// Try B+ tree index first
+	offset, found := dao.tree.Search(id)
+	if found {
+		// Use index for fast lookup
+		_, err = file.Seek(offset, 0)
+		if err == nil {
+			// Read until record separator
+			buffer := make([]byte, 8192) // Larger buffer for collections with many items
+			n, err := file.Read(buffer)
+			if err == nil {
+				// Find record separator
+				recordSep := []byte(utils.RecordSeparator)[0]
+				sepPos := -1
+				for i := 0; i < n; i++ {
+					if buffer[i] == recordSep {
+						sepPos = i
+						break
+					}
+				}
+
+				if sepPos != -1 {
+					entryData = buffer[:sepPos]
+				}
+			}
+		}
+	}
+
+	// If index lookup failed or didn't find data, fall back to sequential scan
+	if entryData == nil {
+		entryData, err = utils.FindByIDSequential(file, id)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Parse entry: [ID(2)][tombstone(1)][0x1F][nameSize(2)][name][0x1F][totalPrice(4)][0x1F][itemCount(4)][0x1F][itemID1(2)]...
-	offset := 0
+	parseOffset := 0
 
 	// Read ID
-	entryID, offset, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
+	entryID, parseOffset, err := utils.ReadFixedNumber(utils.IDSize, entryData, parseOffset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read ID: %w", err)
 	}
 
 	// Read tombstone byte
-	if offset >= len(entryData) {
+	if parseOffset >= len(entryData) {
 		return nil, fmt.Errorf("entry too short for tombstone")
 	}
-	tombstone := entryData[offset]
-	offset += utils.TombstoneSize
+	tombstone := entryData[parseOffset]
+	parseOffset += utils.TombstoneSize
 
 	// Check if deleted
 	if tombstone != 0x00 {
@@ -196,50 +257,50 @@ func (dao *CollectionDAO) Read(id uint64) (*Collection, error) {
 	}
 
 	// Skip unit separator (0x1F)
-	offset += 1
+	parseOffset += 1
 
 	// Read name size
-	nameSize, offset, err := utils.ReadFixedNumber(2, entryData, offset)
+	nameSize, parseOffset, err := utils.ReadFixedNumber(2, entryData, parseOffset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read name size: %w", err)
 	}
 
 	// Read name
-	ownerOrName, offset, err := utils.ReadFixedString(int(nameSize), entryData, offset)
+	ownerOrName, parseOffset, err := utils.ReadFixedString(int(nameSize), entryData, parseOffset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read name: %w", err)
 	}
 
 	// Skip unit separator (0x1F)
-	offset += 1
+	parseOffset += 1
 
 	// Read total price
-	totalPrice, offset, err := utils.ReadFixedNumber(4, entryData, offset)
+	totalPrice, parseOffset, err := utils.ReadFixedNumber(4, entryData, parseOffset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read total price: %w", err)
 	}
 
 	// Skip unit separator (0x1F)
-	offset += 1
+	parseOffset += 1
 
 	// Read item count
-	itemCount, offset, err := utils.ReadFixedNumber(4, entryData, offset)
+	itemCount, parseOffset, err := utils.ReadFixedNumber(4, entryData, parseOffset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read item count: %w", err)
 	}
 
 	// Skip unit separator (0x1F)
-	offset += 1
+	parseOffset += 1
 
 	// Read item IDs (2 bytes each)
 	itemIDs := make([]uint64, itemCount)
 	for i := uint64(0); i < itemCount; i++ {
-		itemID, newOffset, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
+		itemID, newOffset, err := utils.ReadFixedNumber(utils.IDSize, entryData, parseOffset)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read item ID %d: %w", i, err)
 		}
 		itemIDs[i] = itemID
-		offset = newOffset
+		parseOffset = newOffset
 	}
 
 	return &Collection{
@@ -353,6 +414,15 @@ func (dao *CollectionDAO) Delete(id uint64) error {
 			err = file.Sync()
 			if err != nil {
 				return fmt.Errorf("failed to sync header to disk: %w", err)
+			}
+
+			// Remove from B+ tree index
+			dao.tree.Delete(id)
+
+			// Save updated index to disk
+			err = dao.tree.Save(dao.indexPath)
+			if err != nil {
+				return fmt.Errorf("failed to save index: %w", err)
 			}
 
 			return nil

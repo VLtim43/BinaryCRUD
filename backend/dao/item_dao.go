@@ -162,20 +162,20 @@ func (dao *ItemDAO) Write(name string, priceInCents uint64) error {
 	return nil
 }
 
-// Read retrieves an item by ID using sequential search
+// Read retrieves an item by ID (uses index with automatic fallback)
 // Returns (id, name, priceInCents, error)
 func (dao *ItemDAO) Read(id uint64) (uint64, string, uint64, error) {
-	return dao.readWithIndex(id, false)
+	return dao.readWithIndex(id)
 }
 
-// ReadWithIndex retrieves an item by ID, optionally using the B+ tree index
+// ReadWithIndex retrieves an item by ID using the B+ tree index with automatic fallback to sequential scan
 // Returns (id, name, priceInCents, error)
 func (dao *ItemDAO) ReadWithIndex(id uint64, useIndex bool) (uint64, string, uint64, error) {
-	return dao.readWithIndex(id, useIndex)
+	return dao.readWithIndex(id)
 }
 
-// readWithIndex is the internal implementation
-func (dao *ItemDAO) readWithIndex(id uint64, useIndex bool) (uint64, string, uint64, error) {
+// readWithIndex is the internal implementation that always tries index first, then falls back to sequential
+func (dao *ItemDAO) readWithIndex(id uint64) (uint64, string, uint64, error) {
 	// Ensure file exists
 	if err := dao.ensureFileExists(); err != nil {
 		return 0, "", 0, err
@@ -190,42 +190,35 @@ func (dao *ItemDAO) readWithIndex(id uint64, useIndex bool) (uint64, string, uin
 
 	var entryData []byte
 
-	if useIndex {
-		// Use B+ tree index for fast lookup
-		offset, found := dao.tree.Search(id)
-		if !found {
-			return 0, "", 0, fmt.Errorf("entry with ID %d not found", id)
-		}
-
-		// Seek to the entry position
+	// Try B+ tree index first
+	offset, found := dao.tree.Search(id)
+	if found {
+		// Use index for fast lookup
 		_, err = file.Seek(offset, 0)
-		if err != nil {
-			return 0, "", 0, fmt.Errorf("failed to seek to offset: %w", err)
-		}
+		if err == nil {
+			// Read until record separator
+			buffer := make([]byte, 4096) // Read in chunks
+			n, err := file.Read(buffer)
+			if err == nil {
+				// Find record separator
+				recordSep := []byte(utils.RecordSeparator)[0]
+				sepPos := -1
+				for i := 0; i < n; i++ {
+					if buffer[i] == recordSep {
+						sepPos = i
+						break
+					}
+				}
 
-		// Read until record separator
-		buffer := make([]byte, 4096) // Read in chunks
-		n, err := file.Read(buffer)
-		if err != nil {
-			return 0, "", 0, fmt.Errorf("failed to read entry: %w", err)
-		}
-
-		// Find record separator
-		recordSep := []byte(utils.RecordSeparator)[0]
-		sepPos := -1
-		for i := 0; i < n; i++ {
-			if buffer[i] == recordSep {
-				sepPos = i
-				break
+				if sepPos != -1 {
+					entryData = buffer[:sepPos]
+				}
 			}
 		}
+	}
 
-		if sepPos == -1 {
-			return 0, "", 0, fmt.Errorf("malformed entry: no record separator")
-		}
-
-		entryData = buffer[:sepPos]
-	} else {
+	// If index lookup failed or didn't find data, fall back to sequential scan
+	if entryData == nil {
 		// Use sequential finder to locate the entry
 		entryData, err = utils.FindByIDSequential(file, id)
 		if err != nil {
@@ -234,17 +227,17 @@ func (dao *ItemDAO) readWithIndex(id uint64, useIndex bool) (uint64, string, uin
 	}
 
 	// Parse the entry: [ID(2)][tombstone(1)][0x1F][nameSize(2)][name][0x1F][price(4)]
-	offset := 0
+	parseOffset := 0
 
 	// Read ID
-	entryID, offset, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
+	entryID, parseOffset, err := utils.ReadFixedNumber(utils.IDSize, entryData, parseOffset)
 	if err != nil {
 		return 0, "", 0, fmt.Errorf("failed to read ID: %w", err)
 	}
 
 	// Read tombstone byte
-	tombstone := entryData[offset]
-	offset += utils.TombstoneSize
+	tombstone := entryData[parseOffset]
+	parseOffset += utils.TombstoneSize
 
 	// Check if item is deleted
 	if tombstone != 0x00 {
@@ -252,25 +245,25 @@ func (dao *ItemDAO) readWithIndex(id uint64, useIndex bool) (uint64, string, uin
 	}
 
 	// Skip unit separator (0x1F)
-	offset += 1
+	parseOffset += 1
 
 	// Read name size
-	nameSize, offset, err := utils.ReadFixedNumber(2, entryData, offset)
+	nameSize, parseOffset, err := utils.ReadFixedNumber(2, entryData, parseOffset)
 	if err != nil {
 		return 0, "", 0, fmt.Errorf("failed to read name size: %w", err)
 	}
 
 	// Read name
-	name, offset, err := utils.ReadFixedString(int(nameSize), entryData, offset)
+	name, parseOffset, err := utils.ReadFixedString(int(nameSize), entryData, parseOffset)
 	if err != nil {
 		return 0, "", 0, fmt.Errorf("failed to read name: %w", err)
 	}
 
 	// Skip unit separator (0x1F)
-	offset += 1
+	parseOffset += 1
 
 	// Read price
-	price, _, err := utils.ReadFixedNumber(4, entryData, offset)
+	price, _, err := utils.ReadFixedNumber(4, entryData, parseOffset)
 	if err != nil {
 		return 0, "", 0, fmt.Errorf("failed to read price: %w", err)
 	}
@@ -430,7 +423,7 @@ func (dao *ItemDAO) GetAll() ([]Item, error) {
 
 	// Read each item by ID
 	for id := range allEntries {
-		itemID, name, priceInCents, err := dao.readWithIndex(id, true)
+		itemID, name, priceInCents, err := dao.readWithIndex(id)
 		if err != nil {
 			// Skip deleted or errored items
 			continue

@@ -21,11 +21,29 @@
 
 ### 2. Qual estrutura de índice foi utilizada (B+ ou Hash Extensível)? Justifique a escolha.
 
-**Estrutura:** **Nenhum índice** (scan sequencial)
+**Estrutura:** **B+ Tree** (ordem 4)
 
-A tabela intermediária `order_promotions.bin` **não utiliza índice** pelas seguintes razões:
+**Aplicado em:**
+- `items.bin` → `items.idx`
+- `orders.bin` → `orders.idx`
+- `promotions.bin` → `promotions.idx`
 
-1. **Volume de dados reduzido:** Relacionamentos N:N tendem a ter menos registros que as tabelas principais
+**Não indexado:**
+- `order_promotions.bin` (tabela intermediária N:N)
+
+**Justificativa para B+ Tree:**
+
+1. **Range queries eficientes:** B+ Tree mantém dados ordenados nos nós folha
+2. **Operações balanceadas:** Insert/Search/Delete em O(log n)
+3. **Cache-friendly:** Nós folha ligados em lista para scan sequencial
+4. **Persistência simples:** Estrutura serializa facilmente em formato binário
+5. **Baixo overhead:** Ordem 4 mantém árvore balanceada sem muitos nós
+
+**Justificativa para não indexar order_promotions:**
+
+1. **Volume reduzido:** Relacionamentos N:N têm menos registros que entidades principais
+2. **Buscas sempre filtradas:** Queries são sempre por orderID ou promotionID completo
+3. **Simplicidade:** Scan sequencial suficiente para datasets pequenos
 
 ---
 
@@ -200,7 +218,9 @@ BinaryCRUD/
 │   ├── items.bin                 # Registros de items
 │   ├── items.idx                 # Índice B+ Tree de items
 │   ├── orders.bin                # Registros de orders
+│   ├── orders.idx                # 🆕 Índice B+ Tree de orders
 │   ├── promotions.bin            # Registros de promotions
+│   ├── promotions.idx            # 🆕 Índice B+ Tree de promotions
 │   └── order_promotions.bin      # 🆕 Tabela intermediária N:N
 ├── logs/
 │   └── app.log                   # Logs da aplicação
@@ -225,10 +245,7 @@ BinaryCRUD/
    - **Solução temporária:** Evitar valores com esses bytes
    - **Solução definitiva:** Implementar escaping ou usar length-prefixed encoding
 
-2. **Sem índices em Orders/Promotions:** Lookups são O(n)
-
-   - Aceitável para volumes pequenos
-   - Requer otimização se escalar
+2. **✅ RESOLVIDO:** Orders e Promotions agora usam B+ Tree indexing (O(log n) lookups)
 
 ### Melhorias Futuras:
 

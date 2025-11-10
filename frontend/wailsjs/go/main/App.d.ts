@@ -28,7 +28,7 @@ export function GetAllPromotions():Promise<Array<Record<string, any>>>;
 
 export function GetIndexContents():Promise<Record<string, any>>;
 
-export function GetItem(arg1:number,arg2:boolean):Promise<Record<string, any>>;
+export function GetItem(arg1:number):Promise<Record<string, any>>;
 
 export function GetLogs():Promise<Array<main.LogEntry>>;
 

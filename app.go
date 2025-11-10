@@ -63,14 +63,14 @@ func (a *App) AddItem(text string, priceInCents uint64) error {
 	return a.itemDAO.Write(text, priceInCents)
 }
 
-// GetItem retrieves an item by ID from the binary file
-func (a *App) GetItem(id uint64, useIndex bool) (map[string]any, error) {
-	itemID, name, priceInCents, err := a.itemDAO.ReadWithIndex(id, useIndex)
+// GetItem retrieves an item by ID from the binary file (uses index with automatic fallback)
+func (a *App) GetItem(id uint64) (map[string]any, error) {
+	itemID, name, priceInCents, err := a.itemDAO.ReadWithIndex(id, true)
 	if err != nil {
 		return nil, err
 	}
 
-	a.logger.Info(fmt.Sprintf("Read item ID %d using index: %v", id, useIndex))
+	a.logger.Info(fmt.Sprintf("Read item ID %d", id))
 
 	return map[string]any{
 		"id":           itemID,
