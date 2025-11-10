@@ -63,7 +63,6 @@ func WriteHeaderToFile(file *os.File, header []byte) error {
 }
 
 // AppendEntry appends an entry to the file with auto-assigned ID and tombstone
-// The entry should NOT include an ID or tombstone - they will be prepended automatically
 // Format: [ID(2)][tombstone(1)][entry data]
 func AppendEntry(file *os.File, entryWithoutId []byte) error {
 	// Read current header to get nextId

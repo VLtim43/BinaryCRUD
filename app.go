@@ -64,8 +64,8 @@ func (a *App) AddItem(text string, priceInCents uint64) error {
 }
 
 // GetItem retrieves an item by ID from the binary file (uses index with automatic fallback)
-func (a *App) GetItem(id uint64) (map[string]any, error) {
-	itemID, name, priceInCents, err := a.itemDAO.ReadWithIndex(id, true)
+func (a *App) GetItem(id uint64, useIndex bool) (map[string]any, error) {
+	itemID, name, priceInCents, err := a.itemDAO.ReadWithIndex(id, useIndex)
 	if err != nil {
 		return nil, err
 	}
