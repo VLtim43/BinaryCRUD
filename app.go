@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"time"
+	"strings"
 )
 
 // App struct
@@ -40,20 +40,28 @@ func (a *App) startup(ctx context.Context) {
 	a.logger.Info("Application started")
 }
 
+// calculateTotalPrice calculates the total price of items by reading each item's price
+func (a *App) calculateTotalPrice(itemIDs []uint64) (uint64, error) {
+	var totalPrice uint64
+	for _, itemID := range itemIDs {
+		_, _, priceInCents, err := a.itemDAO.ReadWithIndex(itemID, true)
+		if err != nil {
+			return 0, fmt.Errorf("failed to read item %d: %w", itemID, err)
+		}
+		totalPrice += priceInCents
+	}
+	return totalPrice, nil
+}
+
 // AddItem writes an item to the binary file with a price in cents and returns the assigned ID
 func (a *App) AddItem(text string, priceInCents uint64) (uint64, error) {
 	// Convert item name to hexadecimal for debugging (with spaces between bytes)
-	bytes := []byte(text)
-	hexParts := make([]string, len(bytes))
-	for i, b := range bytes {
-		hexParts[i] = fmt.Sprintf("%02x", b)
-	}
-	hexName := ""
-	for i, part := range hexParts {
+	var hexName strings.Builder
+	for i, b := range []byte(text) {
 		if i > 0 {
-			hexName += " "
+			hexName.WriteString(" ")
 		}
-		hexName += part
+		hexName.WriteString(fmt.Sprintf("%02x", b))
 	}
 
 	// Write item and get assigned ID
@@ -63,7 +71,7 @@ func (a *App) AddItem(text string, priceInCents uint64) (uint64, error) {
 	}
 
 	// Log debugging information with assigned ID
-	a.logger.Debug(fmt.Sprintf("Created item #%d: %s [hex: %s]", assignedID, text, hexName))
+	a.logger.Debug(fmt.Sprintf("Created item #%d: %s [hex: %s]", assignedID, text, hexName.String()))
 
 	return assignedID, nil
 }
@@ -118,7 +126,7 @@ func (a *App) DeleteAllFiles() error {
 			filePath := fmt.Sprintf("%s/%s", dataDir, fileName)
 
 			// Skip .json files
-			if len(fileName) >= 5 && fileName[len(fileName)-5:] == ".json" {
+			if strings.HasSuffix(fileName, ".json") {
 				a.logger.Debug(fmt.Sprintf("Skipping JSON file: %s", fileName))
 				continue
 			}
@@ -231,10 +239,6 @@ func (a *App) PopulateInventory() error {
 
 		itemSuccessCount++
 		a.logger.Info(fmt.Sprintf("Added item %d/%d: %s ($%.2f)", i+1, len(items), item.Name, float64(item.PriceInCents)/100))
-
-		// Small delay to ensure file system has time to complete the write
-		// This prevents potential file corruption from rapid sequential writes
-		time.Sleep(10 * time.Millisecond)
 	}
 
 	a.logger.Info(fmt.Sprintf("Items population complete: %d succeeded, %d failed", itemSuccessCount, itemFailCount))
@@ -283,9 +287,6 @@ func (a *App) PopulateInventory() error {
 		promoSuccessCount++
 		a.logger.Info(fmt.Sprintf("Added promotion %d/%d: %s with %d items ($%.2f)",
 			i+1, len(promotions), promo.Name, len(promo.ItemIDs), float64(totalPrice)/100))
-
-		// Small delay to ensure file system has time to complete the write
-		time.Sleep(10 * time.Millisecond)
 	}
 
 	a.logger.Info(fmt.Sprintf("Promotions population complete: %d succeeded, %d failed", promoSuccessCount, promoFailCount))
@@ -383,13 +384,9 @@ func (a *App) CreateOrder(customerName string, itemIDs []uint64) (uint64, error)
 	}
 
 	// Calculate total price by reading each item
-	var totalPrice uint64
-	for _, itemID := range itemIDs {
-		_, _, priceInCents, err := a.itemDAO.ReadWithIndex(itemID, true)
-		if err != nil {
-			return 0, fmt.Errorf("failed to read item %d: %w", itemID, err)
-		}
-		totalPrice += priceInCents
+	totalPrice, err := a.calculateTotalPrice(itemIDs)
+	if err != nil {
+		return 0, err
 	}
 
 	// Write order to orders.bin and get assigned ID
@@ -445,13 +442,9 @@ func (a *App) CreatePromotion(promotionName string, itemIDs []uint64) (uint64, e
 	}
 
 	// Calculate total price by reading each item
-	var totalPrice uint64
-	for _, itemID := range itemIDs {
-		_, _, priceInCents, err := a.itemDAO.ReadWithIndex(itemID, true)
-		if err != nil {
-			return 0, fmt.Errorf("failed to read item %d: %w", itemID, err)
-		}
-		totalPrice += priceInCents
+	totalPrice, err := a.calculateTotalPrice(itemIDs)
+	if err != nil {
+		return 0, err
 	}
 
 	// Write promotion to promotions.bin and get assigned ID
