@@ -36,50 +36,26 @@ func NewItemDAO(filePath string) *ItemDAO {
 
 // ensureFileExists creates the file with empty header if it doesn't exist
 func (dao *ItemDAO) ensureFileExists() error {
-	// Check if file already exists
-	if _, err := os.Stat(dao.filePath); err == nil {
-		// File exists, nothing to do
-		return nil
-	}
-
-	// Create the file
-	file, err := utils.CreateFile(dao.filePath)
-	if err != nil {
-		return fmt.Errorf("failed to create item file: %w", err)
-	}
-	defer file.Close()
-
-	// Write empty header (0 entities, 0 tombstones, nextId=0)
-	header, err := utils.WriteHeader(0, 0, 0)
-	if err != nil {
-		return fmt.Errorf("failed to create header: %w", err)
-	}
-
-	err = utils.WriteHeaderToFile(file, header)
-	if err != nil {
-		return fmt.Errorf("failed to write header: %w", err)
-	}
-
-	return nil
+	return utils.EnsureFileExists(dao.filePath)
 }
 
-// Write adds an item to the binary file
+// Write adds an item to the binary file and returns the assigned ID
 // Item structure: [ID(2)][tombstone(1)][0x1F][nameSize(2)][name][0x1F][price(4)][0x1E]
 // ID and tombstone are auto-assigned by AppendEntry (tombstone is 0x00 for active records)
-func (dao *ItemDAO) Write(name string, priceInCents uint64) error {
+func (dao *ItemDAO) Write(name string, priceInCents uint64) (uint64, error) {
 	// Lock to prevent concurrent writes
 	dao.mu.Lock()
 	defer dao.mu.Unlock()
 
 	// Ensure file exists
 	if err := dao.ensureFileExists(); err != nil {
-		return err
+		return 0, err
 	}
 
 	// Open file for read/write
 	file, err := os.OpenFile(dao.filePath, os.O_RDWR, 0644)
 	if err != nil {
-		return fmt.Errorf("failed to open item file: %w", err)
+		return 0, fmt.Errorf("failed to open item file: %w", err)
 	}
 	defer file.Close()
 
@@ -91,31 +67,31 @@ func (dao *ItemDAO) Write(name string, priceInCents uint64) error {
 	// Separator before nameSize
 	sep1, err := utils.WriteVariable(utils.UnitSeparator)
 	if err != nil {
-		return fmt.Errorf("failed to write separator: %w", err)
+		return 0, fmt.Errorf("failed to write separator: %w", err)
 	}
 
 	// Name size (2 bytes - supports names up to 65535 chars)
 	nameSizeBytes, err := utils.WriteFixedNumber(2, uint64(nameSize))
 	if err != nil {
-		return fmt.Errorf("failed to write name size: %w", err)
+		return 0, fmt.Errorf("failed to write name size: %w", err)
 	}
 
 	// Name (variable length)
 	nameBytes, err := utils.WriteVariable(name)
 	if err != nil {
-		return fmt.Errorf("failed to write name: %w", err)
+		return 0, fmt.Errorf("failed to write name: %w", err)
 	}
 
 	// Separator before price
 	sep2, err := utils.WriteVariable(utils.UnitSeparator)
 	if err != nil {
-		return fmt.Errorf("failed to write separator: %w", err)
+		return 0, fmt.Errorf("failed to write separator: %w", err)
 	}
 
 	// Price (4 bytes - supports prices up to 4,294,967,295 cents)
 	priceBytes, err := utils.WriteFixedNumber(4, priceInCents)
 	if err != nil {
-		return fmt.Errorf("failed to write price: %w", err)
+		return 0, fmt.Errorf("failed to write price: %w", err)
 	}
 
 	// Combine all fields
@@ -129,25 +105,25 @@ func (dao *ItemDAO) Write(name string, priceInCents uint64) error {
 	// Read header to get the next ID
 	_, _, nextId, err := utils.ReadHeader(file)
 	if err != nil {
-		return fmt.Errorf("failed to read header: %w", err)
+		return 0, fmt.Errorf("failed to read header: %w", err)
 	}
 
 	// Seek back to end
 	_, err = file.Seek(0, 2)
 	if err != nil {
-		return fmt.Errorf("failed to seek to end: %w", err)
+		return 0, fmt.Errorf("failed to seek to end: %w", err)
 	}
 
 	// Get actual append position
 	appendPos, err := file.Seek(0, 1)
 	if err != nil {
-		return fmt.Errorf("failed to get append position: %w", err)
+		return 0, fmt.Errorf("failed to get append position: %w", err)
 	}
 
 	// Append the entry (ID auto-assigned and record separator added)
 	err = utils.AppendEntry(file, entry)
 	if err != nil {
-		return fmt.Errorf("failed to append item: %w", err)
+		return 0, fmt.Errorf("failed to append item: %w", err)
 	}
 
 	// Add to index: ID -> file offset
@@ -156,10 +132,10 @@ func (dao *ItemDAO) Write(name string, priceInCents uint64) error {
 	// Save index to disk
 	err = dao.tree.Save(dao.indexPath)
 	if err != nil {
-		return fmt.Errorf("failed to save index: %w", err)
+		return 0, fmt.Errorf("failed to save index: %w", err)
 	}
 
-	return nil
+	return uint64(nextId), nil
 }
 
 // Read retrieves an item by ID (uses index with automatic fallback)
@@ -296,33 +272,15 @@ func (dao *ItemDAO) Delete(id uint64) error {
 		return fmt.Errorf("failed to read header: %w", err)
 	}
 
-	// Calculate header size to know where entries start
-	headerSize := (utils.HeaderFieldSize * 3) + 3 // 15 bytes
-
-	// Read the rest of the file to find the entry
-	fileData, err := os.ReadFile(dao.filePath)
+	// Split file into entries
+	entries, err := utils.SplitFileIntoEntries(dao.filePath)
 	if err != nil {
-		return fmt.Errorf("failed to read file: %w", err)
-	}
-
-	// Split by record separator to get individual entries
-	recordSeparatorByte := []byte(utils.RecordSeparator)[0]
-	entries := make([][]byte, 0)
-	entryPositions := make([]int64, 0)
-
-	offset := headerSize
-	entryStart := offset
-
-	for i := headerSize; i < len(fileData); i++ {
-		if fileData[i] == recordSeparatorByte {
-			entries = append(entries, fileData[entryStart:i])
-			entryPositions = append(entryPositions, int64(entryStart))
-			entryStart = i + 1
-		}
+		return fmt.Errorf("failed to split file into entries: %w", err)
 	}
 
 	// Find the entry with matching ID
-	for idx, entryData := range entries {
+	for _, entry := range entries {
+		entryData := entry.Data
 		if len(entryData) < utils.IDSize {
 			continue
 		}
@@ -345,7 +303,7 @@ func (dao *ItemDAO) Delete(id uint64) error {
 			}
 
 			// Calculate position of tombstone byte in file
-			tombstonePos := entryPositions[idx] + int64(utils.IDSize)
+			tombstonePos := entry.Position + int64(utils.IDSize)
 
 			// Seek to tombstone position
 			_, err = file.Seek(tombstonePos, 0)

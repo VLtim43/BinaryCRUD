@@ -2,7 +2,6 @@ package main
 
 import (
 	"BinaryCRUD/backend/dao"
-	"BinaryCRUD/backend/utils"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -41,8 +40,8 @@ func (a *App) startup(ctx context.Context) {
 	a.logger.Info("Application started")
 }
 
-// AddItem writes an item to the binary file with a price in cents
-func (a *App) AddItem(text string, priceInCents uint64) error {
+// AddItem writes an item to the binary file with a price in cents and returns the assigned ID
+func (a *App) AddItem(text string, priceInCents uint64) (uint64, error) {
 	// Convert item name to hexadecimal for debugging (with spaces between bytes)
 	bytes := []byte(text)
 	hexParts := make([]string, len(bytes))
@@ -57,10 +56,16 @@ func (a *App) AddItem(text string, priceInCents uint64) error {
 		hexName += part
 	}
 
-	// Log debugging information
-	a.logger.Debug(fmt.Sprintf("Created item %s [hex: %s]", text, hexName))
+	// Write item and get assigned ID
+	assignedID, err := a.itemDAO.Write(text, priceInCents)
+	if err != nil {
+		return 0, err
+	}
 
-	return a.itemDAO.Write(text, priceInCents)
+	// Log debugging information with assigned ID
+	a.logger.Debug(fmt.Sprintf("Created item #%d: %s [hex: %s]", assignedID, text, hexName))
+
+	return assignedID, nil
 }
 
 // GetItem retrieves an item by ID from the binary file (uses index with automatic fallback)
@@ -217,7 +222,7 @@ func (a *App) PopulateInventory() error {
 
 	for i, item := range items {
 		// Add item using the Write method (protected by mutex)
-		err := a.itemDAO.Write(item.Name, item.PriceInCents)
+		_, err := a.itemDAO.Write(item.Name, item.PriceInCents)
 		if err != nil {
 			a.logger.Error(fmt.Sprintf("Failed to add item %d (%s): %v", i+1, item.Name, err))
 			itemFailCount++
@@ -268,7 +273,7 @@ func (a *App) PopulateInventory() error {
 		}
 
 		// Create promotion using CollectionDAO
-		err := a.promotionDAO.Write(promo.Name, totalPrice, promo.ItemIDs)
+		_, err := a.promotionDAO.Write(promo.Name, totalPrice, promo.ItemIDs)
 		if err != nil {
 			a.logger.Error(fmt.Sprintf("Failed to add promotion %d (%s): %v", i+1, promo.Name, err))
 			promoFailCount++
@@ -387,20 +392,8 @@ func (a *App) CreateOrder(customerName string, itemIDs []uint64) (uint64, error)
 		totalPrice += priceInCents
 	}
 
-	// Read current header to get next ID BEFORE writing
-	file, err := os.OpenFile("data/orders.bin", os.O_RDONLY, 0644)
-	var assignedID uint64 = 0
-	if err == nil {
-		_, _, nextId, readErr := utils.ReadHeader(file)
-		if readErr == nil {
-			assignedID = uint64(nextId)
-		}
-		file.Close()
-	}
-	// If file doesn't exist, assignedID stays 0 (first order will be ID 0)
-
-	// Write order to orders.bin
-	err = a.orderDAO.Write(customerName, totalPrice, itemIDs)
+	// Write order to orders.bin and get assigned ID
+	assignedID, err := a.orderDAO.Write(customerName, totalPrice, itemIDs)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create order: %w", err)
 	}
@@ -461,20 +454,8 @@ func (a *App) CreatePromotion(promotionName string, itemIDs []uint64) (uint64, e
 		totalPrice += priceInCents
 	}
 
-	// Read current header to get next ID BEFORE writing
-	file, err := os.OpenFile("data/promotions.bin", os.O_RDONLY, 0644)
-	var assignedID uint64 = 0
-	if err == nil {
-		_, _, nextId, readErr := utils.ReadHeader(file)
-		if readErr == nil {
-			assignedID = uint64(nextId)
-		}
-		file.Close()
-	}
-	// If file doesn't exist, assignedID stays 0 (first promotion will be ID 0)
-
-	// Write promotion to promotions.bin
-	err = a.promotionDAO.Write(promotionName, totalPrice, itemIDs)
+	// Write promotion to promotions.bin and get assigned ID
+	assignedID, err := a.promotionDAO.Write(promotionName, totalPrice, itemIDs)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create promotion: %w", err)
 	}

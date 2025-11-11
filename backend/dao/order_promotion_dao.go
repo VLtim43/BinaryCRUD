@@ -25,30 +25,7 @@ func NewOrderPromotionDAO(filePath string) *OrderPromotionDAO {
 
 // ensureFileExists creates the file with empty header if it doesn't exist
 func (dao *OrderPromotionDAO) ensureFileExists() error {
-	// Check if file already exists
-	if _, err := os.Stat(dao.filePath); err == nil {
-		return nil
-	}
-
-	// Create the file
-	file, err := utils.CreateFile(dao.filePath)
-	if err != nil {
-		return fmt.Errorf("failed to create order_promotion file: %w", err)
-	}
-	defer file.Close()
-
-	// Write empty header (0 entities, 0 tombstones, nextId unused for composite key)
-	header, err := utils.WriteHeader(0, 0, 0)
-	if err != nil {
-		return fmt.Errorf("failed to create header: %w", err)
-	}
-
-	err = utils.WriteHeaderToFile(file, header)
-	if err != nil {
-		return fmt.Errorf("failed to write header: %w", err)
-	}
-
-	return nil
+	return utils.EnsureFileExists(dao.filePath)
 }
 
 // Write creates a new order-promotion relationship
@@ -152,33 +129,15 @@ func (dao *OrderPromotionDAO) Write(orderID, promotionID uint64) error {
 
 // existsUnlocked checks if a relationship already exists (must be called with lock held)
 func (dao *OrderPromotionDAO) existsUnlocked(orderID, promotionID uint64) (bool, error) {
-	// Read all file data
-	fileData, err := os.ReadFile(dao.filePath)
+	// Split file into entries
+	entries, err := utils.SplitFileIntoEntries(dao.filePath)
 	if err != nil {
-		return false, fmt.Errorf("failed to read file: %w", err)
-	}
-
-	// Calculate header size
-	headerSize := (utils.HeaderFieldSize * 3) + 3 // 15 bytes
-
-	if len(fileData) <= headerSize {
-		return false, nil // No entries yet
-	}
-
-	// Split by record separator
-	recordSeparatorByte := []byte(utils.RecordSeparator)[0]
-	entries := make([][]byte, 0)
-
-	entryStart := headerSize
-	for i := headerSize; i < len(fileData); i++ {
-		if fileData[i] == recordSeparatorByte {
-			entries = append(entries, fileData[entryStart:i])
-			entryStart = i + 1
-		}
+		return false, fmt.Errorf("failed to split file into entries: %w", err)
 	}
 
 	// Check each entry for matching composite key
-	for _, entryData := range entries {
+	for _, entry := range entries {
+		entryData := entry.Data
 		if len(entryData) < utils.IDSize*2+utils.TombstoneSize+2 {
 			continue
 		}
@@ -227,36 +186,18 @@ func (dao *OrderPromotionDAO) GetByOrderID(orderID uint64) ([]*OrderPromotion, e
 		return nil, err
 	}
 
-	// Read all file data
-	fileData, err := os.ReadFile(dao.filePath)
+	// Split file into entries
+	entries, err := utils.SplitFileIntoEntries(dao.filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
-	}
-
-	// Calculate header size
-	headerSize := (utils.HeaderFieldSize * 3) + 3 // 15 bytes
-
-	if len(fileData) <= headerSize {
-		return []*OrderPromotion{}, nil // No entries yet
-	}
-
-	// Split by record separator
-	recordSeparatorByte := []byte(utils.RecordSeparator)[0]
-	entries := make([][]byte, 0)
-
-	entryStart := headerSize
-	for i := headerSize; i < len(fileData); i++ {
-		if fileData[i] == recordSeparatorByte {
-			entries = append(entries, fileData[entryStart:i])
-			entryStart = i + 1
-		}
+		return nil, fmt.Errorf("failed to split file into entries: %w", err)
 	}
 
 	// Parse each entry and filter by orderID
 	// New format: [orderID(2)][0x1F][promotionID(2)][0x1F][tombstone(1)]
 	result := make([]*OrderPromotion, 0)
 
-	for _, entryData := range entries {
+	for _, entry := range entries {
+		entryData := entry.Data
 		if len(entryData) < utils.IDSize*2+utils.TombstoneSize+2 {
 			continue
 		}
@@ -313,36 +254,18 @@ func (dao *OrderPromotionDAO) GetByPromotionID(promotionID uint64) ([]*OrderProm
 		return nil, err
 	}
 
-	// Read all file data
-	fileData, err := os.ReadFile(dao.filePath)
+	// Split file into entries
+	entries, err := utils.SplitFileIntoEntries(dao.filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
-	}
-
-	// Calculate header size
-	headerSize := (utils.HeaderFieldSize * 3) + 3 // 15 bytes
-
-	if len(fileData) <= headerSize {
-		return []*OrderPromotion{}, nil
-	}
-
-	// Split by record separator
-	recordSeparatorByte := []byte(utils.RecordSeparator)[0]
-	entries := make([][]byte, 0)
-
-	entryStart := headerSize
-	for i := headerSize; i < len(fileData); i++ {
-		if fileData[i] == recordSeparatorByte {
-			entries = append(entries, fileData[entryStart:i])
-			entryStart = i + 1
-		}
+		return nil, fmt.Errorf("failed to split file into entries: %w", err)
 	}
 
 	// Parse each entry and filter by promotionID
 	// New format: [orderID(2)][0x1F][promotionID(2)][0x1F][tombstone(1)]
 	result := make([]*OrderPromotion, 0)
 
-	for _, entryData := range entries {
+	for _, entry := range entries {
+		entryData := entry.Data
 		if len(entryData) < utils.IDSize*2+utils.TombstoneSize+2 {
 			continue
 		}
@@ -413,32 +336,16 @@ func (dao *OrderPromotionDAO) Delete(orderID, promotionID uint64) error {
 		return fmt.Errorf("failed to read header: %w", err)
 	}
 
-	// Read all file data
-	fileData, err := os.ReadFile(dao.filePath)
+	// Split file into entries
+	entries, err := utils.SplitFileIntoEntries(dao.filePath)
 	if err != nil {
-		return fmt.Errorf("failed to read file: %w", err)
-	}
-
-	// Calculate header size
-	headerSize := (utils.HeaderFieldSize * 3) + 3
-
-	// Split by record separator
-	recordSeparatorByte := []byte(utils.RecordSeparator)[0]
-	entries := make([][]byte, 0)
-	entryPositions := make([]int64, 0)
-
-	entryStart := headerSize
-	for i := headerSize; i < len(fileData); i++ {
-		if fileData[i] == recordSeparatorByte {
-			entries = append(entries, fileData[entryStart:i])
-			entryPositions = append(entryPositions, int64(entryStart))
-			entryStart = i + 1
-		}
+		return fmt.Errorf("failed to split file into entries: %w", err)
 	}
 
 	// Find the entry with matching composite key (orderID, promotionID)
 	// New format: [orderID(2)][0x1F][promotionID(2)][0x1F][tombstone(1)]
-	for idx, entryData := range entries {
+	for _, entry := range entries {
+		entryData := entry.Data
 		if len(entryData) < utils.IDSize*2+utils.TombstoneSize+2 {
 			continue
 		}
@@ -476,7 +383,7 @@ func (dao *OrderPromotionDAO) Delete(orderID, promotionID uint64) error {
 		if entryOrderID == orderID && entryPromotionID == promotionID {
 			// Calculate tombstone position
 			// Position = entryStart + orderID(2) + sep(1) + promotionID(2) + sep(1)
-			tombstonePos := entryPositions[idx] + int64(utils.IDSize) + 1 + int64(utils.IDSize) + 1
+			tombstonePos := entry.Position + int64(utils.IDSize) + 1 + int64(utils.IDSize) + 1
 
 			// Seek to tombstone position
 			_, err = file.Seek(tombstonePos, 0)

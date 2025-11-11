@@ -15,4 +15,8 @@ const (
 
 	// HeaderFieldSize is the size of each header field in bytes
 	HeaderFieldSize = 4
+
+	// HeaderSize is the total size of the file header in bytes
+	// Format: [entitiesCount(4)][0x1F][tombstoneCount(4)][0x1F][nextId(4)][0x1F] = 15 bytes
+	HeaderSize = (HeaderFieldSize * 3) + 3
 )
