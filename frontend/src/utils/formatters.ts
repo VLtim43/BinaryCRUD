@@ -17,3 +17,13 @@ export const isValidId = (id: string): boolean => {
   const numId = parseInt(id, 10);
   return !isNaN(numId) && numId >= 0;
 };
+
+export const createIdInputHandler = (setter: (value: string) => void) => {
+  return (e: Event) => {
+    const target = e.target as HTMLInputElement;
+    const value = target.value;
+    if (value === "" || /^\d+$/.test(value)) {
+      setter(value);
+    }
+  };
+};

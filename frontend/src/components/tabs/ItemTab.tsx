@@ -4,7 +4,7 @@ import { Button } from "../Button";
 import { Input } from "../Input";
 import { itemService, Item } from "../../services/itemService";
 import { useMessage } from "../../hooks/useMessage";
-import { formatPrice, parsePrice, isValidPrice, isValidId } from "../../utils/formatters";
+import { formatPrice, parsePrice, isValidPrice, isValidId, createIdInputHandler } from "../../utils/formatters";
 
 interface ItemTabProps {
   onMessage: (msg: string) => void;
@@ -37,8 +37,8 @@ export const ItemTab = ({ onMessage, onRefreshLogs }: ItemTabProps) => {
       setItemName("");
       setItemPrice("");
       onRefreshLogs();
-    } catch (err: any) {
-      onMessage(`Error: ${err}`);
+    } catch (err) {
+      onMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -54,9 +54,9 @@ export const ItemTab = ({ onMessage, onRefreshLogs }: ItemTabProps) => {
       setFoundItem(item);
       onMessage(`Found Item #${item.id}: ${item.name} - $${formatPrice(item.priceInCents)}`);
       onRefreshLogs();
-    } catch (err: any) {
+    } catch (err) {
       setFoundItem(null);
-      onMessage(`Error: ${err}`);
+      onMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -71,22 +71,16 @@ export const ItemTab = ({ onMessage, onRefreshLogs }: ItemTabProps) => {
       onMessage(`Successfully deleted item with ID ${deleteId}`);
       setDeleteId("");
       onRefreshLogs();
-    } catch (err: any) {
-      onMessage(`Error: ${err}`);
+    } catch (err) {
+      onMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
-  const handlePriceChange = (e: any) => {
-    const value = e.target.value;
+  const handlePriceChange = (e: Event) => {
+    const target = e.target as HTMLInputElement;
+    const value = target.value;
     if (value === "" || /^\d*\.?\d{0,2}$/.test(value)) {
       setItemPrice(value);
-    }
-  };
-
-  const handleIdChange = (e: any, setter: (value: string) => void) => {
-    const value = e.target.value;
-    if (value === "" || /^\d+$/.test(value)) {
-      setter(value);
     }
   };
 
@@ -110,7 +104,10 @@ export const ItemTab = ({ onMessage, onRefreshLogs }: ItemTabProps) => {
             id="name"
             placeholder="Item Name"
             value={itemName}
-            onChange={(e: any) => setItemName(e.target.value)}
+            onChange={(e: Event) => {
+              const target = e.target as HTMLInputElement;
+              setItemName(target.value);
+            }}
           />
           <Input
             id="price"
@@ -129,58 +126,26 @@ export const ItemTab = ({ onMessage, onRefreshLogs }: ItemTabProps) => {
               id="record-id"
               placeholder="Enter Record ID"
               value={recordId}
-              onChange={(e: any) => handleIdChange(e, setRecordId)}
+              onChange={createIdInputHandler(setRecordId)}
             />
             <Button onClick={handleRead}>Get Record</Button>
           </div>
 
           {foundItem && (
-            <div
-              style={{
-                marginTop: "20px",
-                padding: "20px",
-                backgroundColor: "rgba(255, 255, 255, 0.1)",
-                borderRadius: "8px",
-                border: "1px solid rgba(255, 255, 255, 0.2)",
-              }}
-            >
-              <h3 style={{ margin: "0 0 15px 0", color: "#fff" }}>Item Details</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    padding: "8px",
-                    backgroundColor: "rgba(0, 0, 0, 0.2)",
-                    borderRadius: "4px",
-                  }}
-                >
-                  <span style={{ color: "#aaa", fontWeight: "bold" }}>ID:</span>
-                  <span style={{ color: "#fff" }}>{foundItem.id}</span>
+            <div className="details-card">
+              <h3>Item Details</h3>
+              <div className="details-content">
+                <div className="details-row">
+                  <span className="details-label">ID:</span>
+                  <span className="details-value">{foundItem.id}</span>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    padding: "8px",
-                    backgroundColor: "rgba(0, 0, 0, 0.2)",
-                    borderRadius: "4px",
-                  }}
-                >
-                  <span style={{ color: "#aaa", fontWeight: "bold" }}>Name:</span>
-                  <span style={{ color: "#fff" }}>{foundItem.name}</span>
+                <div className="details-row">
+                  <span className="details-label">Name:</span>
+                  <span className="details-value">{foundItem.name}</span>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    padding: "8px",
-                    backgroundColor: "rgba(0, 0, 0, 0.2)",
-                    borderRadius: "4px",
-                  }}
-                >
-                  <span style={{ color: "#aaa", fontWeight: "bold" }}>Price:</span>
-                  <span style={{ color: "#fff" }}>${formatPrice(foundItem.priceInCents)}</span>
+                <div className="details-row">
+                  <span className="details-label">Price:</span>
+                  <span className="details-value">${formatPrice(foundItem.priceInCents)}</span>
                 </div>
               </div>
             </div>
@@ -194,7 +159,7 @@ export const ItemTab = ({ onMessage, onRefreshLogs }: ItemTabProps) => {
             id="delete-record-id"
             placeholder="Enter Record ID"
             value={deleteId}
-            onChange={(e: any) => handleIdChange(e, setDeleteId)}
+            onChange={createIdInputHandler(setDeleteId)}
           />
           <Button variant="danger" onClick={handleDelete}>
             Delete Record

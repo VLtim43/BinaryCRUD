@@ -5,15 +5,15 @@ import { Select } from "./Select";
 
 interface OrderCreateFormProps {
   customerName: string;
-  onCustomerNameChange: (e: any) => void;
+  onCustomerNameChange: (e: Event) => void;
   cart: Array<{ id: number; name: string; quantity: number; priceInCents: number }>;
   selectedPromotions: Array<{ id: number; name: string; totalPrice: number; itemCount: number }>;
   availableItems: Array<{ id: number; name: string; priceInCents: number }>;
   availablePromotions: Array<{ id: number; name: string; totalPrice: number; itemCount: number }>;
   selectedItemId: string;
   selectedPromotionId: string;
-  onItemSelect: (e: any) => void;
-  onPromotionSelect: (e: any) => void;
+  onItemSelect: (e: Event) => void;
+  onPromotionSelect: (e: Event) => void;
   onAddItem: () => void;
   onAddPromotion: () => void;
   onRemoveItem: (id: number) => void;

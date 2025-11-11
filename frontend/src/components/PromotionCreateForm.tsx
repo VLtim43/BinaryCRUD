@@ -5,11 +5,11 @@ import { Select } from "./Select";
 
 interface PromotionCreateFormProps {
   promotionName: string;
-  onPromotionNameChange: (e: any) => void;
+  onPromotionNameChange: (e: Event) => void;
   cart: Array<{ id: number; name: string; quantity: number; priceInCents: number }>;
   availableItems: Array<{ id: number; name: string; priceInCents: number }>;
   selectedItemId: string;
-  onItemSelect: (e: any) => void;
+  onItemSelect: (e: Event) => void;
   onAddItem: () => void;
   onRemoveItem: (id: number) => void;
   onSubmit: () => void;

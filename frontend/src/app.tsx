@@ -39,8 +39,8 @@ export const App = () => {
       await logService.clear();
       setLogs([]);
       setMessage("Logs cleared");
-    } catch (err: any) {
-      setMessage(`Error clearing logs: ${err}`);
+    } catch (err) {
+      setMessage(`Error clearing logs: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 

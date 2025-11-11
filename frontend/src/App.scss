@@ -671,3 +671,40 @@
         background: #555;
     }
 }
+
+// Details card styles for Item and Order tabs
+.details-card {
+    margin-top: 20px;
+    padding: 20px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+
+    h3 {
+        margin: 0 0 15px 0;
+        color: #fff;
+    }
+}
+
+.details-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.details-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+
+    .details-label {
+        color: #aaa;
+        font-weight: bold;
+    }
+
+    .details-value {
+        color: #fff;
+    }
+}

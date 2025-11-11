@@ -6,7 +6,7 @@ import { PromotionCreateForm } from "../PromotionCreateForm";
 import { promotionService } from "../../services/promotionService";
 import { itemService, Item } from "../../services/itemService";
 import { useCart } from "../../hooks/useCart";
-import { isValidId, formatPrice } from "../../utils/formatters";
+import { isValidId, formatPrice, createIdInputHandler } from "../../utils/formatters";
 
 interface PromotionTabProps {
   onMessage: (msg: string) => void;
@@ -30,8 +30,8 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
     try {
       const items = await itemService.getAll();
       setAvailableItems(items);
-    } catch (err: any) {
-      onMessage(`Error loading items: ${err}`);
+    } catch (err) {
+      onMessage(`Error loading items: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -84,8 +84,8 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
       setPromotionName("");
       setSelectedItemId("");
       onRefreshLogs();
-    } catch (err: any) {
-      onMessage(`Error: ${err}`);
+    } catch (err) {
+      onMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -101,8 +101,8 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
         `Promotion #${promotion.id}: "${promotion.name}" - ${promotion.itemCount} items - Total: $${formatPrice(promotion.totalPrice)}`
       );
       onRefreshLogs();
-    } catch (err: any) {
-      onMessage(`Error: ${err}`);
+    } catch (err) {
+      onMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -117,15 +117,8 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
       onMessage(`Successfully deleted promotion #${deleteId}`);
       setDeleteId("");
       onRefreshLogs();
-    } catch (err: any) {
-      onMessage(`Error: ${err}`);
-    }
-  };
-
-  const handleIdChange = (e: any, setter: (value: string) => void) => {
-    const value = e.target.value;
-    if (value === "" || /^\d+$/.test(value)) {
-      setter(value);
+    } catch (err) {
+      onMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -146,11 +139,17 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
       {subTab === "create" && (
         <PromotionCreateForm
           promotionName={promotionName}
-          onPromotionNameChange={(e: any) => setPromotionName(e.target.value)}
+          onPromotionNameChange={(e: Event) => {
+            const target = e.target as HTMLInputElement;
+            setPromotionName(target.value);
+          }}
           cart={cart.cart}
           availableItems={availableItems}
           selectedItemId={selectedItemId}
-          onItemSelect={(e: any) => setSelectedItemId(e.target.value)}
+          onItemSelect={(e: Event) => {
+            const target = e.target as HTMLSelectElement;
+            setSelectedItemId(target.value);
+          }}
           onAddItem={handleAddItem}
           onRemoveItem={handleRemoveItem}
           onSubmit={handleSubmit}
@@ -162,7 +161,7 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
           <Input
             placeholder="Enter Promotion ID"
             value={readId}
-            onChange={(e: any) => handleIdChange(e, setReadId)}
+            onChange={createIdInputHandler(setReadId)}
           />
           <Button onClick={handleRead}>Get Promotion</Button>
         </div>
@@ -173,7 +172,7 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
           <Input
             placeholder="Enter Promotion ID"
             value={deleteId}
-            onChange={(e: any) => handleIdChange(e, setDeleteId)}
+            onChange={createIdInputHandler(setDeleteId)}
           />
           <Button variant="danger" onClick={handleDelete}>
             Delete Promotion

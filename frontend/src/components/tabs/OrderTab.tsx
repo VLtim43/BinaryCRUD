@@ -7,7 +7,7 @@ import { orderService } from "../../services/orderService";
 import { itemService, Item } from "../../services/itemService";
 import { promotionService, Promotion } from "../../services/promotionService";
 import { useCart } from "../../hooks/useCart";
-import { isValidId, formatPrice } from "../../utils/formatters";
+import { isValidId, formatPrice, createIdInputHandler } from "../../utils/formatters";
 
 interface OrderTabProps {
   onMessage: (msg: string) => void;
@@ -39,8 +39,8 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       ]);
       setAvailableItems(items);
       setAvailablePromotions(promotions);
-    } catch (err: any) {
-      onMessage(`Error loading data: ${err}`);
+    } catch (err) {
+      onMessage(`Error loading data: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -134,8 +134,8 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       setSelectedPromotions([]);
       setSelectedPromotionId("");
       onRefreshLogs();
-    } catch (err: any) {
-      onMessage(`Error: ${err}`);
+    } catch (err) {
+      onMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -151,9 +151,9 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       setOrderDetails(order);
       onMessage(`Order #${order.id}: ${order.customerName} - ${order.itemCount} items - Total: $${formatPrice(order.totalPrice)}`);
       onRefreshLogs();
-    } catch (err: any) {
+    } catch (err) {
       setOrderDetails(null);
-      onMessage(`Error: ${err}`);
+      onMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -168,15 +168,8 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       onMessage(`Successfully deleted order #${deleteId}`);
       setDeleteId("");
       onRefreshLogs();
-    } catch (err: any) {
-      onMessage(`Error: ${err}`);
-    }
-  };
-
-  const handleIdChange = (e: any, setter: (value: string) => void) => {
-    const value = e.target.value;
-    if (value === "" || /^\d+$/.test(value)) {
-      setter(value);
+    } catch (err) {
+      onMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -197,15 +190,24 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       {subTab === "create" && (
         <OrderCreateForm
           customerName={customerName}
-          onCustomerNameChange={(e: any) => setCustomerName(e.target.value)}
+          onCustomerNameChange={(e: Event) => {
+            const target = e.target as HTMLInputElement;
+            setCustomerName(target.value);
+          }}
           cart={cart.cart}
           selectedPromotions={selectedPromotions}
           availableItems={availableItems}
           availablePromotions={availablePromotions}
           selectedItemId={selectedItemId}
           selectedPromotionId={selectedPromotionId}
-          onItemSelect={(e: any) => setSelectedItemId(e.target.value)}
-          onPromotionSelect={(e: any) => setSelectedPromotionId(e.target.value)}
+          onItemSelect={(e: Event) => {
+            const target = e.target as HTMLSelectElement;
+            setSelectedItemId(target.value);
+          }}
+          onPromotionSelect={(e: Event) => {
+            const target = e.target as HTMLSelectElement;
+            setSelectedPromotionId(target.value);
+          }}
           onAddItem={handleAddItem}
           onAddPromotion={handleAddPromotion}
           onRemoveItem={handleRemoveItem}
@@ -220,70 +222,30 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
             <Input
               placeholder="Enter Order ID"
               value={readId}
-              onChange={(e: any) => handleIdChange(e, setReadId)}
+              onChange={createIdInputHandler(setReadId)}
             />
             <Button onClick={handleRead}>Get Order</Button>
           </div>
 
           {orderDetails && (
-            <div
-              style={{
-                marginTop: "20px",
-                padding: "20px",
-                backgroundColor: "rgba(255, 255, 255, 0.1)",
-                borderRadius: "8px",
-                border: "1px solid rgba(255, 255, 255, 0.2)",
-              }}
-            >
-              <h3 style={{ margin: "0 0 15px 0", color: "#fff" }}>Order Details</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "20px" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    padding: "8px",
-                    backgroundColor: "rgba(0, 0, 0, 0.2)",
-                    borderRadius: "4px",
-                  }}
-                >
-                  <span style={{ color: "#aaa", fontWeight: "bold" }}>Order ID:</span>
-                  <span style={{ color: "#fff" }}>{orderDetails.id}</span>
+            <div className="details-card">
+              <h3>Order Details</h3>
+              <div className="details-content">
+                <div className="details-row">
+                  <span className="details-label">Order ID:</span>
+                  <span className="details-value">{orderDetails.id}</span>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    padding: "8px",
-                    backgroundColor: "rgba(0, 0, 0, 0.2)",
-                    borderRadius: "4px",
-                  }}
-                >
-                  <span style={{ color: "#aaa", fontWeight: "bold" }}>Customer:</span>
-                  <span style={{ color: "#fff" }}>{orderDetails.customerName}</span>
+                <div className="details-row">
+                  <span className="details-label">Customer:</span>
+                  <span className="details-value">{orderDetails.customerName}</span>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    padding: "8px",
-                    backgroundColor: "rgba(0, 0, 0, 0.2)",
-                    borderRadius: "4px",
-                  }}
-                >
-                  <span style={{ color: "#aaa", fontWeight: "bold" }}>Total:</span>
-                  <span style={{ color: "#fff" }}>${formatPrice(orderDetails.totalPrice)}</span>
+                <div className="details-row">
+                  <span className="details-label">Total:</span>
+                  <span className="details-value">${formatPrice(orderDetails.totalPrice)}</span>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    padding: "8px",
-                    backgroundColor: "rgba(0, 0, 0, 0.2)",
-                    borderRadius: "4px",
-                  }}
-                >
-                  <span style={{ color: "#aaa", fontWeight: "bold" }}>Items Count:</span>
-                  <span style={{ color: "#fff" }}>{orderDetails.itemCount}</span>
+                <div className="details-row">
+                  <span className="details-label">Items Count:</span>
+                  <span className="details-value">{orderDetails.itemCount}</span>
                 </div>
               </div>
             </div>
@@ -296,7 +258,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
           <Input
             placeholder="Enter Order ID"
             value={deleteId}
-            onChange={(e: any) => handleIdChange(e, setDeleteId)}
+            onChange={createIdInputHandler(setDeleteId)}
           />
           <Button variant="danger" onClick={handleDelete}>
             Delete Order

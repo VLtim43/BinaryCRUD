@@ -4,6 +4,17 @@
 
 A restaurant manager application built with Wails (Go + Preact) featuring custom binary file storage with B+ tree indexing.
 
+## Features
+
+- **Binary file-based storage** with custom serialization format
+- **B+ Tree indexing** (order 4) for fast lookups on:
+  - `items.bin` → `items.idx`
+  - `orders.bin` → `orders.idx`
+  - `promotions.bin` → `promotions.idx`
+- **N:N relationship** between Orders and Promotions via `order_promotions.bin`
+- **Logical deletion** using tombstone markers (no physical deletion)
+- **Wails desktop app** with Go backend and Preact frontend
+
 ### Prerequisites
 
 - Go 1.18+
@@ -40,3 +51,23 @@ cd BinaryCRUD
 ```bash
 run.sh
 ```
+
+## Data Storage
+
+The application stores data in the `/data` directory:
+
+**Binary files with B+ Tree indexes:**
+
+- `items.bin` / `items.idx` - Menu items
+- `orders.bin` / `orders.idx` - Customer orders
+- `promotions.bin` / `promotions.idx` - Promotional deals
+
+**Relationship tables:**
+
+- `order_promotions.bin` - N:N relationship (no index, uses sequential scan)
+
+**Binary format:**
+
+- Fixed header: `[entitiesCount(4)][0x1F][tombstoneCount(4)][0x1F][nextId(4)][0x1E]`
+- Record separators: `0x1F` (unit), `0x1E` (record)
+- Tombstone-based logical deletion
