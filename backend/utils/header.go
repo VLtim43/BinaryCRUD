@@ -100,6 +100,7 @@ func ReadHeader(file *os.File) (int, int, int, error) {
 }
 
 // UpdateHeader updates the header in the file with new values
+// This function now syncs the file to disk after writing the header to ensure data integrity
 func UpdateHeader(file *os.File, entitiesCount, tombstoneCount, nextId int) error {
 	// Generate new header
 	header, err := WriteHeader(entitiesCount, tombstoneCount, nextId)
@@ -117,6 +118,12 @@ func UpdateHeader(file *os.File, entitiesCount, tombstoneCount, nextId int) erro
 	_, err = file.Write(header)
 	if err != nil {
 		return fmt.Errorf("failed to write header: %w", err)
+	}
+
+	// Force write to disk to ensure header is persisted
+	err = file.Sync()
+	if err != nil {
+		return fmt.Errorf("failed to sync header to disk: %w", err)
 	}
 
 	return nil

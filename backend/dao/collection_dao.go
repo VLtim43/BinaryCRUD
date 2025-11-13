@@ -211,183 +211,47 @@ func (dao *CollectionDAO) Read(id uint64) (*Collection, error) {
 		}
 	}
 
-	// Parse entry: [ID(2)][tombstone(1)][0x1F][nameSize(2)][name][0x1F][totalPrice(4)][0x1F][itemCount(4)][0x1F][itemID1(2)]...
-	parseOffset := 0
-
-	// Read ID
-	entryID, parseOffset, err := utils.ReadFixedNumber(utils.IDSize, entryData, parseOffset)
+	// Parse the entry using utility function
+	collection, err := utils.ParseCollectionEntry(entryData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read ID: %w", err)
+		return nil, fmt.Errorf("failed to parse collection entry: %w", err)
 	}
-
-	// Read tombstone byte
-	if parseOffset >= len(entryData) {
-		return nil, fmt.Errorf("entry too short for tombstone")
-	}
-	tombstone := entryData[parseOffset]
-	parseOffset += utils.TombstoneSize
 
 	// Check if deleted
-	if tombstone != 0x00 {
-		return nil, fmt.Errorf("collection with ID %d is deleted", entryID)
-	}
-
-	// Skip unit separator (0x1F)
-	parseOffset += 1
-
-	// Read name size
-	nameSize, parseOffset, err := utils.ReadFixedNumber(2, entryData, parseOffset)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read name size: %w", err)
-	}
-
-	// Read name
-	ownerOrName, parseOffset, err := utils.ReadFixedString(int(nameSize), entryData, parseOffset)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read name: %w", err)
-	}
-
-	// Skip unit separator (0x1F)
-	parseOffset += 1
-
-	// Read total price
-	totalPrice, parseOffset, err := utils.ReadFixedNumber(4, entryData, parseOffset)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read total price: %w", err)
-	}
-
-	// Skip unit separator (0x1F)
-	parseOffset += 1
-
-	// Read item count
-	itemCount, parseOffset, err := utils.ReadFixedNumber(4, entryData, parseOffset)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read item count: %w", err)
-	}
-
-	// Skip unit separator (0x1F)
-	parseOffset += 1
-
-	// Read item IDs (2 bytes each)
-	itemIDs := make([]uint64, itemCount)
-	for i := uint64(0); i < itemCount; i++ {
-		itemID, newOffset, err := utils.ReadFixedNumber(utils.IDSize, entryData, parseOffset)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read item ID %d: %w", i, err)
-		}
-		itemIDs[i] = itemID
-		parseOffset = newOffset
+	if collection.Tombstone != 0x00 {
+		return nil, fmt.Errorf("collection with ID %d is deleted", collection.ID)
 	}
 
 	return &Collection{
-		ID:          entryID,
-		OwnerOrName: ownerOrName,
-		TotalPrice:  totalPrice,
-		ItemCount:   itemCount,
-		ItemIDs:     itemIDs,
+		ID:          collection.ID,
+		OwnerOrName: collection.OwnerOrName,
+		TotalPrice:  collection.TotalPrice,
+		ItemCount:   collection.ItemCount,
+		ItemIDs:     collection.ItemIDs,
 	}, nil
 }
 
 // Delete marks a collection as deleted by flipping the tombstone bit
 func (dao *CollectionDAO) Delete(id uint64) error {
-	dao.mu.Lock()
-	defer dao.mu.Unlock()
-
 	// Ensure file exists
 	if err := dao.ensureFileExists(); err != nil {
 		return err
 	}
 
-	// Open file for read/write
-	file, err := os.OpenFile(dao.filePath, os.O_RDWR, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to open collection file: %w", err)
-	}
-	defer file.Close()
-
-	// Read header to get current tombstone count
-	entitiesCount, tombstoneCount, nextId, err := utils.ReadHeader(file)
-	if err != nil {
-		return fmt.Errorf("failed to read header: %w", err)
-	}
-
-	// Split file into entries
-	entries, err := utils.SplitFileIntoEntries(dao.filePath)
-	if err != nil {
-		return fmt.Errorf("failed to split file into entries: %w", err)
-	}
-
-	// Find the entry with matching ID
-	for _, entry := range entries {
-		entryData := entry.Data
-		if len(entryData) < utils.IDSize {
-			continue
-		}
-
-		// Read the ID
-		entryID, _, err := utils.ReadFixedNumber(utils.IDSize, entryData, 0)
+	// Create index delete function
+	indexDeleteFunc := func(id uint64) error {
+		// Remove from B+ tree index
+		err := dao.tree.Delete(id)
 		if err != nil {
-			continue
+			return err
 		}
 
-		if entryID == id {
-			// Check if already deleted
-			if len(entryData) < utils.IDSize+utils.TombstoneSize {
-				return fmt.Errorf("malformed entry for ID %d", id)
-			}
-
-			tombstone := entryData[utils.IDSize]
-			if tombstone != 0x00 {
-				return fmt.Errorf("collection with ID %d is already deleted", id)
-			}
-
-			// Calculate position of tombstone byte in file
-			tombstonePos := entry.Position + int64(utils.IDSize)
-
-			// Seek to tombstone position
-			_, err = file.Seek(tombstonePos, 0)
-			if err != nil {
-				return fmt.Errorf("failed to seek to tombstone: %w", err)
-			}
-
-			// Write 0x01 to mark as deleted
-			_, err = file.Write([]byte{0x01})
-			if err != nil {
-				return fmt.Errorf("failed to write tombstone: %w", err)
-			}
-
-			// Force write tombstone to disk before updating header
-			err = file.Sync()
-			if err != nil {
-				return fmt.Errorf("failed to sync tombstone to disk: %w", err)
-			}
-
-			// Update header to increment tombstone count
-			err = utils.UpdateHeader(file, entitiesCount, tombstoneCount+1, nextId)
-			if err != nil {
-				return fmt.Errorf("failed to update header: %w", err)
-			}
-
-			// Force write header to disk
-			err = file.Sync()
-			if err != nil {
-				return fmt.Errorf("failed to sync header to disk: %w", err)
-			}
-
-			// Remove from B+ tree index
-			dao.tree.Delete(id)
-
-			// Save updated index to disk
-			err = dao.tree.Save(dao.indexPath)
-			if err != nil {
-				return fmt.Errorf("failed to save index: %w", err)
-			}
-
-			return nil
-		}
+		// Save updated index to disk
+		return dao.tree.Save(dao.indexPath)
 	}
 
-	return fmt.Errorf("entry with ID %d not found", id)
+	// Use the generic soft delete utility
+	return utils.SoftDeleteByID(dao.filePath, id, &dao.mu, indexDeleteFunc)
 }
 
 // GetAll retrieves all non-deleted collections using sequential scan
@@ -406,85 +270,28 @@ func (dao *CollectionDAO) GetAll() ([]*Collection, error) {
 		return nil, fmt.Errorf("failed to split file into entries: %w", err)
 	}
 
-	// Parse each entry
+	// Parse each entry using utility function
 	result := make([]*Collection, 0)
 
 	for _, entry := range entries {
-		entryData := entry.Data
-		if len(entryData) < utils.IDSize+utils.TombstoneSize {
-			continue
-		}
-
-		offset := 0
-
-		// Read ID
-		entryID, offset, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
+		// Parse the entry using utility function
+		collection, err := utils.ParseCollectionEntry(entry.Data)
 		if err != nil {
+			// Skip malformed entries
 			continue
 		}
-
-		// Read tombstone
-		tombstone := entryData[offset]
-		offset += utils.TombstoneSize
 
 		// Skip deleted entries
-		if tombstone != 0x00 {
+		if collection.Tombstone != 0x00 {
 			continue
-		}
-
-		// Skip unit separator
-		offset += 1
-
-		// Read name size
-		nameSize, offset, err := utils.ReadFixedNumber(2, entryData, offset)
-		if err != nil {
-			continue
-		}
-
-		// Read name
-		ownerOrName, offset, err := utils.ReadFixedString(int(nameSize), entryData, offset)
-		if err != nil {
-			continue
-		}
-
-		// Skip unit separator
-		offset += 1
-
-		// Read total price
-		totalPrice, offset, err := utils.ReadFixedNumber(4, entryData, offset)
-		if err != nil {
-			continue
-		}
-
-		// Skip unit separator
-		offset += 1
-
-		// Read item count
-		itemCount, offset, err := utils.ReadFixedNumber(4, entryData, offset)
-		if err != nil {
-			continue
-		}
-
-		// Skip unit separator
-		offset += 1
-
-		// Read item IDs
-		itemIDs := make([]uint64, itemCount)
-		for i := uint64(0); i < itemCount; i++ {
-			itemID, newOffset, err := utils.ReadFixedNumber(utils.IDSize, entryData, offset)
-			if err != nil {
-				break
-			}
-			itemIDs[i] = itemID
-			offset = newOffset
 		}
 
 		result = append(result, &Collection{
-			ID:          entryID,
-			OwnerOrName: ownerOrName,
-			TotalPrice:  totalPrice,
-			ItemCount:   itemCount,
-			ItemIDs:     itemIDs,
+			ID:          collection.ID,
+			OwnerOrName: collection.OwnerOrName,
+			TotalPrice:  collection.TotalPrice,
+			ItemCount:   collection.ItemCount,
+			ItemIDs:     collection.ItemIDs,
 		})
 	}
 

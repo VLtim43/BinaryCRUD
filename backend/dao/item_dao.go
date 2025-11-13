@@ -202,157 +202,42 @@ func (dao *ItemDAO) readWithIndex(id uint64) (uint64, string, uint64, error) {
 		}
 	}
 
-	// Parse the entry: [ID(2)][tombstone(1)][0x1F][nameSize(2)][name][0x1F][price(4)]
-	parseOffset := 0
-
-	// Read ID
-	entryID, parseOffset, err := utils.ReadFixedNumber(utils.IDSize, entryData, parseOffset)
+	// Parse the entry using utility function
+	item, err := utils.ParseItemEntry(entryData)
 	if err != nil {
-		return 0, "", 0, fmt.Errorf("failed to read ID: %w", err)
+		return 0, "", 0, fmt.Errorf("failed to parse item entry: %w", err)
 	}
-
-	// Read tombstone byte
-	tombstone := entryData[parseOffset]
-	parseOffset += utils.TombstoneSize
 
 	// Check if item is deleted
-	if tombstone != 0x00 {
-		return 0, "", 0, fmt.Errorf("deleted file id %d", entryID)
+	if item.Tombstone != 0x00 {
+		return 0, "", 0, fmt.Errorf("deleted file id %d", item.ID)
 	}
 
-	// Skip unit separator (0x1F)
-	parseOffset += 1
-
-	// Read name size
-	nameSize, parseOffset, err := utils.ReadFixedNumber(2, entryData, parseOffset)
-	if err != nil {
-		return 0, "", 0, fmt.Errorf("failed to read name size: %w", err)
-	}
-
-	// Read name
-	name, parseOffset, err := utils.ReadFixedString(int(nameSize), entryData, parseOffset)
-	if err != nil {
-		return 0, "", 0, fmt.Errorf("failed to read name: %w", err)
-	}
-
-	// Skip unit separator (0x1F)
-	parseOffset += 1
-
-	// Read price
-	price, _, err := utils.ReadFixedNumber(4, entryData, parseOffset)
-	if err != nil {
-		return 0, "", 0, fmt.Errorf("failed to read price: %w", err)
-	}
-
-	return entryID, name, price, nil
+	return item.ID, item.Name, item.Price, nil
 }
 
 // Delete marks an item as deleted by flipping its tombstone bit
 // This is a logical deletion - the data remains in the file but is marked as deleted
 func (dao *ItemDAO) Delete(id uint64) error {
-	// Lock to prevent concurrent modifications
-	dao.mu.Lock()
-	defer dao.mu.Unlock()
-
 	// Ensure file exists
 	if err := dao.ensureFileExists(); err != nil {
 		return err
 	}
 
-	// Open file for read/write
-	file, err := os.OpenFile(dao.filePath, os.O_RDWR, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to open item file: %w", err)
-	}
-	defer file.Close()
-
-	// Read header to get current tombstone count
-	entitiesCount, tombstoneCount, nextId, err := utils.ReadHeader(file)
-	if err != nil {
-		return fmt.Errorf("failed to read header: %w", err)
-	}
-
-	// Split file into entries
-	entries, err := utils.SplitFileIntoEntries(dao.filePath)
-	if err != nil {
-		return fmt.Errorf("failed to split file into entries: %w", err)
-	}
-
-	// Find the entry with matching ID
-	for _, entry := range entries {
-		entryData := entry.Data
-		if len(entryData) < utils.IDSize {
-			continue
-		}
-
-		// Read the ID
-		entryID, _, err := utils.ReadFixedNumber(utils.IDSize, entryData, 0)
+	// Create index delete function
+	indexDeleteFunc := func(id uint64) error {
+		// Remove from index
+		err := dao.tree.Delete(id)
 		if err != nil {
-			continue
+			return err
 		}
 
-		if entryID == id {
-			// Check if already deleted
-			if len(entryData) < utils.IDSize+utils.TombstoneSize {
-				return fmt.Errorf("malformed entry for ID %d", id)
-			}
-
-			tombstone := entryData[utils.IDSize]
-			if tombstone != 0x00 {
-				return fmt.Errorf("deleted file id %d", id)
-			}
-
-			// Calculate position of tombstone byte in file
-			tombstonePos := entry.Position + int64(utils.IDSize)
-
-			// Seek to tombstone position
-			_, err = file.Seek(tombstonePos, 0)
-			if err != nil {
-				return fmt.Errorf("failed to seek to tombstone: %w", err)
-			}
-
-			// Write 0x01 to mark as deleted
-			_, err = file.Write([]byte{0x01})
-			if err != nil {
-				return fmt.Errorf("failed to write tombstone: %w", err)
-			}
-
-			// Force write tombstone to disk before updating header
-			err = file.Sync()
-			if err != nil {
-				return fmt.Errorf("failed to sync tombstone to disk: %w", err)
-			}
-
-			// Update header to increment tombstone count
-			err = utils.UpdateHeader(file, entitiesCount, tombstoneCount+1, nextId)
-			if err != nil {
-				return fmt.Errorf("failed to update header: %w", err)
-			}
-
-			// Force write header to disk
-			err = file.Sync()
-			if err != nil {
-				return fmt.Errorf("failed to sync header to disk: %w", err)
-			}
-
-			// Remove from index
-			err = dao.tree.Delete(id)
-			if err != nil {
-				// Not fatal - index might not have this entry
-				// Continue anyway
-			}
-
-			// Save updated index
-			err = dao.tree.Save(dao.indexPath)
-			if err != nil {
-				return fmt.Errorf("failed to save index: %w", err)
-			}
-
-			return nil
-		}
+		// Save updated index
+		return dao.tree.Save(dao.indexPath)
 	}
 
-	return fmt.Errorf("entry with ID %d not found", id)
+	// Use the generic soft delete utility
+	return utils.SoftDeleteByID(dao.filePath, id, &dao.mu, indexDeleteFunc)
 }
 
 // GetIndexTree returns the B+ tree for debugging purposes
