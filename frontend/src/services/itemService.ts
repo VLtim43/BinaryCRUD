@@ -7,7 +7,7 @@ export interface Item {
 }
 
 export const itemService = {
-  create: async (name: string, priceInCents: number): Promise<void> => {
+  create: async (name: string, priceInCents: number): Promise<number> => {
     return AddItem(name, priceInCents);
   },
 

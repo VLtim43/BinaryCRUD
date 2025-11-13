@@ -28,48 +28,24 @@ type CollectionDAO struct {
 
 // ensureFileExists creates the file with empty header if it doesn't exist
 func (dao *CollectionDAO) ensureFileExists() error {
-	// Check if file already exists
-	if _, err := os.Stat(dao.filePath); err == nil {
-		// File exists, nothing to do
-		return nil
-	}
-
-	// Create the file
-	file, err := utils.CreateFile(dao.filePath)
-	if err != nil {
-		return fmt.Errorf("failed to create collection file: %w", err)
-	}
-	defer file.Close()
-
-	// Write empty header (0 entities, 0 tombstones, nextId=0)
-	header, err := utils.WriteHeader(0, 0, 0)
-	if err != nil {
-		return fmt.Errorf("failed to create header: %w", err)
-	}
-
-	err = utils.WriteHeaderToFile(file, header)
-	if err != nil {
-		return fmt.Errorf("failed to write header: %w", err)
-	}
-
-	return nil
+	return utils.EnsureFileExists(dao.filePath)
 }
 
-// Write creates a new collection entry
+// Write creates a new collection entry and returns the assigned ID
 // Binary format: [ID(2)][tombstone(1)][0x1F][nameSize(2)][name][0x1F][totalPrice(4)][0x1F][itemCount(4)][0x1F][itemID1(2)][itemID2(2)]...[0x1E]
-func (dao *CollectionDAO) Write(ownerOrName string, totalPrice uint64, itemIDs []uint64) error {
+func (dao *CollectionDAO) Write(ownerOrName string, totalPrice uint64, itemIDs []uint64) (uint64, error) {
 	dao.mu.Lock()
 	defer dao.mu.Unlock()
 
 	// Ensure file exists
 	if err := dao.ensureFileExists(); err != nil {
-		return err
+		return 0, err
 	}
 
 	// Open file for read/write
 	file, err := os.OpenFile(dao.filePath, os.O_RDWR, 0644)
 	if err != nil {
-		return fmt.Errorf("failed to open collection file: %w", err)
+		return 0, fmt.Errorf("failed to open collection file: %w", err)
 	}
 	defer file.Close()
 
@@ -78,51 +54,51 @@ func (dao *CollectionDAO) Write(ownerOrName string, totalPrice uint64, itemIDs [
 	// Separator before nameSize
 	sep1, err := utils.WriteVariable(utils.UnitSeparator)
 	if err != nil {
-		return fmt.Errorf("failed to write separator: %w", err)
+		return 0, fmt.Errorf("failed to write separator: %w", err)
 	}
 
 	// Name size (2 bytes)
 	nameSize := len(ownerOrName)
 	nameSizeBytes, err := utils.WriteFixedNumber(2, uint64(nameSize))
 	if err != nil {
-		return fmt.Errorf("failed to write name size: %w", err)
+		return 0, fmt.Errorf("failed to write name size: %w", err)
 	}
 
 	// Name (variable length)
 	nameBytes, err := utils.WriteVariable(ownerOrName)
 	if err != nil {
-		return fmt.Errorf("failed to write name: %w", err)
+		return 0, fmt.Errorf("failed to write name: %w", err)
 	}
 
 	// Separator before total price
 	sep2, err := utils.WriteVariable(utils.UnitSeparator)
 	if err != nil {
-		return fmt.Errorf("failed to write separator: %w", err)
+		return 0, fmt.Errorf("failed to write separator: %w", err)
 	}
 
 	// Total price (4 bytes)
 	totalPriceBytes, err := utils.WriteFixedNumber(4, totalPrice)
 	if err != nil {
-		return fmt.Errorf("failed to write total price: %w", err)
+		return 0, fmt.Errorf("failed to write total price: %w", err)
 	}
 
 	// Separator before item count
 	sep3, err := utils.WriteVariable(utils.UnitSeparator)
 	if err != nil {
-		return fmt.Errorf("failed to write separator: %w", err)
+		return 0, fmt.Errorf("failed to write separator: %w", err)
 	}
 
 	// Item count (4 bytes)
 	itemCount := uint64(len(itemIDs))
 	itemCountBytes, err := utils.WriteFixedNumber(4, itemCount)
 	if err != nil {
-		return fmt.Errorf("failed to write item count: %w", err)
+		return 0, fmt.Errorf("failed to write item count: %w", err)
 	}
 
 	// Separator before item IDs
 	sep4, err := utils.WriteVariable(utils.UnitSeparator)
 	if err != nil {
-		return fmt.Errorf("failed to write separator: %w", err)
+		return 0, fmt.Errorf("failed to write separator: %w", err)
 	}
 
 	// Combine all fields
@@ -140,7 +116,7 @@ func (dao *CollectionDAO) Write(ownerOrName string, totalPrice uint64, itemIDs [
 	for _, itemID := range itemIDs {
 		itemIDBytes, err := utils.WriteFixedNumber(utils.IDSize, itemID)
 		if err != nil {
-			return fmt.Errorf("failed to write item ID: %w", err)
+			return 0, fmt.Errorf("failed to write item ID: %w", err)
 		}
 		entry = append(entry, itemIDBytes...)
 	}
@@ -148,25 +124,25 @@ func (dao *CollectionDAO) Write(ownerOrName string, totalPrice uint64, itemIDs [
 	// Read header to get the next ID
 	_, _, nextId, err := utils.ReadHeader(file)
 	if err != nil {
-		return fmt.Errorf("failed to read header: %w", err)
+		return 0, fmt.Errorf("failed to read header: %w", err)
 	}
 
 	// Seek back to end
 	_, err = file.Seek(0, 2)
 	if err != nil {
-		return fmt.Errorf("failed to seek to end: %w", err)
+		return 0, fmt.Errorf("failed to seek to end: %w", err)
 	}
 
 	// Get actual append position
 	appendPos, err := file.Seek(0, 1)
 	if err != nil {
-		return fmt.Errorf("failed to get append position: %w", err)
+		return 0, fmt.Errorf("failed to get append position: %w", err)
 	}
 
 	// Append the entry (ID and tombstone auto-assigned, record separator added)
 	err = utils.AppendEntry(file, entry)
 	if err != nil {
-		return fmt.Errorf("failed to append collection: %w", err)
+		return 0, fmt.Errorf("failed to append collection: %w", err)
 	}
 
 	// Add to B+ tree index: ID -> file offset
@@ -175,10 +151,10 @@ func (dao *CollectionDAO) Write(ownerOrName string, totalPrice uint64, itemIDs [
 	// Save index to disk
 	err = dao.tree.Save(dao.indexPath)
 	if err != nil {
-		return fmt.Errorf("failed to save index: %w", err)
+		return 0, fmt.Errorf("failed to save index: %w", err)
 	}
 
-	return nil
+	return uint64(nextId), nil
 }
 
 // Read retrieves a collection by ID using B+ tree index with automatic fallback to sequential scan
@@ -335,33 +311,15 @@ func (dao *CollectionDAO) Delete(id uint64) error {
 		return fmt.Errorf("failed to read header: %w", err)
 	}
 
-	// Calculate header size to know where entries start
-	headerSize := (utils.HeaderFieldSize * 3) + 3 // 15 bytes
-
-	// Read the rest of the file to find the entry
-	fileData, err := os.ReadFile(dao.filePath)
+	// Split file into entries
+	entries, err := utils.SplitFileIntoEntries(dao.filePath)
 	if err != nil {
-		return fmt.Errorf("failed to read file: %w", err)
-	}
-
-	// Split by record separator to get individual entries
-	recordSeparatorByte := []byte(utils.RecordSeparator)[0]
-	entries := make([][]byte, 0)
-	entryPositions := make([]int64, 0)
-
-	offset := headerSize
-	entryStart := offset
-
-	for i := headerSize; i < len(fileData); i++ {
-		if fileData[i] == recordSeparatorByte {
-			entries = append(entries, fileData[entryStart:i])
-			entryPositions = append(entryPositions, int64(entryStart))
-			entryStart = i + 1
-		}
+		return fmt.Errorf("failed to split file into entries: %w", err)
 	}
 
 	// Find the entry with matching ID
-	for idx, entryData := range entries {
+	for _, entry := range entries {
+		entryData := entry.Data
 		if len(entryData) < utils.IDSize {
 			continue
 		}
@@ -384,7 +342,7 @@ func (dao *CollectionDAO) Delete(id uint64) error {
 			}
 
 			// Calculate position of tombstone byte in file
-			tombstonePos := entryPositions[idx] + int64(utils.IDSize)
+			tombstonePos := entry.Position + int64(utils.IDSize)
 
 			// Seek to tombstone position
 			_, err = file.Seek(tombstonePos, 0)
@@ -442,35 +400,17 @@ func (dao *CollectionDAO) GetAll() ([]*Collection, error) {
 		return nil, err
 	}
 
-	// Read all file data
-	fileData, err := os.ReadFile(dao.filePath)
+	// Split file into entries
+	entries, err := utils.SplitFileIntoEntries(dao.filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
-	}
-
-	// Calculate header size
-	headerSize := (utils.HeaderFieldSize * 3) + 3 // 15 bytes
-
-	if len(fileData) <= headerSize {
-		return []*Collection{}, nil // No entries yet
-	}
-
-	// Split by record separator
-	recordSeparatorByte := []byte(utils.RecordSeparator)[0]
-	entries := make([][]byte, 0)
-
-	entryStart := headerSize
-	for i := headerSize; i < len(fileData); i++ {
-		if fileData[i] == recordSeparatorByte {
-			entries = append(entries, fileData[entryStart:i])
-			entryStart = i + 1
-		}
+		return nil, fmt.Errorf("failed to split file into entries: %w", err)
 	}
 
 	// Parse each entry
 	result := make([]*Collection, 0)
 
-	for _, entryData := range entries {
+	for _, entry := range entries {
+		entryData := entry.Data
 		if len(entryData) < utils.IDSize+utils.TombstoneSize {
 			continue
 		}

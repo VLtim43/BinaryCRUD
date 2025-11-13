@@ -14,13 +14,13 @@ func TestCollectionDAOWrite(t *testing.T) {
 	collectionDAO := dao.NewOrderDAO(testFile)
 
 	// Write first order
-	err := collectionDAO.Write("John Doe", 1500, []uint64{1, 2, 3})
+	_, err := collectionDAO.Write("John Doe", 1500, []uint64{1, 2, 3})
 	if err != nil {
 		t.Fatalf("Failed to write first order: %v", err)
 	}
 
 	// Write second order
-	err = collectionDAO.Write("Jane Smith", 899, []uint64{4})
+	_, err = collectionDAO.Write("Jane Smith", 899, []uint64{4})
 	if err != nil {
 		t.Fatalf("Failed to write second order: %v", err)
 	}
@@ -37,9 +37,9 @@ func TestCollectionDAORead(t *testing.T) {
 
 	// Create DAO and add collections
 	collectionDAO := dao.NewOrderDAO(testFile)
-	collectionDAO.Write("Alice", 2500, []uint64{1, 2, 3, 4, 5})
-	collectionDAO.Write("Bob", 1200, []uint64{6, 7})
-	collectionDAO.Write("Charlie", 899, []uint64{8})
+	_, _ = collectionDAO.Write("Alice", 2500, []uint64{1, 2, 3, 4, 5})
+	_, _ = collectionDAO.Write("Bob", 1200, []uint64{6, 7})
+	_, _ = collectionDAO.Write("Charlie", 899, []uint64{8})
 
 	// Read first collection (IDs start at 0)
 	collection, err := collectionDAO.Read(0)
@@ -96,9 +96,9 @@ func TestCollectionDAODelete(t *testing.T) {
 
 	// Create DAO and add collections
 	collectionDAO := dao.NewOrderDAO(testFile)
-	collectionDAO.Write("Order1", 1000, []uint64{1, 2})
-	collectionDAO.Write("Order2", 2000, []uint64{3, 4, 5})
-	collectionDAO.Write("Order3", 3000, []uint64{6})
+	_, _ = collectionDAO.Write("Order1", 1000, []uint64{1, 2})
+	_, _ = collectionDAO.Write("Order2", 2000, []uint64{3, 4, 5})
+	_, _ = collectionDAO.Write("Order3", 3000, []uint64{6})
 
 	// Delete collection with ID 1 (second item, since IDs start at 0)
 	err := collectionDAO.Delete(1)
@@ -151,7 +151,7 @@ func TestCollectionDAOFullCRUDFlow(t *testing.T) {
 	}
 
 	for _, promo := range promotions {
-		err := collectionDAO.Write(promo.name, promo.totalPrice, promo.itemIDs)
+		_, err := collectionDAO.Write(promo.name, promo.totalPrice, promo.itemIDs)
 		if err != nil {
 			t.Fatalf("Failed to create promotion %s: %v", promo.name, err)
 		}
@@ -241,7 +241,7 @@ func TestCollectionDAOEmptyItemList(t *testing.T) {
 	collectionDAO := dao.NewOrderDAO(testFile)
 
 	// Write collection with no items
-	err := collectionDAO.Write("Empty Order", 0, []uint64{})
+	_, err := collectionDAO.Write("Empty Order", 0, []uint64{})
 	if err != nil {
 		t.Fatalf("Failed to write empty collection: %v", err)
 	}
@@ -273,7 +273,7 @@ func TestCollectionDAOLargeItemList(t *testing.T) {
 		itemIDs[i] = i + 100 // Start from 100 to avoid separator byte conflicts
 	}
 
-	err := collectionDAO.Write("Mega Sale", 50000, itemIDs)
+	_, err := collectionDAO.Write("Mega Sale", 50000, itemIDs)
 	if err != nil {
 		t.Fatalf("Failed to write large collection: %v", err)
 	}
@@ -311,12 +311,12 @@ func TestCollectionDAOOrdersVsPromotions(t *testing.T) {
 	promoDAO := dao.NewPromotionDAO(promoFile)
 
 	// Write to both
-	err := orderDAO.Write("Customer A", 1500, []uint64{1, 2})
+	_, err := orderDAO.Write("Customer A", 1500, []uint64{1, 2})
 	if err != nil {
 		t.Fatalf("Failed to write order: %v", err)
 	}
 
-	err = promoDAO.Write("Half Price Sale", 2500, []uint64{3, 4, 5})
+	_, err = promoDAO.Write("Half Price Sale", 2500, []uint64{3, 4, 5})
 	if err != nil {
 		t.Fatalf("Failed to write promotion: %v", err)
 	}

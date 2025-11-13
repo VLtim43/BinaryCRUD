@@ -14,7 +14,7 @@ func TestOrderDAOCreateSingleOrder(t *testing.T) {
 	orderDAO := dao.NewOrderDAO(testFile)
 
 	// Create an order with customer name, total price, and item IDs
-	err := orderDAO.Write("John Doe", 1500, []uint64{1, 2, 3})
+	_, err := orderDAO.Write("John Doe", 1500, []uint64{1, 2, 3})
 	if err != nil {
 		t.Fatalf("Failed to create order: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestOrderDAOCreateMultipleOrders(t *testing.T) {
 
 	// Create all orders
 	for _, order := range orders {
-		err := orderDAO.Write(order.customer, order.totalPrice, order.itemIDs)
+		_, err := orderDAO.Write(order.customer, order.totalPrice, order.itemIDs)
 		if err != nil {
 			t.Fatalf("Failed to create order for %s: %v", order.customer, err)
 		}
@@ -120,7 +120,7 @@ func TestOrderDAOCreateEmptyOrder(t *testing.T) {
 	orderDAO := dao.NewOrderDAO(testFile)
 
 	// Create an order with no items
-	err := orderDAO.Write("Empty Customer", 0, []uint64{})
+	_, err := orderDAO.Write("Empty Customer", 0, []uint64{})
 	if err != nil {
 		t.Fatalf("Failed to create empty order: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestOrderDAOCreateLargeOrder(t *testing.T) {
 		itemIDs[i] = i + 100 // Start from 100 to avoid separator byte conflicts
 	}
 
-	err := orderDAO.Write("Big Order Customer", 25000, itemIDs)
+	_, err := orderDAO.Write("Big Order Customer", 25000, itemIDs)
 	if err != nil {
 		t.Fatalf("Failed to create large order: %v", err)
 	}
@@ -207,7 +207,7 @@ func TestOrderDAOCreateWithSpecialCharacters(t *testing.T) {
 	}
 
 	for i, name := range specialNames {
-		err := orderDAO.Write(name, uint64((i+1)*1000), []uint64{uint64(i)})
+		_, err := orderDAO.Write(name, uint64((i+1)*1000), []uint64{uint64(i)})
 		if err != nil {
 			t.Fatalf("Failed to create order with special name '%s': %v", name, err)
 		}
@@ -236,7 +236,7 @@ func TestOrderDAOCreateAndGetAll(t *testing.T) {
 	expectedOrderCount := 5
 	for i := 0; i < expectedOrderCount; i++ {
 		customerName := "Customer" + string(rune('A'+i))
-		err := orderDAO.Write(customerName, uint64((i+1)*1000), []uint64{uint64(i)})
+		_, err := orderDAO.Write(customerName, uint64((i+1)*1000), []uint64{uint64(i)})
 		if err != nil {
 			t.Fatalf("Failed to create order %d: %v", i, err)
 		}
@@ -269,7 +269,7 @@ func TestOrderDAOCreateSequentialIDs(t *testing.T) {
 
 	// Create 10 orders and verify IDs are sequential (starting at 0)
 	for i := 0; i < 10; i++ {
-		err := orderDAO.Write("Customer", uint64((i+1)*100), []uint64{uint64(i)})
+		_, err := orderDAO.Write("Customer", uint64((i+1)*100), []uint64{uint64(i)})
 		if err != nil {
 			t.Fatalf("Failed to create order %d: %v", i, err)
 		}

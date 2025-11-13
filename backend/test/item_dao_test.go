@@ -16,19 +16,19 @@ func TestItemDAOWrite(t *testing.T) {
 	itemDAO := dao.NewItemDAO(testFile)
 
 	// Write first item
-	err := itemDAO.Write("Burger", 899)
+	_, err := itemDAO.Write("Burger", 899)
 	if err != nil {
 		t.Fatalf("Failed to write first item: %v", err)
 	}
 
 	// Write second item
-	err = itemDAO.Write("Fries", 349)
+	_, err = itemDAO.Write("Fries", 349)
 	if err != nil {
 		t.Fatalf("Failed to write second item: %v", err)
 	}
 
 	// Write third item
-	err = itemDAO.Write("Soda", 199)
+	_, err = itemDAO.Write("Soda", 199)
 	if err != nil {
 		t.Fatalf("Failed to write third item: %v", err)
 	}
@@ -53,9 +53,9 @@ func TestItemDAOReadWithIndex(t *testing.T) {
 
 	// Create DAO and add items
 	itemDAO := dao.NewItemDAO(testFile)
-	itemDAO.Write("Pizza", 599)
-	itemDAO.Write("Taco", 399)
-	itemDAO.Write("Salad", 699)
+	_, _ = itemDAO.Write("Pizza", 599)
+	_, _ = itemDAO.Write("Taco", 399)
+	_, _ = itemDAO.Write("Salad", 699)
 
 	// Test indexed read (IDs start at 0)
 	id, name, price, err := itemDAO.ReadWithIndex(1, true)
@@ -98,9 +98,9 @@ func TestItemDAODelete(t *testing.T) {
 
 	// Create DAO and add items
 	itemDAO := dao.NewItemDAO(testFile)
-	itemDAO.Write("Burger", 899)
-	itemDAO.Write("Fries", 349)
-	itemDAO.Write("Soda", 199)
+	_, _ = itemDAO.Write("Burger", 899)
+	_, _ = itemDAO.Write("Fries", 349)
+	_, _ = itemDAO.Write("Soda", 199)
 
 	// Verify 3 items in index
 	tree := itemDAO.GetIndexTree()
@@ -169,7 +169,7 @@ func TestItemDAOFullCRUDFlow(t *testing.T) {
 	}
 
 	for _, item := range items {
-		err := itemDAO.Write(item.name, item.price)
+		_, err := itemDAO.Write(item.name, item.price)
 		if err != nil {
 			t.Fatalf("Failed to create item %s: %v", item.name, err)
 		}
@@ -267,9 +267,9 @@ func TestItemDAOIndexPersistence(t *testing.T) {
 
 	// Create DAO and add items
 	itemDAO := dao.NewItemDAO(testFile)
-	itemDAO.Write("Item1", 100)
-	itemDAO.Write("Item2", 200)
-	itemDAO.Write("Item3", 300)
+	_, _ = itemDAO.Write("Item1", 100)
+	_, _ = itemDAO.Write("Item2", 200)
+	_, _ = itemDAO.Write("Item3", 300)
 
 	// Create NEW DAO instance (simulates app restart)
 	itemDAO2 := dao.NewItemDAO(testFile)
@@ -303,7 +303,7 @@ func TestItemDAOConcurrentWrites(t *testing.T) {
 	done := make(chan bool)
 
 	write := func(name string, price uint64) {
-		err := itemDAO.Write(name, price)
+		_, err := itemDAO.Write(name, price)
 		if err != nil {
 			t.Errorf("Concurrent write failed: %v", err)
 		}

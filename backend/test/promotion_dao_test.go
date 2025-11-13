@@ -14,7 +14,7 @@ func TestPromotionDAOCreateSinglePromotion(t *testing.T) {
 	promotionDAO := dao.NewPromotionDAO(testFile)
 
 	// Create a promotion with name, total price, and item IDs
-	err := promotionDAO.Write("Summer Sale", 5000, []uint64{1, 2, 3, 4})
+	_, err := promotionDAO.Write("Summer Sale", 5000, []uint64{1, 2, 3, 4})
 	if err != nil {
 		t.Fatalf("Failed to create promotion: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestPromotionDAOCreateMultiplePromotions(t *testing.T) {
 
 	// Create all promotions
 	for _, promo := range promotions {
-		err := promotionDAO.Write(promo.name, promo.totalPrice, promo.itemIDs)
+		_, err := promotionDAO.Write(promo.name, promo.totalPrice, promo.itemIDs)
 		if err != nil {
 			t.Fatalf("Failed to create promotion '%s': %v", promo.name, err)
 		}
@@ -120,7 +120,7 @@ func TestPromotionDAOCreateEmptyPromotion(t *testing.T) {
 	promotionDAO := dao.NewPromotionDAO(testFile)
 
 	// Create a promotion with no items
-	err := promotionDAO.Write("Empty Promotion", 0, []uint64{})
+	_, err := promotionDAO.Write("Empty Promotion", 0, []uint64{})
 	if err != nil {
 		t.Fatalf("Failed to create empty promotion: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestPromotionDAOCreateLargePromotion(t *testing.T) {
 		itemIDs[i] = i + 100 // Start from 100 to avoid separator byte conflicts
 	}
 
-	err := promotionDAO.Write("Mega Sale", 50000, itemIDs)
+	_, err := promotionDAO.Write("Mega Sale", 50000, itemIDs)
 	if err != nil {
 		t.Fatalf("Failed to create large promotion: %v", err)
 	}
@@ -207,7 +207,7 @@ func TestPromotionDAOCreateWithSpecialCharacters(t *testing.T) {
 	}
 
 	for i, name := range specialNames {
-		err := promotionDAO.Write(name, uint64((i+1)*2000), []uint64{uint64(i)})
+		_, err := promotionDAO.Write(name, uint64((i+1)*2000), []uint64{uint64(i)})
 		if err != nil {
 			t.Fatalf("Failed to create promotion with special name '%s': %v", name, err)
 		}
@@ -242,7 +242,7 @@ func TestPromotionDAOCreateAndGetAll(t *testing.T) {
 	}
 
 	for i, name := range promotionNames {
-		err := promotionDAO.Write(name, uint64((i+1)*1500), []uint64{uint64(i)})
+		_, err := promotionDAO.Write(name, uint64((i+1)*1500), []uint64{uint64(i)})
 		if err != nil {
 			t.Fatalf("Failed to create promotion '%s': %v", name, err)
 		}
@@ -279,7 +279,7 @@ func TestPromotionDAOCreateSequentialIDs(t *testing.T) {
 	// Create 10 promotions and verify IDs are sequential (starting at 0)
 	for i := 0; i < 10; i++ {
 		promotionName := "Promotion " + string(rune('A'+i))
-		err := promotionDAO.Write(promotionName, uint64((i+1)*500), []uint64{uint64(i)})
+		_, err := promotionDAO.Write(promotionName, uint64((i+1)*500), []uint64{uint64(i)})
 		if err != nil {
 			t.Fatalf("Failed to create promotion %d: %v", i, err)
 		}
@@ -303,7 +303,7 @@ func TestPromotionDAOCreateWithZeroPrice(t *testing.T) {
 	promotionDAO := dao.NewPromotionDAO(testFile)
 
 	// Create a free promotion (total price = 0)
-	err := promotionDAO.Write("Free Sample Promotion", 0, []uint64{1, 2})
+	_, err := promotionDAO.Write("Free Sample Promotion", 0, []uint64{1, 2})
 	if err != nil {
 		t.Fatalf("Failed to create promotion with zero price: %v", err)
 	}
@@ -330,7 +330,7 @@ func TestPromotionDAOCreateWithHighPrice(t *testing.T) {
 
 	// Create a promotion with very high price
 	highPrice := uint64(999999999)
-	err := promotionDAO.Write("Premium Bundle", highPrice, []uint64{1, 2, 3})
+	_, err := promotionDAO.Write("Premium Bundle", highPrice, []uint64{1, 2, 3})
 	if err != nil {
 		t.Fatalf("Failed to create promotion with high price: %v", err)
 	}
