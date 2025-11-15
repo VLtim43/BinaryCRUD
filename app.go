@@ -172,6 +172,12 @@ type PromotionEntry struct {
 	ItemIDs []uint64 `json:"itemIDs"`
 }
 
+// OrderEntry represents an order in the JSON file
+type OrderEntry struct {
+	Owner   string   `json:"owner"`
+	ItemIDs []uint64 `json:"itemIDs"`
+}
+
 // GetIndexContents returns the contents of the B+ tree index for debugging
 func (a *App) GetIndexContents() (map[string]any, error) {
 	// Get all entries from the tree
@@ -208,8 +214,7 @@ func (a *App) GetIndexContents() (map[string]any, error) {
 // PopulateInventory reads items and promotions from JSON files and adds them to the database
 // with delays to ensure safe sequential writes
 func (a *App) PopulateInventory() error {
-	// First, populate items
-	jsonPath := "data/items.json"
+	jsonPath := "data/seed/items.json"
 	data, err := os.ReadFile(jsonPath)
 	if err != nil {
 		return fmt.Errorf("failed to read items.json: %w", err)
@@ -243,8 +248,7 @@ func (a *App) PopulateInventory() error {
 
 	a.logger.Info(fmt.Sprintf("Items population complete: %d succeeded, %d failed", itemSuccessCount, itemFailCount))
 
-	// Now populate promotions
-	promoJsonPath := "data/promotions.json"
+	promoJsonPath := "data/seed/promotions.json"
 	promoData, err := os.ReadFile(promoJsonPath)
 	if err != nil {
 		return fmt.Errorf("failed to read promotions.json: %w", err)
@@ -291,15 +295,221 @@ func (a *App) PopulateInventory() error {
 
 	a.logger.Info(fmt.Sprintf("Promotions population complete: %d succeeded, %d failed", promoSuccessCount, promoFailCount))
 
-	// Final summary
-	totalSuccess := itemSuccessCount + promoSuccessCount
-	totalFail := itemFailCount + promoFailCount
+	orderJsonPath := "data/seed/orders.json"
+	orderData, err := os.ReadFile(orderJsonPath)
+	if err != nil {
+		return fmt.Errorf("failed to read orders.json: %w", err)
+	}
 
-	a.logger.Info(fmt.Sprintf("Total population complete: %d items + %d promotions = %d total (%d failed)",
-		itemSuccessCount, promoSuccessCount, totalSuccess, totalFail))
+	// Parse JSON into slice of orders
+	var orders []OrderEntry
+	err = json.Unmarshal(orderData, &orders)
+	if err != nil {
+		return fmt.Errorf("failed to parse orders.json: %w", err)
+	}
+
+	a.logger.Info(fmt.Sprintf("Starting orders population with %d orders", len(orders)))
+
+	// Add each order sequentially
+	orderSuccessCount := 0
+	orderFailCount := 0
+
+	for i, order := range orders {
+		totalPrice := uint64(0)
+		validItems := []uint64{}
+
+		// Calculate total price
+		for _, itemID := range order.ItemIDs {
+			_, _, priceInCents, err := a.itemDAO.Read(itemID)
+			if err != nil {
+				a.logger.Warn(fmt.Sprintf("Item ID %d in order '%s' not found, skipping price calculation", itemID, order.Owner))
+				continue
+			}
+			totalPrice += priceInCents
+			validItems = append(validItems, itemID)
+		}
+
+		if len(validItems) == 0 {
+			a.logger.Warn(fmt.Sprintf("Order %d (%s) has no valid items, skipping", i+1, order.Owner))
+			orderFailCount++
+			continue
+		}
+
+		_, err := a.orderDAO.Write(order.Owner, totalPrice, validItems)
+		if err != nil {
+			a.logger.Error(fmt.Sprintf("Failed to add order %d (%s): %v", i+1, order.Owner, err))
+			orderFailCount++
+			continue
+		}
+
+		orderSuccessCount++
+		a.logger.Info(fmt.Sprintf("Added order %d/%d: %s with %d items ($%.2f)",
+			i+1, len(orders), order.Owner, len(validItems), float64(totalPrice)/100))
+	}
+
+	a.logger.Info(fmt.Sprintf("Orders population complete: %d succeeded, %d failed", orderSuccessCount, orderFailCount))
+
+	// Final summary
+	totalSuccess := itemSuccessCount + promoSuccessCount + orderSuccessCount
+	totalFail := itemFailCount + promoFailCount + orderFailCount
+
+	a.logger.Info(fmt.Sprintf("Total population complete: %d items + %d promotions + %d orders = %d total (%d failed)",
+		itemSuccessCount, promoSuccessCount, orderSuccessCount, totalSuccess, totalFail))
 
 	if totalFail > 0 {
 		return fmt.Errorf("some entries failed to add: %d succeeded, %d failed", totalSuccess, totalFail)
+	}
+
+	return nil
+}
+
+// PopulateItems reads items from JSON and adds them to the database
+func (a *App) PopulateItems() error {
+	jsonPath := "data/seed/items.json"
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return fmt.Errorf("failed to read items.json: %w", err)
+	}
+
+	var items []ItemEntry
+	err = json.Unmarshal(data, &items)
+	if err != nil {
+		return fmt.Errorf("failed to parse items.json: %w", err)
+	}
+
+	a.logger.Info(fmt.Sprintf("Starting items population with %d items", len(items)))
+
+	successCount := 0
+	failCount := 0
+
+	for i, item := range items {
+		_, err := a.itemDAO.Write(item.Name, item.PriceInCents)
+		if err != nil {
+			a.logger.Error(fmt.Sprintf("Failed to add item %d (%s): %v", i+1, item.Name, err))
+			failCount++
+			continue
+		}
+
+		successCount++
+		a.logger.Info(fmt.Sprintf("Added item %d/%d: %s ($%.2f)", i+1, len(items), item.Name, float64(item.PriceInCents)/100))
+	}
+
+	a.logger.Info(fmt.Sprintf("Items population complete: %d succeeded, %d failed", successCount, failCount))
+
+	if failCount > 0 {
+		return fmt.Errorf("%d items failed to add", failCount)
+	}
+
+	return nil
+}
+
+// PopulatePromotions reads promotions from JSON and adds them to the database
+func (a *App) PopulatePromotions() error {
+	jsonPath := "data/seed/promotions.json"
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return fmt.Errorf("failed to read promotions.json: %w", err)
+	}
+
+	var promotions []PromotionEntry
+	err = json.Unmarshal(data, &promotions)
+	if err != nil {
+		return fmt.Errorf("failed to parse promotions.json: %w", err)
+	}
+
+	a.logger.Info(fmt.Sprintf("Starting promotions population with %d promotions", len(promotions)))
+
+	successCount := 0
+	failCount := 0
+
+	for i, promo := range promotions {
+		totalPrice := uint64(0)
+		for _, itemID := range promo.ItemIDs {
+			_, _, priceInCents, err := a.itemDAO.Read(itemID)
+			if err != nil {
+				a.logger.Warn(fmt.Sprintf("Item ID %d in promotion '%s' not found, skipping price calculation", itemID, promo.Name))
+				continue
+			}
+			totalPrice += priceInCents
+		}
+
+		_, err := a.promotionDAO.Write(promo.Name, totalPrice, promo.ItemIDs)
+		if err != nil {
+			a.logger.Error(fmt.Sprintf("Failed to add promotion %d (%s): %v", i+1, promo.Name, err))
+			failCount++
+			continue
+		}
+
+		successCount++
+		a.logger.Info(fmt.Sprintf("Added promotion %d/%d: %s with %d items ($%.2f)",
+			i+1, len(promotions), promo.Name, len(promo.ItemIDs), float64(totalPrice)/100))
+	}
+
+	a.logger.Info(fmt.Sprintf("Promotions population complete: %d succeeded, %d failed", successCount, failCount))
+
+	if failCount > 0 {
+		return fmt.Errorf("%d promotions failed to add", failCount)
+	}
+
+	return nil
+}
+
+// PopulateOrders reads orders from JSON and adds them to the database
+func (a *App) PopulateOrders() error {
+	jsonPath := "data/seed/orders.json"
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return fmt.Errorf("failed to read orders.json: %w", err)
+	}
+
+	var orders []OrderEntry
+	err = json.Unmarshal(data, &orders)
+	if err != nil {
+		return fmt.Errorf("failed to parse orders.json: %w", err)
+	}
+
+	a.logger.Info(fmt.Sprintf("Starting orders population with %d orders", len(orders)))
+
+	successCount := 0
+	failCount := 0
+
+	for i, order := range orders {
+		totalPrice := uint64(0)
+		validItems := []uint64{}
+
+		// Calculate total price
+		for _, itemID := range order.ItemIDs {
+			_, _, priceInCents, err := a.itemDAO.Read(itemID)
+			if err != nil {
+				a.logger.Warn(fmt.Sprintf("Item ID %d in order '%s' not found, skipping price calculation", itemID, order.Owner))
+				continue
+			}
+			totalPrice += priceInCents
+			validItems = append(validItems, itemID)
+		}
+
+		if len(validItems) == 0 {
+			a.logger.Warn(fmt.Sprintf("Order %d (%s) has no valid items, skipping", i+1, order.Owner))
+			failCount++
+			continue
+		}
+
+		_, err := a.orderDAO.Write(order.Owner, totalPrice, validItems)
+		if err != nil {
+			a.logger.Error(fmt.Sprintf("Failed to add order %d (%s): %v", i+1, order.Owner, err))
+			failCount++
+			continue
+		}
+
+		successCount++
+		a.logger.Info(fmt.Sprintf("Added order %d/%d: %s with %d items ($%.2f)",
+			i+1, len(orders), order.Owner, len(validItems), float64(totalPrice)/100))
+	}
+
+	a.logger.Info(fmt.Sprintf("Orders population complete: %d succeeded, %d failed", successCount, failCount))
+
+	if failCount > 0 {
+		return fmt.Errorf("%d orders failed to add", failCount)
 	}
 
 	return nil

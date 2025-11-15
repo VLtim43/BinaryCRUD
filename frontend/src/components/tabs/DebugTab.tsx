@@ -10,15 +10,35 @@ interface DebugTabProps {
 
 export const DebugTab = ({ onMessage, onRefreshLogs }: DebugTabProps) => {
   const [indexData, setIndexData] = useState<any>(null);
+  const [populateMode, setPopulateMode] = useState<string>("all");
 
-  const handlePopulate = async () => {
-    onMessage("Populating data from items.json and promotions.json...");
+  const handlePopulateClick = async () => {
     try {
-      await systemService.populateInventory();
-      onMessage("Data populated successfully! Check logs for details.");
+      switch (populateMode) {
+        case "all":
+          onMessage("Populating all data (items, promotions, orders)...");
+          await systemService.populateInventory();
+          onMessage("All data populated successfully! Check logs for details.");
+          break;
+        case "items":
+          onMessage("Populating items from items.json...");
+          await systemService.populateItems();
+          onMessage("Items populated successfully! Check logs for details.");
+          break;
+        case "promotions":
+          onMessage("Populating promotions from promotions.json...");
+          await systemService.populatePromotions();
+          onMessage("Promotions populated successfully! Check logs for details.");
+          break;
+        case "orders":
+          onMessage("Populating orders from orders.json...");
+          await systemService.populateOrders();
+          onMessage("Orders populated successfully! Check logs for details.");
+          break;
+      }
       onRefreshLogs();
     } catch (err: any) {
-      onMessage(`Error populating data: ${err}`);
+      onMessage(`Error: ${err}`);
       onRefreshLogs();
     }
   };
@@ -50,7 +70,27 @@ export const DebugTab = ({ onMessage, onRefreshLogs }: DebugTabProps) => {
   return (
     <>
       <div className="input-box">
-        <Button onClick={handlePopulate}>Populate Data</Button>
+        <select
+          value={populateMode}
+          onChange={(e) => setPopulateMode((e.target as HTMLSelectElement).value)}
+          style={{
+            height: "100%",
+            padding: "0 12px",
+            borderRadius: "5px",
+            border: "1px solid #ddd",
+            backgroundColor: "rgba(240, 240, 240, 1)",
+            color: "#333",
+            fontSize: "14px",
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+          }}
+        >
+          <option value="all">Populate All</option>
+          <option value="items">Populate Items</option>
+          <option value="promotions">Populate Promotions</option>
+          <option value="orders">Populate Orders</option>
+        </select>
+        <Button onClick={handlePopulateClick}>Populate</Button>
         <Button onClick={handlePrintIndex}>Print Index</Button>
         <Button variant="danger" onClick={handleDeleteAll}>
           Delete All Files

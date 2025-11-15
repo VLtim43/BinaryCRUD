@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -10,12 +9,10 @@ import (
 // FindByIDSequential performs a sequential scan of a binary file to find an entry by ID
 // Returns the complete entry data (including ID) and nil error if found
 // Returns nil and an error if not found or on file read errors
+// Format: [recordLength(2)][ID(2)][tombstone(1)][data...]
 func FindByIDSequential(file *os.File, targetID uint64) ([]byte, error) {
-	// Calculate header size to skip it
-	headerSize := (HeaderFieldSize * 3) + 3 // 15 bytes
-
 	// Seek to the start of the first entry (after header)
-	_, err := file.Seek(int64(headerSize), 0)
+	_, err := file.Seek(int64(HeaderSize), 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to seek past header: %w", err)
 	}
@@ -31,35 +28,40 @@ func FindByIDSequential(file *os.File, targetID uint64) ([]byte, error) {
 		return nil, fmt.Errorf("entry with ID %d not found", targetID)
 	}
 
-	// Split by record separator to get individual entries
-	recordSeparatorByte := []byte(RecordSeparator)[0]
-	entries := bytes.Split(fileData, []byte{recordSeparatorByte})
-
-	// Scan through each entry
-	for _, entryData := range entries {
-		// Skip empty entries (e.g., trailing separator creates empty slice)
-		if len(entryData) == 0 {
-			continue
+	// Parse records using length-prefixed format
+	offset := 0
+	for offset < len(fileData) {
+		// Check if we have enough bytes for the length field
+		if offset+RecordLengthSize > len(fileData) {
+			break
 		}
 
-		// Each entry starts with an ID (IDSize bytes)
-		if len(entryData) < IDSize {
-			// Malformed entry, skip it
-			continue
-		}
-
-		// Read the ID from the entry
-		entryID, _, err := ReadFixedNumber(IDSize, entryData, 0)
+		// Read the record length
+		recordLength, lengthEnd, err := ReadFixedNumber(RecordLengthSize, fileData, offset)
 		if err != nil {
-			// Malformed entry, skip it
-			continue
+			return nil, fmt.Errorf("failed to read record length: %w", err)
 		}
 
-		// Check if this is the entry we're looking for
-		if entryID == targetID {
-			// Found it! Return the complete entry data (including ID)
-			return entryData, nil
+		// Check if we have enough bytes for the complete record
+		if lengthEnd+int(recordLength) > len(fileData) {
+			return nil, fmt.Errorf("incomplete record at offset %d", offset)
 		}
+
+		// Extract the record data (without length prefix)
+		entryData := fileData[lengthEnd : lengthEnd+int(recordLength)]
+
+		// Each record starts with ID (IDSize bytes)
+		if len(entryData) >= IDSize {
+			// Read the ID from the entry
+			entryID, _, err := ReadFixedNumber(IDSize, entryData, 0)
+			if err == nil && entryID == targetID {
+				// Found it! Return the complete entry data (including ID)
+				return entryData, nil
+			}
+		}
+
+		// Move to next record
+		offset = lengthEnd + int(recordLength)
 	}
 
 	// Not found

@@ -32,7 +32,7 @@ func (dao *CollectionDAO) ensureFileExists() error {
 }
 
 // Write creates a new collection entry and returns the assigned ID
-// Binary format: [ID(2)][tombstone(1)][0x1F][nameSize(2)][name][0x1F][totalPrice(4)][0x1F][itemCount(4)][0x1F][itemID1(2)][itemID2(2)]...[0x1E]
+// Complete record format: [recordLength(2)][ID(2)][tombstone(1)][nameLength(2)][name...][totalPrice(4)][itemCount(4)][itemIDs...]
 func (dao *CollectionDAO) Write(ownerOrName string, totalPrice uint64, itemIDs []uint64) (uint64, error) {
 	dao.mu.Lock()
 	defer dao.mu.Unlock()
@@ -49,13 +49,8 @@ func (dao *CollectionDAO) Write(ownerOrName string, totalPrice uint64, itemIDs [
 	}
 	defer file.Close()
 
-	// Build entry without ID: [0x1F][nameSize(2)][name][0x1F][totalPrice(4)][0x1F][itemCount(4)][0x1F][itemID1(2)]...
-
-	// Separator before nameSize
-	sep1, err := utils.WriteVariable(utils.UnitSeparator)
-	if err != nil {
-		return 0, fmt.Errorf("failed to write separator: %w", err)
-	}
+	// Build entry without ID and tombstone: [nameLength(2)][name...][totalPrice(4)][itemCount(4)][itemIDs...]
+	// ID, tombstone, and record length will be added by AppendEntry
 
 	// Name size (2 bytes)
 	nameSize := len(ownerOrName)
@@ -70,22 +65,10 @@ func (dao *CollectionDAO) Write(ownerOrName string, totalPrice uint64, itemIDs [
 		return 0, fmt.Errorf("failed to write name: %w", err)
 	}
 
-	// Separator before total price
-	sep2, err := utils.WriteVariable(utils.UnitSeparator)
-	if err != nil {
-		return 0, fmt.Errorf("failed to write separator: %w", err)
-	}
-
 	// Total price (4 bytes)
 	totalPriceBytes, err := utils.WriteFixedNumber(4, totalPrice)
 	if err != nil {
 		return 0, fmt.Errorf("failed to write total price: %w", err)
-	}
-
-	// Separator before item count
-	sep3, err := utils.WriteVariable(utils.UnitSeparator)
-	if err != nil {
-		return 0, fmt.Errorf("failed to write separator: %w", err)
 	}
 
 	// Item count (4 bytes)
@@ -95,22 +78,12 @@ func (dao *CollectionDAO) Write(ownerOrName string, totalPrice uint64, itemIDs [
 		return 0, fmt.Errorf("failed to write item count: %w", err)
 	}
 
-	// Separator before item IDs
-	sep4, err := utils.WriteVariable(utils.UnitSeparator)
-	if err != nil {
-		return 0, fmt.Errorf("failed to write separator: %w", err)
-	}
-
 	// Combine all fields
 	entry := make([]byte, 0)
-	entry = append(entry, sep1...)
 	entry = append(entry, nameSizeBytes...)
 	entry = append(entry, nameBytes...)
-	entry = append(entry, sep2...)
 	entry = append(entry, totalPriceBytes...)
-	entry = append(entry, sep3...)
 	entry = append(entry, itemCountBytes...)
-	entry = append(entry, sep4...)
 
 	// Add all item IDs (2 bytes each)
 	for _, itemID := range itemIDs {
@@ -162,6 +135,11 @@ func (dao *CollectionDAO) Read(id uint64) (*Collection, error) {
 	dao.mu.Lock()
 	defer dao.mu.Unlock()
 
+	return dao.readUnlocked(id)
+}
+
+// readUnlocked is the internal implementation (must be called with lock held)
+func (dao *CollectionDAO) readUnlocked(id uint64) (*Collection, error) {
 	// Ensure file exists
 	if err := dao.ensureFileExists(); err != nil {
 		return nil, err
@@ -180,24 +158,21 @@ func (dao *CollectionDAO) Read(id uint64) (*Collection, error) {
 	offset, found := dao.tree.Search(id)
 	if found {
 		// Use index for fast lookup
+		// offset points to the start of the record (at the length prefix)
 		_, err = file.Seek(offset, 0)
 		if err == nil {
-			// Read until record separator
-			buffer := make([]byte, 8192) // Larger buffer for collections with many items
-			n, err := file.Read(buffer)
-			if err == nil {
-				// Find record separator
-				recordSep := []byte(utils.RecordSeparator)[0]
-				sepPos := -1
-				for i := 0; i < n; i++ {
-					if buffer[i] == recordSep {
-						sepPos = i
-						break
+			// Read record length (2 bytes)
+			lengthBytes := make([]byte, utils.RecordLengthSize)
+			n, err := file.Read(lengthBytes)
+			if err == nil && n == utils.RecordLengthSize {
+				recordLength, _, err := utils.ReadFixedNumber(utils.RecordLengthSize, lengthBytes, 0)
+				if err == nil {
+					// Read the record data (after length prefix)
+					entryData = make([]byte, recordLength)
+					n, err := file.Read(entryData)
+					if err != nil || n != int(recordLength) {
+						entryData = nil
 					}
-				}
-
-				if sepPos != -1 {
-					entryData = buffer[:sepPos]
 				}
 			}
 		}
@@ -254,7 +229,7 @@ func (dao *CollectionDAO) Delete(id uint64) error {
 	return utils.SoftDeleteByID(dao.filePath, id, &dao.mu, indexDeleteFunc)
 }
 
-// GetAll retrieves all non-deleted collections using sequential scan
+// GetAll retrieves all non-deleted collections using the B+ tree index
 func (dao *CollectionDAO) GetAll() ([]*Collection, error) {
 	dao.mu.Lock()
 	defer dao.mu.Unlock()
@@ -264,35 +239,35 @@ func (dao *CollectionDAO) GetAll() ([]*Collection, error) {
 		return nil, err
 	}
 
-	// Split file into entries
-	entries, err := utils.SplitFileIntoEntries(dao.filePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to split file into entries: %w", err)
+	// Get all entries from the index
+	allEntries := dao.tree.GetAll()
+
+	// Collect IDs and sort them for consistent ordering
+	ids := make([]uint64, 0, len(allEntries))
+	for id := range allEntries {
+		ids = append(ids, id)
 	}
 
-	// Parse each entry using utility function
-	result := make([]*Collection, 0)
+	// Sort IDs for consistent, predictable ordering
+	for i := 0; i < len(ids)-1; i++ {
+		for j := i + 1; j < len(ids); j++ {
+			if ids[i] > ids[j] {
+				ids[i], ids[j] = ids[j], ids[i]
+			}
+		}
+	}
 
-	for _, entry := range entries {
-		// Parse the entry using utility function
-		collection, err := utils.ParseCollectionEntry(entry.Data)
+	result := make([]*Collection, 0, len(ids))
+
+	// Read each collection by ID in sorted order
+	for _, id := range ids {
+		collection, err := dao.readUnlocked(id)
 		if err != nil {
-			// Skip malformed entries
+			// Skip deleted or errored collections
 			continue
 		}
 
-		// Skip deleted entries
-		if collection.Tombstone != 0x00 {
-			continue
-		}
-
-		result = append(result, &Collection{
-			ID:          collection.ID,
-			OwnerOrName: collection.OwnerOrName,
-			TotalPrice:  collection.TotalPrice,
-			ItemCount:   collection.ItemCount,
-			ItemIDs:     collection.ItemIDs,
-		})
+		result = append(result, collection)
 	}
 
 	return result, nil

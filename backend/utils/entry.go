@@ -13,6 +13,7 @@ type EntryInfo struct {
 
 // SplitFileIntoEntries reads a binary file and splits it into individual entries
 // Returns a slice of EntryInfo containing the raw data and file position for each entry
+// Format: [recordLength(2)][record data...]
 func SplitFileIntoEntries(filePath string) ([]EntryInfo, error) {
 	// Read the entire file
 	fileData, err := os.ReadFile(filePath)
@@ -25,20 +26,38 @@ func SplitFileIntoEntries(filePath string) ([]EntryInfo, error) {
 		return []EntryInfo{}, nil
 	}
 
-	// Split by record separator to get individual entries
-	recordSeparatorByte := []byte(RecordSeparator)[0]
 	entries := make([]EntryInfo, 0)
+	offset := HeaderSize
 
-	entryStart := HeaderSize
-
-	for i := HeaderSize; i < len(fileData); i++ {
-		if fileData[i] == recordSeparatorByte {
-			entries = append(entries, EntryInfo{
-				Data:     fileData[entryStart:i],
-				Position: int64(entryStart),
-			})
-			entryStart = i + 1
+	// Read records using length-prefixed format
+	for offset < len(fileData) {
+		// Check if we have enough bytes for the length field
+		if offset+RecordLengthSize > len(fileData) {
+			break
 		}
+
+		// Read the record length
+		recordLength, newOffset, err := ReadFixedNumber(RecordLengthSize, fileData, offset)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read record length at offset %d: %w", offset, err)
+		}
+
+		// Check if we have enough bytes for the complete record
+		if newOffset+int(recordLength) > len(fileData) {
+			return nil, fmt.Errorf("incomplete record at offset %d: expected %d bytes, only %d available",
+				newOffset, recordLength, len(fileData)-newOffset)
+		}
+
+		// Extract the record data (without the length prefix)
+		recordData := fileData[newOffset : newOffset+int(recordLength)]
+
+		entries = append(entries, EntryInfo{
+			Data:     recordData,
+			Position: int64(newOffset), // Position points to start of record data (after length)
+		})
+
+		// Move to next record
+		offset = newOffset + int(recordLength)
 	}
 
 	return entries, nil

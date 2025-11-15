@@ -30,7 +30,7 @@ type OrderPromotion struct {
 }
 
 // ParseItemEntry parses a binary item entry
-// Format: [ID(2)][tombstone(1)][0x1F][nameSize(2)][name][0x1F][price(4)]
+// Format: [ID(2)][tombstone(1)][nameLength(2)][name...][price(4)]
 func ParseItemEntry(entryData []byte) (*Item, error) {
 	parseOffset := 0
 
@@ -47,9 +47,6 @@ func ParseItemEntry(entryData []byte) (*Item, error) {
 	tombstone := entryData[parseOffset]
 	parseOffset += TombstoneSize
 
-	// Skip unit separator (0x1F)
-	parseOffset += 1
-
 	// Read name size
 	nameSize, parseOffset, err := ReadFixedNumber(2, entryData, parseOffset)
 	if err != nil {
@@ -61,9 +58,6 @@ func ParseItemEntry(entryData []byte) (*Item, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read name: %w", err)
 	}
-
-	// Skip unit separator (0x1F)
-	parseOffset += 1
 
 	// Read price
 	price, _, err := ReadFixedNumber(4, entryData, parseOffset)
@@ -80,7 +74,7 @@ func ParseItemEntry(entryData []byte) (*Item, error) {
 }
 
 // ParseCollectionEntry parses a binary collection (order/promotion) entry
-// Format: [ID(2)][tombstone(1)][0x1F][nameSize(2)][name][0x1F][totalPrice(4)][0x1F][itemCount(4)][0x1F][itemID1(2)]...
+// Format: [ID(2)][tombstone(1)][nameLength(2)][name...][totalPrice(4)][itemCount(4)][itemIDs...]
 func ParseCollectionEntry(entryData []byte) (*Collection, error) {
 	parseOffset := 0
 
@@ -97,9 +91,6 @@ func ParseCollectionEntry(entryData []byte) (*Collection, error) {
 	tombstone := entryData[parseOffset]
 	parseOffset += TombstoneSize
 
-	// Skip unit separator (0x1F)
-	parseOffset += 1
-
 	// Read name size
 	nameSize, parseOffset, err := ReadFixedNumber(2, entryData, parseOffset)
 	if err != nil {
@@ -112,26 +103,17 @@ func ParseCollectionEntry(entryData []byte) (*Collection, error) {
 		return nil, fmt.Errorf("failed to read name: %w", err)
 	}
 
-	// Skip unit separator (0x1F)
-	parseOffset += 1
-
 	// Read total price
 	totalPrice, parseOffset, err := ReadFixedNumber(4, entryData, parseOffset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read total price: %w", err)
 	}
 
-	// Skip unit separator (0x1F)
-	parseOffset += 1
-
 	// Read item count
 	itemCount, parseOffset, err := ReadFixedNumber(4, entryData, parseOffset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read item count: %w", err)
 	}
-
-	// Skip unit separator (0x1F)
-	parseOffset += 1
 
 	// Read item IDs (2 bytes each)
 	itemIDs := make([]uint64, itemCount)
@@ -155,10 +137,10 @@ func ParseCollectionEntry(entryData []byte) (*Collection, error) {
 }
 
 // ParseOrderPromotionEntry parses a binary order-promotion relationship entry
-// Format: [orderID(2)][0x1F][promotionID(2)][0x1F][tombstone(1)]
+// Format: [orderID(2)][promotionID(2)][tombstone(1)]
 func ParseOrderPromotionEntry(entryData []byte) (*OrderPromotion, error) {
-	if len(entryData) < IDSize*2+TombstoneSize+2 {
-		return nil, fmt.Errorf("entry too short: expected at least %d bytes, got %d", IDSize*2+TombstoneSize+2, len(entryData))
+	if len(entryData) < IDSize*2+TombstoneSize {
+		return nil, fmt.Errorf("entry too short: expected at least %d bytes, got %d", IDSize*2+TombstoneSize, len(entryData))
 	}
 
 	offset := 0
@@ -170,18 +152,12 @@ func ParseOrderPromotionEntry(entryData []byte) (*OrderPromotion, error) {
 	}
 	offset = newOffset
 
-	// Skip unit separator
-	offset += 1
-
 	// Read promotionID
 	promotionID, newOffset, err := ReadFixedNumber(IDSize, entryData, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read promotion ID: %w", err)
 	}
 	offset = newOffset
-
-	// Skip unit separator
-	offset += 1
 
 	// Read tombstone
 	if offset >= len(entryData) {

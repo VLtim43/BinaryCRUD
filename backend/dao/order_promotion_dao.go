@@ -29,7 +29,7 @@ func (dao *OrderPromotionDAO) ensureFileExists() error {
 }
 
 // Write creates a new order-promotion relationship
-// Binary format with composite primary key: [orderID(2)][0x1F][promotionID(2)][0x1F][tombstone(1)][0x1E]
+// Binary format with composite primary key: [recordLength(2)][orderID(2)][promotionID(2)][tombstone(1)]
 // The composite key is (orderID, promotionID) - no auto-generated ID
 func (dao *OrderPromotionDAO) Write(orderID, promotionID uint64) error {
 	dao.mu.Lock()
@@ -50,30 +50,18 @@ func (dao *OrderPromotionDAO) Write(orderID, promotionID uint64) error {
 	}
 
 	// Open file for read/write
-	file, err := os.OpenFile(dao.filePath, os.O_RDWR|os.O_APPEND, 0644)
+	file, err := os.OpenFile(dao.filePath, os.O_RDWR, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open order_promotion file: %w", err)
 	}
 	defer file.Close()
 
-	// Read header to update entity count
-	entitiesCount, tombstoneCount, nextId, err := utils.ReadHeader(file)
-	if err != nil {
-		return fmt.Errorf("failed to read header: %w", err)
-	}
-
-	// Build entry: [orderID(2)][0x1F][promotionID(2)][0x1F][tombstone(1)][0x1E]
+	// Build entry data: [orderID(2)][promotionID(2)][tombstone(1)]
 
 	// Order ID (2 bytes)
 	orderIDBytes, err := utils.WriteFixedNumber(utils.IDSize, orderID)
 	if err != nil {
 		return fmt.Errorf("failed to write order ID: %w", err)
-	}
-
-	// Separator
-	sep1, err := utils.WriteVariable(utils.UnitSeparator)
-	if err != nil {
-		return fmt.Errorf("failed to write separator: %w", err)
 	}
 
 	// Promotion ID (2 bytes)
@@ -82,46 +70,19 @@ func (dao *OrderPromotionDAO) Write(orderID, promotionID uint64) error {
 		return fmt.Errorf("failed to write promotion ID: %w", err)
 	}
 
-	// Separator
-	sep2, err := utils.WriteVariable(utils.UnitSeparator)
-	if err != nil {
-		return fmt.Errorf("failed to write separator: %w", err)
-	}
-
 	// Tombstone (1 byte) - 0x00 for active
 	tombstone := []byte{0x00}
 
-	// Record separator
-	recSep, err := utils.WriteVariable(utils.RecordSeparator)
-	if err != nil {
-		return fmt.Errorf("failed to write record separator: %w", err)
-	}
+	// Combine all fields: [orderID][promotionID][tombstone]
+	entryData := make([]byte, 0, utils.IDSize+utils.IDSize+utils.TombstoneSize)
+	entryData = append(entryData, orderIDBytes...)
+	entryData = append(entryData, promotionIDBytes...)
+	entryData = append(entryData, tombstone...)
 
-	// Combine all fields
-	entry := make([]byte, 0)
-	entry = append(entry, orderIDBytes...)
-	entry = append(entry, sep1...)
-	entry = append(entry, promotionIDBytes...)
-	entry = append(entry, sep2...)
-	entry = append(entry, tombstone...)
-	entry = append(entry, recSep...)
-
-	// Write entry to file
-	_, err = file.Write(entry)
+	// Use the manual append utility to write the entry with proper formatting and header updates
+	err = utils.AppendEntryManual(file, entryData)
 	if err != nil {
-		return fmt.Errorf("failed to write entry: %w", err)
-	}
-
-	// Update header with new entity count
-	err = utils.UpdateHeader(file, entitiesCount+1, tombstoneCount, nextId)
-	if err != nil {
-		return fmt.Errorf("failed to update header: %w", err)
-	}
-
-	// Sync to disk
-	err = file.Sync()
-	if err != nil {
-		return fmt.Errorf("failed to sync to disk: %w", err)
+		return fmt.Errorf("failed to append entry: %w", err)
 	}
 
 	return nil
@@ -236,6 +197,47 @@ func (dao *OrderPromotionDAO) GetByPromotionID(promotionID uint64) ([]*OrderProm
 				PromotionID: orderPromo.PromotionID,
 			})
 		}
+	}
+
+	return result, nil
+}
+
+// GetAll retrieves all non-deleted order-promotion relationships
+func (dao *OrderPromotionDAO) GetAll() ([]*OrderPromotion, error) {
+	dao.mu.Lock()
+	defer dao.mu.Unlock()
+
+	// Ensure file exists
+	if err := dao.ensureFileExists(); err != nil {
+		return nil, err
+	}
+
+	// Split file into entries
+	entries, err := utils.SplitFileIntoEntries(dao.filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to split file into entries: %w", err)
+	}
+
+	// Parse each entry using utility function
+	result := make([]*OrderPromotion, 0)
+
+	for _, entry := range entries {
+		// Parse the entry using utility function
+		orderPromo, err := utils.ParseOrderPromotionEntry(entry.Data)
+		if err != nil {
+			// Skip malformed entries
+			continue
+		}
+
+		// Skip deleted entries
+		if orderPromo.Tombstone != 0x00 {
+			continue
+		}
+
+		result = append(result, &OrderPromotion{
+			OrderID:     orderPromo.OrderID,
+			PromotionID: orderPromo.PromotionID,
+		})
 	}
 
 	return result, nil

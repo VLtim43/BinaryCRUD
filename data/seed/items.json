@@ -1,0 +1,162 @@
+[
+  {
+    "name": "Classic Burger",
+    "priceInCents": 899
+  },
+  {
+    "name": "Cheeseburger",
+    "priceInCents": 999
+  },
+  {
+    "name": "Bacon Burger",
+    "priceInCents": 1099
+  },
+  {
+    "name": "French Fries",
+    "priceInCents": 349
+  },
+  {
+    "name": "Sweet Potato Fries",
+    "priceInCents": 449
+  },
+  {
+    "name": "Onion Rings",
+    "priceInCents": 399
+  },
+  {
+    "name": "Cola",
+    "priceInCents": 199
+  },
+  {
+    "name": "Lemonade",
+    "priceInCents": 229
+  },
+  {
+    "name": "Iced Tea",
+    "priceInCents": 199
+  },
+  {
+    "name": "Pepperoni Pizza Slice",
+    "priceInCents": 599
+  },
+  {
+    "name": "Cheese Pizza Slice",
+    "priceInCents": 549
+  },
+  {
+    "name": "Hot Dog",
+    "priceInCents": 449
+  },
+  {
+    "name": "Chili Dog",
+    "priceInCents": 549
+  },
+  {
+    "name": "Garden Salad",
+    "priceInCents": 699
+  },
+  {
+    "name": "Caesar Salad",
+    "priceInCents": 799
+  },
+  {
+    "name": "Greek Salad",
+    "priceInCents": 849
+  },
+  {
+    "name": "Grilled Chicken Sandwich",
+    "priceInCents": 949
+  },
+  {
+    "name": "Crispy Chicken Sandwich",
+    "priceInCents": 899
+  },
+  {
+    "name": "Vanilla Ice Cream",
+    "priceInCents": 299
+  },
+  {
+    "name": "Chocolate Ice Cream",
+    "priceInCents": 299
+  },
+  {
+    "name": "Coffee",
+    "priceInCents": 249
+  },
+  {
+    "name": "Cappuccino",
+    "priceInCents": 349
+  },
+  {
+    "name": "Chocolate Milkshake",
+    "priceInCents": 499
+  },
+  {
+    "name": "Strawberry Milkshake",
+    "priceInCents": 499
+  },
+  {
+    "name": "Nachos",
+    "priceInCents": 549
+  },
+  {
+    "name": "Loaded Nachos",
+    "priceInCents": 749
+  },
+  {
+    "name": "Beef Tacos",
+    "priceInCents": 699
+  },
+  {
+    "name": "Chicken Tacos",
+    "priceInCents": 699
+  },
+  {
+    "name": "Beef Burrito",
+    "priceInCents": 849
+  },
+  {
+    "name": "Chicken Burrito",
+    "priceInCents": 849
+  },
+  {
+    "name": "Cheese Quesadilla",
+    "priceInCents": 649
+  },
+  {
+    "name": "Chicken Quesadilla",
+    "priceInCents": 749
+  },
+  {
+    "name": "Buffalo Wings (6pc)",
+    "priceInCents": 999
+  },
+  {
+    "name": "BBQ Wings (6pc)",
+    "priceInCents": 999
+  },
+  {
+    "name": "Mozzarella Sticks",
+    "priceInCents": 599
+  },
+  {
+    "name": "Grilled Cheese",
+    "priceInCents": 449
+  },
+  {
+    "name": "Club Sandwich",
+    "priceInCents": 899
+  },
+  {
+    "name": "BLT Sandwich",
+    "priceInCents": 799
+  },
+  {
+    "name": "Fruit Smoothie",
+    "priceInCents": 549
+  },
+  {
+    "name": "Green Smoothie",
+    "priceInCents": 599
+  }
+]

@@ -40,8 +40,8 @@ func (dao *ItemDAO) ensureFileExists() error {
 }
 
 // Write adds an item to the binary file and returns the assigned ID
-// Item structure: [ID(2)][tombstone(1)][0x1F][nameSize(2)][name][0x1F][price(4)][0x1E]
-// ID and tombstone are auto-assigned by AppendEntry (tombstone is 0x00 for active records)
+// Complete record structure: [recordLength(2)][ID(2)][tombstone(1)][nameLength(2)][name...][price(4)]
+// ID, tombstone, and record length are auto-assigned by AppendEntry (tombstone is 0x00 for active records)
 func (dao *ItemDAO) Write(name string, priceInCents uint64) (uint64, error) {
 	// Lock to prevent concurrent writes
 	dao.mu.Lock()
@@ -62,13 +62,8 @@ func (dao *ItemDAO) Write(name string, priceInCents uint64) (uint64, error) {
 	// Calculate name size
 	nameSize := len(name)
 
-	// Build entry without ID: [0x1F][nameSize][name][0x1F][price]
-
-	// Separator before nameSize
-	sep1, err := utils.WriteVariable(utils.UnitSeparator)
-	if err != nil {
-		return 0, fmt.Errorf("failed to write separator: %w", err)
-	}
+	// Build entry without ID and tombstone: [nameLength(2)][name...][price(4)]
+	// ID and tombstone will be added by AppendEntry
 
 	// Name size (2 bytes - supports names up to 65535 chars)
 	nameSizeBytes, err := utils.WriteFixedNumber(2, uint64(nameSize))
@@ -82,12 +77,6 @@ func (dao *ItemDAO) Write(name string, priceInCents uint64) (uint64, error) {
 		return 0, fmt.Errorf("failed to write name: %w", err)
 	}
 
-	// Separator before price
-	sep2, err := utils.WriteVariable(utils.UnitSeparator)
-	if err != nil {
-		return 0, fmt.Errorf("failed to write separator: %w", err)
-	}
-
 	// Price (4 bytes - supports prices up to 4,294,967,295 cents)
 	priceBytes, err := utils.WriteFixedNumber(4, priceInCents)
 	if err != nil {
@@ -96,10 +85,8 @@ func (dao *ItemDAO) Write(name string, priceInCents uint64) (uint64, error) {
 
 	// Combine all fields
 	entry := make([]byte, 0)
-	entry = append(entry, sep1...)
 	entry = append(entry, nameSizeBytes...)
 	entry = append(entry, nameBytes...)
-	entry = append(entry, sep2...)
 	entry = append(entry, priceBytes...)
 
 	// Read header to get the next ID
@@ -170,24 +157,21 @@ func (dao *ItemDAO) readWithIndex(id uint64) (uint64, string, uint64, error) {
 	offset, found := dao.tree.Search(id)
 	if found {
 		// Use index for fast lookup
+		// offset points to the start of the record (at the length prefix)
 		_, err = file.Seek(offset, 0)
 		if err == nil {
-			// Read until record separator
-			buffer := make([]byte, 4096) // Read in chunks
-			n, err := file.Read(buffer)
-			if err == nil {
-				// Find record separator
-				recordSep := []byte(utils.RecordSeparator)[0]
-				sepPos := -1
-				for i := 0; i < n; i++ {
-					if buffer[i] == recordSep {
-						sepPos = i
-						break
+			// Read record length (2 bytes)
+			lengthBytes := make([]byte, utils.RecordLengthSize)
+			n, err := file.Read(lengthBytes)
+			if err == nil && n == utils.RecordLengthSize {
+				recordLength, _, err := utils.ReadFixedNumber(utils.RecordLengthSize, lengthBytes, 0)
+				if err == nil {
+					// Read the record data (after length prefix)
+					entryData = make([]byte, recordLength)
+					n, err := file.Read(entryData)
+					if err != nil || n != int(recordLength) {
+						entryData = nil
 					}
-				}
-
-				if sepPos != -1 {
-					entryData = buffer[:sepPos]
 				}
 			}
 		}
@@ -254,6 +238,9 @@ type Item struct {
 
 // GetAll retrieves all non-deleted items from the database
 func (dao *ItemDAO) GetAll() ([]Item, error) {
+	dao.mu.Lock()
+	defer dao.mu.Unlock()
+
 	// Ensure file exists
 	if err := dao.ensureFileExists(); err != nil {
 		return nil, err
@@ -262,10 +249,25 @@ func (dao *ItemDAO) GetAll() ([]Item, error) {
 	// Get all entries from the index
 	allEntries := dao.tree.GetAll()
 
-	items := make([]Item, 0, len(allEntries))
-
-	// Read each item by ID
+	// Collect IDs and sort them for consistent ordering
+	ids := make([]uint64, 0, len(allEntries))
 	for id := range allEntries {
+		ids = append(ids, id)
+	}
+
+	// Sort IDs for consistent, predictable ordering
+	for i := 0; i < len(ids)-1; i++ {
+		for j := i + 1; j < len(ids); j++ {
+			if ids[i] > ids[j] {
+				ids[i], ids[j] = ids[j], ids[i]
+			}
+		}
+	}
+
+	items := make([]Item, 0, len(ids))
+
+	// Read each item by ID in sorted order
+	for _, id := range ids {
 		itemID, name, priceInCents, err := dao.readWithIndex(id)
 		if err != nil {
 			// Skip deleted or errored items

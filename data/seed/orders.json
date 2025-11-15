@@ -1,0 +1,42 @@
+[
+  {
+    "owner": "John Doe",
+    "itemIDs": [0, 3, 6]
+  },
+  {
+    "owner": "Jane Smith",
+    "itemIDs": [9, 10, 6, 6]
+  },
+  {
+    "owner": "Bob Johnson",
+    "itemIDs": [16, 14, 7]
+  },
+  {
+    "owner": "Alice Williams",
+    "itemIDs": [26, 27, 24, 8]
+  },
+  {
+    "owner": "Charlie Brown",
+    "itemIDs": [1, 4, 22]
+  },
+  {
+    "owner": "Diana Prince",
+    "itemIDs": [28, 25, 6]
+  },
+  {
+    "owner": "Frank Castle",
+    "itemIDs": [32, 33, 3, 3, 6, 6]
+  },
+  {
+    "owner": "Grace Lee",
+    "itemIDs": [14, 15, 38]
+  },
+  {
+    "owner": "Henry Miller",
+    "itemIDs": [11, 12, 5, 7]
+  },
+  {
+    "owner": "Ivy Chen",
+    "itemIDs": [36, 20, 21]
+  }
+]

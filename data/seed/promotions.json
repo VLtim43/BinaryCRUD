@@ -1,0 +1,42 @@
+[
+  {
+    "name": "Classic Combo",
+    "itemIDs": [0, 3, 6]
+  },
+  {
+    "name": "Bacon Burger Meal",
+    "itemIDs": [2, 4, 7]
+  },
+  {
+    "name": "Lunch Special",
+    "itemIDs": [1, 3, 6]
+  },
+  {
+    "name": "Pizza & Soda",
+    "itemIDs": [9, 6]
+  },
+  {
+    "name": "Taco Tuesday (3 Tacos)",
+    "itemIDs": [26, 26, 26, 6]
+  },
+  {
+    "name": "Wings & Fries",
+    "itemIDs": [32, 3, 6]
+  },
+  {
+    "name": "Salad & Smoothie",
+    "itemIDs": [14, 38]
+  },
+  {
+    "name": "Breakfast Combo",
+    "itemIDs": [35, 20]
+  },
+  {
+    "name": "Family Meal",
+    "itemIDs": [0, 1, 2, 3, 3, 6, 6, 6, 6]
+  },
+  {
+    "name": "Kids Meal",
+    "itemIDs": [11, 3, 6, 18]
+  }
+]

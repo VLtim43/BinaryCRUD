@@ -6,7 +6,7 @@ import (
 )
 
 func TestParseItemEntry(t *testing.T) {
-	// Create a valid item entry: [ID(2)][tombstone(1)][0x1F][nameSize(2)][name][0x1F][price(4)]
+	// Create a valid item entry: [ID(2)][tombstone(1)][nameLength(2)][name...][price(4)]
 	// ID=1, tombstone=0, name="Burger" (6 bytes), price=899
 	var entryData []byte
 
@@ -18,18 +18,12 @@ func TestParseItemEntry(t *testing.T) {
 	tombstone, _ := utils.WriteFixedNumber(utils.TombstoneSize, 0)
 	entryData = append(entryData, tombstone...)
 
-	// Unit separator
-	entryData = append(entryData, 0x1F)
-
 	// Name size (2 bytes)
 	nameSize, _ := utils.WriteFixedNumber(2, 6)
 	entryData = append(entryData, nameSize...)
 
 	// Name
 	entryData = append(entryData, []byte("Burger")...)
-
-	// Unit separator
-	entryData = append(entryData, 0x1F)
 
 	// Price (4 bytes)
 	price, _ := utils.WriteFixedNumber(4, 899)
@@ -68,18 +62,12 @@ func TestParseItemEntryDeleted(t *testing.T) {
 	tombstone, _ := utils.WriteFixedNumber(utils.TombstoneSize, 1)
 	entryData = append(entryData, tombstone...)
 
-	// Unit separator
-	entryData = append(entryData, 0x1F)
-
 	// Name size (2 bytes)
 	nameSize, _ := utils.WriteFixedNumber(2, 4)
 	entryData = append(entryData, nameSize...)
 
 	// Name
 	entryData = append(entryData, []byte("Soda")...)
-
-	// Unit separator
-	entryData = append(entryData, 0x1F)
 
 	// Price (4 bytes)
 	price, _ := utils.WriteFixedNumber(4, 199)
@@ -124,7 +112,7 @@ func TestParseItemEntryInvalid(t *testing.T) {
 
 func TestParseCollectionEntry(t *testing.T) {
 	// Create a valid collection entry
-	// [ID(2)][tombstone(1)][0x1F][nameSize(2)][name][0x1F][totalPrice(4)][0x1F][itemCount(4)][0x1F][itemID1(2)][itemID2(2)]
+	// [ID(2)][tombstone(1)][nameLength(2)][name...][totalPrice(4)][itemCount(4)][itemIDs...]
 	var entryData []byte
 
 	// ID (2 bytes)
@@ -135,9 +123,6 @@ func TestParseCollectionEntry(t *testing.T) {
 	tombstone, _ := utils.WriteFixedNumber(utils.TombstoneSize, 0)
 	entryData = append(entryData, tombstone...)
 
-	// Unit separator
-	entryData = append(entryData, 0x1F)
-
 	// Name size (2 bytes)
 	nameSize, _ := utils.WriteFixedNumber(2, 4)
 	entryData = append(entryData, nameSize...)
@@ -145,22 +130,13 @@ func TestParseCollectionEntry(t *testing.T) {
 	// Name
 	entryData = append(entryData, []byte("John")...)
 
-	// Unit separator
-	entryData = append(entryData, 0x1F)
-
 	// Total price (4 bytes)
 	totalPrice, _ := utils.WriteFixedNumber(4, 1500)
 	entryData = append(entryData, totalPrice...)
 
-	// Unit separator
-	entryData = append(entryData, 0x1F)
-
 	// Item count (4 bytes)
 	itemCount, _ := utils.WriteFixedNumber(4, 2)
 	entryData = append(entryData, itemCount...)
-
-	// Unit separator
-	entryData = append(entryData, 0x1F)
 
 	// Item IDs (2 bytes each)
 	itemID1, _ := utils.WriteFixedNumber(utils.IDSize, 1)
@@ -213,8 +189,6 @@ func TestParseCollectionEntryEmpty(t *testing.T) {
 	tombstone, _ := utils.WriteFixedNumber(utils.TombstoneSize, 0)
 	entryData = append(entryData, tombstone...)
 
-	// Unit separator
-	entryData = append(entryData, 0x1F)
 
 	// Name size (2 bytes)
 	nameSize, _ := utils.WriteFixedNumber(2, 4)
@@ -223,22 +197,16 @@ func TestParseCollectionEntryEmpty(t *testing.T) {
 	// Name
 	entryData = append(entryData, []byte("Sale")...)
 
-	// Unit separator
-	entryData = append(entryData, 0x1F)
 
 	// Total price (4 bytes)
 	totalPrice, _ := utils.WriteFixedNumber(4, 0)
 	entryData = append(entryData, totalPrice...)
 
-	// Unit separator
-	entryData = append(entryData, 0x1F)
 
 	// Item count (4 bytes) - zero items
 	itemCount, _ := utils.WriteFixedNumber(4, 0)
 	entryData = append(entryData, itemCount...)
 
-	// Unit separator
-	entryData = append(entryData, 0x1F)
 
 	// Parse the entry
 	collection, err := utils.ParseCollectionEntry(entryData)
@@ -269,17 +237,13 @@ func TestParseCollectionEntryInvalid(t *testing.T) {
 	truncatedEntry = append(truncatedEntry, id...)
 	tombstone, _ := utils.WriteFixedNumber(utils.TombstoneSize, 0)
 	truncatedEntry = append(truncatedEntry, tombstone...)
-	truncatedEntry = append(truncatedEntry, 0x1F)
 	nameSize, _ := utils.WriteFixedNumber(2, 4)
 	truncatedEntry = append(truncatedEntry, nameSize...)
 	truncatedEntry = append(truncatedEntry, []byte("Test")...)
-	truncatedEntry = append(truncatedEntry, 0x1F)
 	totalPrice, _ := utils.WriteFixedNumber(4, 100)
 	truncatedEntry = append(truncatedEntry, totalPrice...)
-	truncatedEntry = append(truncatedEntry, 0x1F)
 	itemCount, _ := utils.WriteFixedNumber(4, 5) // Says 5 items but we won't add them
 	truncatedEntry = append(truncatedEntry, itemCount...)
-	truncatedEntry = append(truncatedEntry, 0x1F)
 
 	_, err = utils.ParseCollectionEntry(truncatedEntry)
 	if err == nil {
@@ -289,22 +253,18 @@ func TestParseCollectionEntryInvalid(t *testing.T) {
 
 func TestParseOrderPromotionEntry(t *testing.T) {
 	// Create a valid order-promotion entry
-	// Format: [orderID(2)][0x1F][promotionID(2)][0x1F][tombstone(1)]
+	// Format: [orderID(2)][promotionID(2)][tombstone(1)]
 	var entryData []byte
 
 	// OrderID (2 bytes)
 	orderID, _ := utils.WriteFixedNumber(utils.IDSize, 100)
 	entryData = append(entryData, orderID...)
 
-	// Unit separator
-	entryData = append(entryData, 0x1F)
 
 	// PromotionID (2 bytes)
 	promotionID, _ := utils.WriteFixedNumber(utils.IDSize, 50)
 	entryData = append(entryData, promotionID...)
 
-	// Unit separator
-	entryData = append(entryData, 0x1F)
 
 	// Tombstone (1 byte)
 	tombstone, _ := utils.WriteFixedNumber(utils.TombstoneSize, 0)
@@ -336,15 +296,11 @@ func TestParseOrderPromotionEntryDeleted(t *testing.T) {
 	orderID, _ := utils.WriteFixedNumber(utils.IDSize, 200)
 	entryData = append(entryData, orderID...)
 
-	// Unit separator
-	entryData = append(entryData, 0x1F)
 
 	// PromotionID (2 bytes)
 	promotionID, _ := utils.WriteFixedNumber(utils.IDSize, 75)
 	entryData = append(entryData, promotionID...)
 
-	// Unit separator
-	entryData = append(entryData, 0x1F)
 
 	// Tombstone (1 byte) - marked as deleted
 	tombstone, _ := utils.WriteFixedNumber(utils.TombstoneSize, 1)
@@ -374,10 +330,8 @@ func TestParseOrderPromotionEntryInvalid(t *testing.T) {
 	var incompleteEntry []byte
 	orderID, _ := utils.WriteFixedNumber(utils.IDSize, 1)
 	incompleteEntry = append(incompleteEntry, orderID...)
-	incompleteEntry = append(incompleteEntry, 0x1F)
 	promotionID, _ := utils.WriteFixedNumber(utils.IDSize, 2)
 	incompleteEntry = append(incompleteEntry, promotionID...)
-	incompleteEntry = append(incompleteEntry, 0x1F)
 	// Missing tombstone
 
 	_, err = utils.ParseOrderPromotionEntry(incompleteEntry)
@@ -398,8 +352,6 @@ func TestParseItemEntryShortName(t *testing.T) {
 	tombstone, _ := utils.WriteFixedNumber(utils.TombstoneSize, 0)
 	entryData = append(entryData, tombstone...)
 
-	// Unit separator
-	entryData = append(entryData, 0x1F)
 
 	// Name size (2 bytes) - 1 character
 	nameSize, _ := utils.WriteFixedNumber(2, 1)
@@ -408,8 +360,6 @@ func TestParseItemEntryShortName(t *testing.T) {
 	// Name
 	entryData = append(entryData, []byte("X")...)
 
-	// Unit separator
-	entryData = append(entryData, 0x1F)
 
 	// Price (4 bytes)
 	price, _ := utils.WriteFixedNumber(4, 50)
@@ -445,8 +395,6 @@ func TestParseCollectionEntryLongName(t *testing.T) {
 	tombstone, _ := utils.WriteFixedNumber(utils.TombstoneSize, 0)
 	entryData = append(entryData, tombstone...)
 
-	// Unit separator
-	entryData = append(entryData, 0x1F)
 
 	// Name size (2 bytes)
 	nameSize, _ := utils.WriteFixedNumber(2, uint64(len(longName)))
@@ -455,22 +403,16 @@ func TestParseCollectionEntryLongName(t *testing.T) {
 	// Name
 	entryData = append(entryData, []byte(longName)...)
 
-	// Unit separator
-	entryData = append(entryData, 0x1F)
 
 	// Total price (4 bytes)
 	totalPrice, _ := utils.WriteFixedNumber(4, 9999)
 	entryData = append(entryData, totalPrice...)
 
-	// Unit separator
-	entryData = append(entryData, 0x1F)
 
 	// Item count (4 bytes)
 	itemCount, _ := utils.WriteFixedNumber(4, 0)
 	entryData = append(entryData, itemCount...)
 
-	// Unit separator
-	entryData = append(entryData, 0x1F)
 
 	// Parse the entry
 	collection, err := utils.ParseCollectionEntry(entryData)
@@ -491,11 +433,9 @@ func BenchmarkParseItemEntry(b *testing.B) {
 	entryData = append(entryData, id...)
 	tombstone, _ := utils.WriteFixedNumber(utils.TombstoneSize, 0)
 	entryData = append(entryData, tombstone...)
-	entryData = append(entryData, 0x1F)
 	nameSize, _ := utils.WriteFixedNumber(2, 6)
 	entryData = append(entryData, nameSize...)
 	entryData = append(entryData, []byte("Burger")...)
-	entryData = append(entryData, 0x1F)
 	price, _ := utils.WriteFixedNumber(4, 899)
 	entryData = append(entryData, price...)
 
@@ -512,17 +452,13 @@ func BenchmarkParseCollectionEntry(b *testing.B) {
 	entryData = append(entryData, id...)
 	tombstone, _ := utils.WriteFixedNumber(utils.TombstoneSize, 0)
 	entryData = append(entryData, tombstone...)
-	entryData = append(entryData, 0x1F)
 	nameSize, _ := utils.WriteFixedNumber(2, 4)
 	entryData = append(entryData, nameSize...)
 	entryData = append(entryData, []byte("John")...)
-	entryData = append(entryData, 0x1F)
 	totalPrice, _ := utils.WriteFixedNumber(4, 1500)
 	entryData = append(entryData, totalPrice...)
-	entryData = append(entryData, 0x1F)
 	itemCount, _ := utils.WriteFixedNumber(4, 3)
 	entryData = append(entryData, itemCount...)
-	entryData = append(entryData, 0x1F)
 	for i := 0; i < 3; i++ {
 		itemID, _ := utils.WriteFixedNumber(utils.IDSize, uint64(i))
 		entryData = append(entryData, itemID...)
@@ -539,10 +475,8 @@ func BenchmarkParseOrderPromotionEntry(b *testing.B) {
 	var entryData []byte
 	orderID, _ := utils.WriteFixedNumber(utils.IDSize, 100)
 	entryData = append(entryData, orderID...)
-	entryData = append(entryData, 0x1F)
 	promotionID, _ := utils.WriteFixedNumber(utils.IDSize, 50)
 	entryData = append(entryData, promotionID...)
-	entryData = append(entryData, 0x1F)
 	tombstone, _ := utils.WriteFixedNumber(utils.TombstoneSize, 0)
 	entryData = append(entryData, tombstone...)
 

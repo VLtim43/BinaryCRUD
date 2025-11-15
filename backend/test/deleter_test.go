@@ -24,38 +24,37 @@ func createTestFileWithItems(filePath string) error {
 
 	// Write 3 item entries
 	for id := uint64(0); id < 3; id++ {
-		var entryData []byte
+		var recordData []byte
 
 		// ID (2 bytes)
 		idBytes, _ := utils.WriteFixedNumber(utils.IDSize, id)
-		entryData = append(entryData, idBytes...)
+		recordData = append(recordData, idBytes...)
 
 		// Tombstone (1 byte) - all active
 		tombstone, _ := utils.WriteFixedNumber(utils.TombstoneSize, 0)
-		entryData = append(entryData, tombstone...)
-
-		// Unit separator
-		entryData = append(entryData, 0x1F)
+		recordData = append(recordData, tombstone...)
 
 		// Name size (2 bytes)
 		name := "Item"
 		nameSize, _ := utils.WriteFixedNumber(2, uint64(len(name)))
-		entryData = append(entryData, nameSize...)
+		recordData = append(recordData, nameSize...)
 
 		// Name
-		entryData = append(entryData, []byte(name)...)
-
-		// Unit separator
-		entryData = append(entryData, 0x1F)
+		recordData = append(recordData, []byte(name)...)
 
 		// Price (4 bytes)
 		price, _ := utils.WriteFixedNumber(4, 100*(id+1))
-		entryData = append(entryData, price...)
+		recordData = append(recordData, price...)
 
-		// Record separator
-		entryData = append(entryData, 0x1E)
+		// Record length prefix (2 bytes)
+		recordLength, _ := utils.WriteFixedNumber(utils.RecordLengthSize, uint64(len(recordData)))
 
-		_, err = file.Write(entryData)
+		// Write length prefix + record data
+		_, err = file.Write(recordLength)
+		if err != nil {
+			return err
+		}
+		_, err = file.Write(recordData)
 		if err != nil {
 			return err
 		}
@@ -87,30 +86,29 @@ func createTestFileWithOrderPromotions(filePath string) error {
 	}
 
 	for _, rel := range relationships {
-		var entryData []byte
+		var recordData []byte
 
 		// OrderID (2 bytes)
 		orderID, _ := utils.WriteFixedNumber(utils.IDSize, rel.orderID)
-		entryData = append(entryData, orderID...)
-
-		// Unit separator
-		entryData = append(entryData, 0x1F)
+		recordData = append(recordData, orderID...)
 
 		// PromotionID (2 bytes)
 		promotionID, _ := utils.WriteFixedNumber(utils.IDSize, rel.promotionID)
-		entryData = append(entryData, promotionID...)
-
-		// Unit separator
-		entryData = append(entryData, 0x1F)
+		recordData = append(recordData, promotionID...)
 
 		// Tombstone (1 byte) - all active
 		tombstone, _ := utils.WriteFixedNumber(utils.TombstoneSize, 0)
-		entryData = append(entryData, tombstone...)
+		recordData = append(recordData, tombstone...)
 
-		// Record separator
-		entryData = append(entryData, 0x1E)
+		// Record length prefix (2 bytes)
+		recordLength, _ := utils.WriteFixedNumber(utils.RecordLengthSize, uint64(len(recordData)))
 
-		_, err = file.Write(entryData)
+		// Write length prefix + record data
+		_, err = file.Write(recordLength)
+		if err != nil {
+			return err
+		}
+		_, err = file.Write(recordData)
 		if err != nil {
 			return err
 		}
