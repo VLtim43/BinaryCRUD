@@ -5,10 +5,11 @@ import { Input } from "../Input";
 import { Select } from "../Select";
 import { DataTable } from "../DataTable";
 import { Modal } from "../Modal";
+import { ItemList } from "../ItemList";
 import { promotionService, Promotion } from "../../services/promotionService";
 import { itemService, Item } from "../../services/itemService";
 import { orderPromotionService } from "../../services/orderPromotionService";
-import { formatPrice, isValidId, createIdInputHandler } from "../../utils/formatters";
+import { formatPrice, isValidId, createIdInputHandler, createInputHandler, createSelectHandler } from "../../utils/formatters";
 
 interface PromotionTabProps {
   onMessage: (msg: string) => void;
@@ -180,10 +181,7 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
             <div className="cart-header">
               <Select
                 value={selectedItemId}
-                onChange={(e: Event) => {
-                  const target = e.target as HTMLSelectElement;
-                  setSelectedItemId(target.value);
-                }}
+                onChange={createSelectHandler(setSelectedItemId)}
                 options={allItems.map((item) => ({
                   value: item.id,
                   label: `${item.name} - $${formatPrice(item.priceInCents)}`,
@@ -225,10 +223,7 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
                   id="promotion-name"
                   placeholder="Promotion Name"
                   value={promotionName}
-                  onChange={(e: Event) => {
-                    const target = e.target as HTMLInputElement;
-                    setPromotionName(target.value);
-                  }}
+                  onChange={createInputHandler(setPromotionName)}
                 />
                 <Button variant="primary" onClick={handleCreatePromotion}>
                   Create Promotion
@@ -298,16 +293,7 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
       )}
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Promotion Items">
-        <div className="cart-items" style={{ maxHeight: "400px", backgroundColor: "transparent", border: "none" }}>
-          {items.map((item) => (
-            <div key={item.id} className="cart-item">
-              <div className="cart-item-info">
-                <div className="cart-item-name">{item.name}</div>
-                <div className="cart-item-id">ID: {item.id} | ${formatPrice(item.priceInCents)}</div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <ItemList items={items} />
       </Modal>
     </>
   );

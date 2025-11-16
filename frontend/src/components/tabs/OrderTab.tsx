@@ -5,11 +5,12 @@ import { Input } from "../Input";
 import { Select } from "../Select";
 import { DataTable } from "../DataTable";
 import { Modal } from "../Modal";
+import { ItemList } from "../ItemList";
 import { orderService, Order } from "../../services/orderService";
 import { itemService, Item } from "../../services/itemService";
 import { promotionService, Promotion } from "../../services/promotionService";
 import { orderPromotionService, OrderWithPromotions } from "../../services/orderPromotionService";
-import { formatPrice, isValidId, createIdInputHandler } from "../../utils/formatters";
+import { formatPrice, isValidId, createIdInputHandler, createInputHandler, createSelectHandler, PROMO_CARD_STYLE } from "../../utils/formatters";
 
 interface OrderTabProps {
   onMessage: (msg: string) => void;
@@ -260,10 +261,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
               <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                 <Select
                   value={selectedItemId}
-                  onChange={(e: Event) => {
-                    const target = e.target as HTMLSelectElement;
-                    setSelectedItemId(target.value);
-                  }}
+                  onChange={createSelectHandler(setSelectedItemId)}
                   options={allItems.map((item) => ({
                     value: item.id,
                     label: `${item.name} - $${formatPrice(item.priceInCents)}`,
@@ -276,10 +274,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
               <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                 <Select
                   value={selectedPromotionId}
-                  onChange={(e: Event) => {
-                    const target = e.target as HTMLSelectElement;
-                    setSelectedPromotionId(target.value);
-                  }}
+                  onChange={createSelectHandler(setSelectedPromotionId)}
                   options={allPromotions.map((promo) => ({
                     value: promo.id,
                     label: `${promo.name} - $${formatPrice(promo.totalPrice)}`,
@@ -322,7 +317,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
                     <div
                       key={`promo-${promo.id}`}
                       className="cart-item"
-                      style={{ backgroundColor: "rgba(100, 200, 100, 0.05)", borderColor: "rgba(100, 200, 100, 0.2)" }}
+                      style={PROMO_CARD_STYLE}
                     >
                       <div className="cart-item-info">
                         <div className="cart-item-name">
@@ -349,10 +344,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
                   id="customer-name"
                   placeholder="Customer Name"
                   value={customerName}
-                  onChange={(e: Event) => {
-                    const target = e.target as HTMLInputElement;
-                    setCustomerName(target.value);
-                  }}
+                  onChange={createInputHandler(setCustomerName)}
                 />
                 <Button variant="primary" onClick={handleCreateOrder}>
                   Create Order
@@ -407,7 +399,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
                       <div
                         key={promo.id}
                         className="details-row"
-                        style={{ backgroundColor: "rgba(100, 200, 100, 0.1)", cursor: "pointer" }}
+                        style={{ ...PROMO_CARD_STYLE, backgroundColor: "rgba(100, 200, 100, 0.1)", cursor: "pointer" }}
                         onClick={() => handleShowPromotionItems(promo.id, promo.name)}
                       >
                         <span className="details-label">[PROMO] {promo.name}:</span>
@@ -439,16 +431,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       )}
 
       <Modal isOpen={isItemModalOpen} onClose={() => setIsItemModalOpen(false)} title="Order Items">
-        <div className="cart-items" style={{ maxHeight: "400px", backgroundColor: "transparent", border: "none" }}>
-          {items.map((item) => (
-            <div key={item.id} className="cart-item">
-              <div className="cart-item-info">
-                <div className="cart-item-name">{item.name}</div>
-                <div className="cart-item-id">ID: {item.id} | ${formatPrice(item.priceInCents)}</div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <ItemList items={items} />
       </Modal>
 
       <Modal
@@ -456,16 +439,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
         onClose={() => setIsPromoModalOpen(false)}
         title={selectedPromoForView ? `Promotion: ${selectedPromoForView.name}` : "Promotion Items"}
       >
-        <div className="cart-items" style={{ maxHeight: "400px", backgroundColor: "transparent", border: "none" }}>
-          {promoItems.map((item) => (
-            <div key={item.id} className="cart-item">
-              <div className="cart-item-info">
-                <div className="cart-item-name">{item.name}</div>
-                <div className="cart-item-id">ID: {item.id} | ${formatPrice(item.priceInCents)}</div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <ItemList items={promoItems} />
       </Modal>
     </>
   );

@@ -3,7 +3,6 @@ import { useState } from "preact/hooks";
 import { Button } from "../Button";
 import { Input } from "../Input";
 import { itemService, Item } from "../../services/itemService";
-import { useMessage } from "../../hooks/useMessage";
 import { formatPrice, parsePrice, isValidPrice, isValidId, createIdInputHandler } from "../../utils/formatters";
 
 interface ItemTabProps {

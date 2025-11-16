@@ -2,13 +2,14 @@ import { h } from "preact";
 import { useState } from "preact/hooks";
 import { Button } from "../Button";
 import { Modal } from "../Modal";
+import { ItemList } from "../ItemList";
 import { DataTable, TableColumn } from "../DataTable";
 import { systemService } from "../../services/systemService";
 import { itemService, Item } from "../../services/itemService";
 import { orderService, Order } from "../../services/orderService";
 import { promotionService, Promotion } from "../../services/promotionService";
 import { orderPromotionService, OrderWithPromotions } from "../../services/orderPromotionService";
-import { formatPrice } from "../../utils/formatters";
+import { formatPrice, PROMO_CARD_STYLE } from "../../utils/formatters";
 
 interface DebugTabProps {
   onMessage: (msg: string) => void;
@@ -328,21 +329,14 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
 
       <Modal isOpen={isItemModalOpen} onClose={() => setIsItemModalOpen(false)} title={selectedOrderForView ? `Order #${selectedOrderForView.id} Items` : "Order Items"}>
         <div className="cart-items" style={{ maxHeight: "400px", backgroundColor: "transparent", border: "none" }}>
-          {items.map((item) => (
-            <div key={item.id} className="cart-item">
-              <div className="cart-item-info">
-                <div className="cart-item-name">{item.name}</div>
-                <div className="cart-item-id">ID: {item.id} | ${formatPrice(item.priceInCents)}</div>
-              </div>
-            </div>
-          ))}
+          <ItemList items={items} />
           {selectedOrderForView && selectedOrderForView.promotions && selectedOrderForView.promotions.length > 0 && (
             <>
               {selectedOrderForView.promotions.map((promo) => (
                 <div
                   key={promo.id}
                   className="cart-item"
-                  style={{ backgroundColor: "rgba(100, 200, 100, 0.05)", borderColor: "rgba(100, 200, 100, 0.2)", cursor: "pointer" }}
+                  style={{ ...PROMO_CARD_STYLE, cursor: "pointer" }}
                   onClick={() => {
                     setIsItemModalOpen(false);
                     handleShowPromotionItems(promo.id, promo.name);
@@ -364,16 +358,7 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
         onClose={() => setIsPromoModalOpen(false)}
         title={selectedPromoForView ? `Promotion: ${selectedPromoForView.name}` : "Promotion Items"}
       >
-        <div className="cart-items" style={{ maxHeight: "400px", backgroundColor: "transparent", border: "none" }}>
-          {promoItems.map((item) => (
-            <div key={item.id} className="cart-item">
-              <div className="cart-item-info">
-                <div className="cart-item-name">{item.name}</div>
-                <div className="cart-item-id">ID: {item.id} | ${formatPrice(item.priceInCents)}</div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <ItemList items={promoItems} />
       </Modal>
     </>
   );

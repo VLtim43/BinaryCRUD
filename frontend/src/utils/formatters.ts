@@ -27,3 +27,22 @@ export const createIdInputHandler = (setter: (value: string) => void) => {
     }
   };
 };
+
+export const createInputHandler = (setter: (value: string) => void) => {
+  return (e: Event) => {
+    const target = e.target as HTMLInputElement;
+    setter(target.value);
+  };
+};
+
+export const createSelectHandler = (setter: (value: string) => void) => {
+  return (e: Event) => {
+    const target = e.target as HTMLSelectElement;
+    setter(target.value);
+  };
+};
+
+export const PROMO_CARD_STYLE = {
+  backgroundColor: "rgba(100, 200, 100, 0.05)",
+  borderColor: "rgba(100, 200, 100, 0.2)",
+};
