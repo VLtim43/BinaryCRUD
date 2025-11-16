@@ -5,11 +5,13 @@ import { useState, useEffect } from "preact/hooks";
 import { h } from "preact";
 import { Button } from "./components/Button";
 import { ItemTab } from "./components/tabs/ItemTab";
+import { OrderTab } from "./components/tabs/OrderTab";
+import { PromotionTab } from "./components/tabs/PromotionTab";
 import { DebugTab } from "./components/tabs/DebugTab";
 import { LogsPanel } from "./components/LogsPanel";
 import { logService, LogEntry } from "./services/logService";
 
-type TabType = "item" | "debug";
+type TabType = "item" | "order" | "promotion" | "debug";
 
 export const App = () => {
   const [activeTab, setActiveTab] = useState<TabType>("item");
@@ -56,6 +58,10 @@ export const App = () => {
     switch (tab) {
       case "item":
         return "Enter item text below 👇";
+      case "order":
+        return "Manage orders";
+      case "promotion":
+        return "Manage promotions";
       case "debug":
         return "Debug tools and utilities";
     }
@@ -66,7 +72,7 @@ export const App = () => {
     setMessage(getDefaultMessage(tab));
   };
 
-  const hideLogo = activeTab === "debug" && debugSubTab === "print";
+  const hideLogo = activeTab === "order" || activeTab === "promotion" || (activeTab === "debug" && debugSubTab === "print");
 
   return (
     <div className={`app-container ${logsPanelOpen ? "logs-open" : ""}`}>
@@ -77,6 +83,12 @@ export const App = () => {
       <div className="tabs">
         <Button className={`tab ${activeTab === "item" ? "active" : ""}`} onClick={() => handleTabChange("item")}>
           Item
+        </Button>
+        <Button className={`tab ${activeTab === "order" ? "active" : ""}`} onClick={() => handleTabChange("order")}>
+          Order
+        </Button>
+        <Button className={`tab ${activeTab === "promotion" ? "active" : ""}`} onClick={() => handleTabChange("promotion")}>
+          Promotion
         </Button>
         <Button className={`tab ${activeTab === "debug" ? "active" : ""}`} onClick={() => handleTabChange("debug")}>
           Debug
@@ -91,6 +103,8 @@ export const App = () => {
         </div>
 
         {activeTab === "item" && <ItemTab onMessage={setMessage} onRefreshLogs={refreshLogs} />}
+        {activeTab === "order" && <OrderTab onMessage={setMessage} onRefreshLogs={refreshLogs} />}
+        {activeTab === "promotion" && <PromotionTab onMessage={setMessage} onRefreshLogs={refreshLogs} />}
         {activeTab === "debug" && <DebugTab onMessage={setMessage} onRefreshLogs={refreshLogs} subTab={debugSubTab} onSubTabChange={setDebugSubTab} />}
       </div>
 
