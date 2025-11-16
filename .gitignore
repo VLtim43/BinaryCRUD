@@ -10,3 +10,4 @@ claude
 *.idx
 *.txt
 logs/
+/build
