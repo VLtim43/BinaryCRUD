@@ -3,7 +3,9 @@ import { useState, useEffect } from "preact/hooks";
 import { Button } from "../Button";
 import { Input } from "../Input";
 import { DataTable } from "../DataTable";
+import { Modal } from "../Modal";
 import { orderService, Order } from "../../services/orderService";
+import { itemService, Item } from "../../services/itemService";
 import { formatPrice, isValidId, createIdInputHandler } from "../../utils/formatters";
 
 interface OrderTabProps {
@@ -16,6 +18,8 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
   const [recordId, setRecordId] = useState("");
   const [deleteId, setDeleteId] = useState("");
   const [foundOrder, setFoundOrder] = useState<Order | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [items, setItems] = useState<Item[]>([]);
 
   const handleRead = async () => {
     if (!isValidId(recordId)) {
@@ -48,6 +52,24 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       onRefreshLogs();
     } catch (err) {
       onMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+
+  const handleShowItems = async () => {
+    if (!foundOrder || !foundOrder.itemIDs || foundOrder.itemIDs.length === 0) {
+      onMessage("No items to display");
+      return;
+    }
+
+    try {
+      const fetchedItems = await Promise.all(
+        foundOrder.itemIDs.map((id) => itemService.getById(id))
+      );
+      setItems(fetchedItems);
+      setIsModalOpen(true);
+      onRefreshLogs();
+    } catch (err) {
+      onMessage(`Error fetching items: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -96,7 +118,9 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
                 </div>
                 <div className="details-row">
                   <span className="details-label">Item IDs:</span>
-                  <span className="details-value">{foundOrder.itemIDs.join(", ")}</span>
+                  <span className="details-value clickable-item-ids" onClick={handleShowItems}>
+                    {foundOrder.itemIDs.join(", ")}
+                  </span>
                 </div>
               </div>
             </div>
@@ -117,6 +141,24 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
           </Button>
         </div>
       )}
+
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Order Items">
+        <div className="item-details-grid">
+          {items.map((item) => (
+            <div key={item.id} className="item-details-card">
+              <h4>{item.name}</h4>
+              <div className="item-detail-row">
+                <span className="item-detail-label">ID:</span>
+                <span className="item-detail-value">{item.id}</span>
+              </div>
+              <div className="item-detail-row">
+                <span className="item-detail-label">Price:</span>
+                <span className="item-detail-value">${formatPrice(item.priceInCents)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Modal>
     </>
   );
 };
