@@ -5,13 +5,11 @@ import { useState, useEffect } from "preact/hooks";
 import { h } from "preact";
 import { Button } from "./components/Button";
 import { ItemTab } from "./components/tabs/ItemTab";
-import { OrderTab } from "./components/tabs/OrderTab";
-import { PromotionTab } from "./components/tabs/PromotionTab";
 import { DebugTab } from "./components/tabs/DebugTab";
 import { LogsPanel } from "./components/LogsPanel";
 import { logService, LogEntry } from "./services/logService";
 
-type TabType = "item" | "order" | "promotion" | "debug";
+type TabType = "item" | "debug";
 
 export const App = () => {
   const [activeTab, setActiveTab] = useState<TabType>("item");
@@ -58,10 +56,6 @@ export const App = () => {
     switch (tab) {
       case "item":
         return "Enter item text below 👇";
-      case "order":
-        return "Select items to add to your order";
-      case "promotion":
-        return "Create a new promotion by selecting items";
       case "debug":
         return "Debug tools and utilities";
     }
@@ -72,8 +66,7 @@ export const App = () => {
     setMessage(getDefaultMessage(tab));
   };
 
-  const showCreateTab = (activeTab === "order" || activeTab === "promotion");
-  const hideLogo = activeTab === "order" || activeTab === "promotion" || (activeTab === "debug" && debugSubTab === "print");
+  const hideLogo = activeTab === "debug" && debugSubTab === "print";
 
   return (
     <div className={`app-container ${logsPanelOpen ? "logs-open" : ""}`}>
@@ -85,12 +78,6 @@ export const App = () => {
         <Button className={`tab ${activeTab === "item" ? "active" : ""}`} onClick={() => handleTabChange("item")}>
           Item
         </Button>
-        <Button className={`tab ${activeTab === "order" ? "active" : ""}`} onClick={() => handleTabChange("order")}>
-          Order
-        </Button>
-        <Button className={`tab ${activeTab === "promotion" ? "active" : ""}`} onClick={() => handleTabChange("promotion")}>
-          Promotion
-        </Button>
         <Button className={`tab ${activeTab === "debug" ? "active" : ""}`} onClick={() => handleTabChange("debug")}>
           Debug
         </Button>
@@ -99,15 +86,11 @@ export const App = () => {
       <div id="App">
         {!hideLogo && <img src={logo} id="logo" alt="logo" />}
 
-        {!showCreateTab && (
-          <div id="result" className="result">
-            {message}
-          </div>
-        )}
+        <div id="result" className="result">
+          {message}
+        </div>
 
         {activeTab === "item" && <ItemTab onMessage={setMessage} onRefreshLogs={refreshLogs} />}
-        {activeTab === "order" && <OrderTab onMessage={setMessage} onRefreshLogs={refreshLogs} />}
-        {activeTab === "promotion" && <PromotionTab onMessage={setMessage} onRefreshLogs={refreshLogs} />}
         {activeTab === "debug" && <DebugTab onMessage={setMessage} onRefreshLogs={refreshLogs} subTab={debugSubTab} onSubTabChange={setDebugSubTab} />}
       </div>
 

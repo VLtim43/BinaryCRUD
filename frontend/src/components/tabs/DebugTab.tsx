@@ -4,8 +4,6 @@ import { Button } from "../Button";
 import { DataTable, TableColumn } from "../DataTable";
 import { systemService } from "../../services/systemService";
 import { itemService, Item } from "../../services/itemService";
-import { orderService, Order } from "../../services/orderService";
-import { promotionService, Promotion } from "../../services/promotionService";
 import { formatPrice } from "../../utils/formatters";
 
 interface DebugTabProps {
@@ -19,13 +17,11 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
   const [indexData, setIndexData] = useState<any>(null);
   const [printData, setPrintData] = useState<{
     items?: Item[];
-    orders?: Order[];
-    promotions?: Promotion[];
   }>({});
 
   const handlePopulateClick = async () => {
     try {
-      onMessage("Populating all data (items → promotions → orders)...");
+      onMessage("Populating all data...");
       await systemService.populateInventory();
       onMessage("All data populated successfully! Check logs for details.");
       onRefreshLogs();
@@ -67,28 +63,6 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
       onMessage(`Loaded ${items.length} items`);
     } catch (err: any) {
       onMessage(`Error loading items: ${err}`);
-    }
-  };
-
-  const handlePrintAllOrders = async () => {
-    try {
-      onMessage("Loading all orders...");
-      const orders = await orderService.getAll();
-      setPrintData({ orders });
-      onMessage(`Loaded ${orders.length} orders`);
-    } catch (err: any) {
-      onMessage(`Error loading orders: ${err}`);
-    }
-  };
-
-  const handlePrintAllPromotions = async () => {
-    try {
-      onMessage("Loading all promotions...");
-      const promotions = await promotionService.getAll();
-      setPrintData({ promotions });
-      onMessage(`Loaded ${promotions.length} promotions`);
-    } catch (err: any) {
-      onMessage(`Error loading promotions: ${err}`);
     }
   };
 
@@ -139,8 +113,6 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
         <>
           <div className="input-box">
             <Button onClick={handlePrintAllItems}>Print All Items</Button>
-            <Button onClick={handlePrintAllOrders}>Print All Orders</Button>
-            <Button onClick={handlePrintAllPromotions}>Print All Promotions</Button>
           </div>
 
           {printData.items && (
@@ -161,52 +133,6 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
                 data={printData.items}
                 maxHeight="220px"
                 minWidth="400px"
-              />
-            </div>
-          )}
-
-          {printData.orders && (
-            <div className="details-card max-height-300">
-              <h3>All Orders ({printData.orders.length})</h3>
-              <DataTable
-                columns={[
-                  { key: "id", header: "ID", align: "left", minWidth: "60px" },
-                  { key: "customerName", header: "Customer", align: "left", minWidth: "200px" },
-                  { key: "itemCount", header: "Items", align: "center", minWidth: "80px" },
-                  {
-                    key: "totalPrice",
-                    header: "Total",
-                    align: "right",
-                    minWidth: "100px",
-                    render: (value) => `$${formatPrice(value)}`,
-                  },
-                ]}
-                data={printData.orders}
-                maxHeight="220px"
-                minWidth="500px"
-              />
-            </div>
-          )}
-
-          {printData.promotions && (
-            <div className="details-card max-height-300">
-              <h3>All Promotions ({printData.promotions.length})</h3>
-              <DataTable
-                columns={[
-                  { key: "id", header: "ID", align: "left", minWidth: "60px" },
-                  { key: "name", header: "Name", align: "left", minWidth: "200px" },
-                  { key: "itemCount", header: "Items", align: "center", minWidth: "80px" },
-                  {
-                    key: "totalPrice",
-                    header: "Total",
-                    align: "right",
-                    minWidth: "100px",
-                    render: (value) => `$${formatPrice(value)}`,
-                  },
-                ]}
-                data={printData.promotions}
-                maxHeight="220px"
-                minWidth="500px"
               />
             </div>
           )}
