@@ -298,17 +298,12 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
       )}
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Promotion Items">
-        <div className="item-details-grid">
+        <div className="cart-items" style={{ maxHeight: "400px", backgroundColor: "transparent", border: "none" }}>
           {items.map((item) => (
-            <div key={item.id} className="item-details-card">
-              <h4>{item.name}</h4>
-              <div className="item-detail-row">
-                <span className="item-detail-label">ID:</span>
-                <span className="item-detail-value">{item.id}</span>
-              </div>
-              <div className="item-detail-row">
-                <span className="item-detail-label">Price:</span>
-                <span className="item-detail-value">${formatPrice(item.priceInCents)}</span>
+            <div key={item.id} className="cart-item">
+              <div className="cart-item-info">
+                <div className="cart-item-name">{item.name}</div>
+                <div className="cart-item-id">ID: {item.id} | ${formatPrice(item.priceInCents)}</div>
               </div>
             </div>
           ))}
