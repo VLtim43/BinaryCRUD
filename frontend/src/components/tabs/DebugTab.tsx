@@ -1,11 +1,13 @@
 import { h } from "preact";
 import { useState } from "preact/hooks";
 import { Button } from "../Button";
+import { Modal } from "../Modal";
 import { DataTable, TableColumn } from "../DataTable";
 import { systemService } from "../../services/systemService";
 import { itemService, Item } from "../../services/itemService";
 import { orderService, Order } from "../../services/orderService";
 import { promotionService, Promotion } from "../../services/promotionService";
+import { orderPromotionService, OrderWithPromotions } from "../../services/orderPromotionService";
 import { formatPrice } from "../../utils/formatters";
 
 interface DebugTabProps {
@@ -22,6 +24,12 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
     orders?: Order[];
     promotions?: Promotion[];
   }>({});
+  const [isItemModalOpen, setIsItemModalOpen] = useState(false);
+  const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
+  const [items, setItems] = useState<Item[]>([]);
+  const [promoItems, setPromoItems] = useState<Item[]>([]);
+  const [selectedOrderForView, setSelectedOrderForView] = useState<OrderWithPromotions | null>(null);
+  const [selectedPromoForView, setSelectedPromoForView] = useState<{ id: number; name: string } | null>(null);
 
   const handlePopulateClick = async () => {
     try {
@@ -89,6 +97,47 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
       onMessage(`Loaded ${promotions.length} promotions`);
     } catch (err: any) {
       onMessage(`Error loading promotions: ${err}`);
+    }
+  };
+
+  const handleShowOrderItems = async (orderId: number) => {
+    try {
+      const order = await orderPromotionService.getOrderWithPromotions(orderId);
+      setSelectedOrderForView(order);
+
+      if (!order.itemIDs || order.itemIDs.length === 0) {
+        onMessage("No items in this order");
+        return;
+      }
+
+      const fetchedItems = await Promise.all(
+        order.itemIDs.map((id) => itemService.getById(id))
+      );
+      setItems(fetchedItems);
+      setIsItemModalOpen(true);
+      onRefreshLogs();
+    } catch (err: any) {
+      onMessage(`Error fetching order items: ${err}`);
+    }
+  };
+
+  const handleShowPromotionItems = async (promotionId: number, promotionName: string) => {
+    try {
+      const promotion = await promotionService.getById(promotionId);
+      if (!promotion.itemIDs || promotion.itemIDs.length === 0) {
+        onMessage("No items in this promotion");
+        return;
+      }
+
+      const fetchedItems = await Promise.all(
+        promotion.itemIDs.map((id) => itemService.getById(id))
+      );
+      setPromoItems(fetchedItems);
+      setSelectedPromoForView({ id: promotionId, name: promotionName });
+      setIsPromoModalOpen(true);
+      onRefreshLogs();
+    } catch (err: any) {
+      onMessage(`Error fetching promotion items: ${err}`);
     }
   };
 
@@ -170,20 +219,52 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
               <h3>All Orders ({printData.orders.length})</h3>
               <DataTable
                 columns={[
-                  { key: "id", header: "ID", align: "left", minWidth: "60px" },
-                  { key: "customer", header: "Customer", align: "left", minWidth: "150px" },
                   {
-                    key: "totalPrice",
-                    header: "Total Price",
-                    align: "right",
-                    minWidth: "100px",
-                    render: (value) => `$${formatPrice(value)}`,
+                    key: "id",
+                    header: "ID",
+                    align: "left",
+                    minWidth: "60px",
+                    render: (value, row) => (
+                      <span
+                        onClick={() => handleShowOrderItems(row.id)}
+                        style={{ cursor: "pointer" }}
+                      >
+                        {value}
+                      </span>
+                    )
                   },
-                  { key: "itemCount", header: "Items", align: "center", minWidth: "80px" },
+                  {
+                    key: "customer",
+                    header: "Customer",
+                    align: "left",
+                    minWidth: "150px",
+                    render: (value, row) => (
+                      <span
+                        onClick={() => handleShowOrderItems(row.id)}
+                        style={{ cursor: "pointer" }}
+                      >
+                        {value}
+                      </span>
+                    )
+                  },
+                  {
+                    key: "itemCount",
+                    header: "Items",
+                    align: "center",
+                    minWidth: "80px",
+                    render: (value, row) => (
+                      <span
+                        onClick={() => handleShowOrderItems(row.id)}
+                        style={{ cursor: "pointer" }}
+                      >
+                        {value}
+                      </span>
+                    )
+                  },
                 ]}
                 data={printData.orders}
                 maxHeight="220px"
-                minWidth="500px"
+                minWidth="400px"
               />
             </div>
           )}
@@ -193,25 +274,107 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
               <h3>All Promotions ({printData.promotions.length})</h3>
               <DataTable
                 columns={[
-                  { key: "id", header: "ID", align: "left", minWidth: "60px" },
-                  { key: "name", header: "Name", align: "left", minWidth: "150px" },
                   {
-                    key: "totalPrice",
-                    header: "Total Price",
-                    align: "right",
-                    minWidth: "100px",
-                    render: (value) => `$${formatPrice(value)}`,
+                    key: "id",
+                    header: "ID",
+                    align: "left",
+                    minWidth: "60px",
+                    render: (value, row) => (
+                      <span
+                        onClick={() => handleShowPromotionItems(row.id, row.name)}
+                        style={{ cursor: "pointer" }}
+                      >
+                        {value}
+                      </span>
+                    )
                   },
-                  { key: "itemCount", header: "Items", align: "center", minWidth: "80px" },
+                  {
+                    key: "name",
+                    header: "Name",
+                    align: "left",
+                    minWidth: "150px",
+                    render: (value, row) => (
+                      <span
+                        onClick={() => handleShowPromotionItems(row.id, row.name)}
+                        style={{ cursor: "pointer" }}
+                      >
+                        {value}
+                      </span>
+                    )
+                  },
+                  {
+                    key: "itemCount",
+                    header: "Items",
+                    align: "center",
+                    minWidth: "80px",
+                    render: (value, row) => (
+                      <span
+                        onClick={() => handleShowPromotionItems(row.id, row.name)}
+                        style={{ cursor: "pointer" }}
+                      >
+                        {value}
+                      </span>
+                    )
+                  },
                 ]}
                 data={printData.promotions}
                 maxHeight="220px"
-                minWidth="500px"
+                minWidth="400px"
               />
             </div>
           )}
         </>
       )}
+
+      <Modal isOpen={isItemModalOpen} onClose={() => setIsItemModalOpen(false)} title={selectedOrderForView ? `Order #${selectedOrderForView.id} Items` : "Order Items"}>
+        <div className="cart-items" style={{ maxHeight: "400px", backgroundColor: "transparent", border: "none" }}>
+          {items.map((item) => (
+            <div key={item.id} className="cart-item">
+              <div className="cart-item-info">
+                <div className="cart-item-name">{item.name}</div>
+                <div className="cart-item-id">ID: {item.id} | ${formatPrice(item.priceInCents)}</div>
+              </div>
+            </div>
+          ))}
+          {selectedOrderForView && selectedOrderForView.promotions && selectedOrderForView.promotions.length > 0 && (
+            <>
+              {selectedOrderForView.promotions.map((promo) => (
+                <div
+                  key={promo.id}
+                  className="cart-item"
+                  style={{ backgroundColor: "rgba(100, 200, 100, 0.05)", borderColor: "rgba(100, 200, 100, 0.2)", cursor: "pointer" }}
+                  onClick={() => {
+                    setIsItemModalOpen(false);
+                    handleShowPromotionItems(promo.id, promo.name);
+                  }}
+                >
+                  <div className="cart-item-info">
+                    <div className="cart-item-name">[PROMO] {promo.name}</div>
+                    <div className="cart-item-id">ID: {promo.id} | ${formatPrice(promo.totalPrice)} | {promo.itemCount} items</div>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isPromoModalOpen}
+        onClose={() => setIsPromoModalOpen(false)}
+        title={selectedPromoForView ? `Promotion: ${selectedPromoForView.name}` : "Promotion Items"}
+      >
+        <div className="cart-items" style={{ maxHeight: "400px", backgroundColor: "transparent", border: "none" }}>
+          {promoItems.map((item) => (
+            <div key={item.id} className="cart-item">
+              <div className="cart-item-info">
+                <div className="cart-item-name">{item.name}</div>
+                <div className="cart-item-id">ID: {item.id} | ${formatPrice(item.priceInCents)}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Modal>
     </>
   );
 };

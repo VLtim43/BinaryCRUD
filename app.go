@@ -178,6 +178,12 @@ type OrderEntry struct {
 	ItemIDs []uint64 `json:"itemIDs"`
 }
 
+// OrderPromotionEntry represents an order-promotion relationship in the JSON file
+type OrderPromotionEntry struct {
+	OrderID     uint64 `json:"orderID"`
+	PromotionID uint64 `json:"promotionID"`
+}
+
 // GetIndexContents returns the contents of the B+ tree index for debugging
 func (a *App) GetIndexContents() (map[string]any, error) {
 	// Get all entries from the tree
@@ -348,6 +354,40 @@ func (a *App) PopulateInventory() error {
 	}
 
 	a.logger.Info(fmt.Sprintf("Orders population complete: %d succeeded, %d failed", orderSuccessCount, orderFailCount))
+
+	// Populate order-promotion relationships
+	orderPromoJsonPath := "data/seed/order_promotions.json"
+	orderPromoData, err := os.ReadFile(orderPromoJsonPath)
+	if err != nil {
+		a.logger.Warn(fmt.Sprintf("No order_promotions.json found, skipping order-promotion relationships: %v", err))
+	} else {
+		var orderPromotions []OrderPromotionEntry
+		err = json.Unmarshal(orderPromoData, &orderPromotions)
+		if err != nil {
+			return fmt.Errorf("failed to parse order_promotions.json: %w", err)
+		}
+
+		a.logger.Info(fmt.Sprintf("Starting order-promotion relationships with %d entries", len(orderPromotions)))
+
+		orderPromoSuccessCount := 0
+		orderPromoFailCount := 0
+
+		for i, op := range orderPromotions {
+			err := a.ApplyPromotionToOrder(op.OrderID, op.PromotionID)
+			if err != nil {
+				a.logger.Error(fmt.Sprintf("Failed to apply promotion %d to order %d: %v", op.PromotionID, op.OrderID, err))
+				orderPromoFailCount++
+				continue
+			}
+
+			orderPromoSuccessCount++
+			a.logger.Info(fmt.Sprintf("Applied promotion #%d to order #%d (%d/%d)",
+				op.PromotionID, op.OrderID, i+1, len(orderPromotions)))
+		}
+
+		a.logger.Info(fmt.Sprintf("Order-promotion relationships complete: %d succeeded, %d failed",
+			orderPromoSuccessCount, orderPromoFailCount))
+	}
 
 	// Final summary
 	totalSuccess := itemSuccessCount + promoSuccessCount + orderSuccessCount

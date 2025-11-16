@@ -7,7 +7,8 @@ import { DataTable } from "../DataTable";
 import { Modal } from "../Modal";
 import { orderService, Order } from "../../services/orderService";
 import { itemService, Item } from "../../services/itemService";
-import { orderPromotionService } from "../../services/orderPromotionService";
+import { promotionService, Promotion } from "../../services/promotionService";
+import { orderPromotionService, OrderWithPromotions } from "../../services/orderPromotionService";
 import { formatPrice, isValidId, createIdInputHandler } from "../../utils/formatters";
 
 interface OrderTabProps {
@@ -27,16 +28,23 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
   const [customerName, setCustomerName] = useState("");
   const [recordId, setRecordId] = useState("");
   const [deleteId, setDeleteId] = useState("");
-  const [foundOrder, setFoundOrder] = useState<Order | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [foundOrder, setFoundOrder] = useState<OrderWithPromotions | null>(null);
+  const [isItemModalOpen, setIsItemModalOpen] = useState(false);
+  const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
+  const [promoItems, setPromoItems] = useState<Item[]>([]);
+  const [selectedPromoForView, setSelectedPromoForView] = useState<{ id: number; name: string } | null>(null);
   const [allItems, setAllItems] = useState<Item[]>([]);
+  const [allPromotions, setAllPromotions] = useState<Promotion[]>([]);
   const [selectedItemId, setSelectedItemId] = useState("");
+  const [selectedPromotionId, setSelectedPromotionId] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [selectedPromotions, setSelectedPromotions] = useState<Promotion[]>([]);
 
   useEffect(() => {
     if (subTab === "create") {
       loadAllItems();
+      loadAllPromotions();
     }
   }, [subTab]);
 
@@ -49,6 +57,15 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
     }
   };
 
+  const loadAllPromotions = async () => {
+    try {
+      const promotions = await promotionService.getAll();
+      setAllPromotions(promotions);
+    } catch (err) {
+      console.error("Error loading promotions:", err);
+    }
+  };
+
   const handleRead = async () => {
     if (!isValidId(recordId)) {
       onMessage("Error: Please enter a valid record ID");
@@ -57,9 +74,12 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
     }
 
     try {
-      const order = await orderService.getById(parseInt(recordId, 10));
+      const order = await orderPromotionService.getOrderWithPromotions(parseInt(recordId, 10));
       setFoundOrder(order);
-      onMessage(`Found Order #${order.id}: ${order.customer} - $${formatPrice(order.totalPrice)} (${order.itemCount} items)`);
+      const promoCount = order.promotions?.length || 0;
+      onMessage(
+        `Found Order #${order.id}: ${order.customerName} - $${formatPrice(order.totalPrice)} (${order.itemCount} items${promoCount > 0 ? `, ${promoCount} promotions` : ""})`
+      );
       onRefreshLogs();
     } catch (err) {
       setFoundOrder(null);
@@ -94,10 +114,30 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
         foundOrder.itemIDs.map((id) => itemService.getById(id))
       );
       setItems(fetchedItems);
-      setIsModalOpen(true);
+      setIsItemModalOpen(true);
       onRefreshLogs();
     } catch (err) {
       onMessage(`Error fetching items: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+
+  const handleShowPromotionItems = async (promotionId: number, promotionName: string) => {
+    try {
+      const promotion = await promotionService.getById(promotionId);
+      if (!promotion.itemIDs || promotion.itemIDs.length === 0) {
+        onMessage("No items in this promotion");
+        return;
+      }
+
+      const fetchedItems = await Promise.all(
+        promotion.itemIDs.map((id) => itemService.getById(id))
+      );
+      setPromoItems(fetchedItems);
+      setSelectedPromoForView({ id: promotionId, name: promotionName });
+      setIsPromoModalOpen(true);
+      onRefreshLogs();
+    } catch (err) {
+      onMessage(`Error fetching promotion items: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -127,8 +167,36 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
     setCart(cart.filter((c) => c.id !== itemId));
   };
 
+  const handleAddPromotion = () => {
+    if (!selectedPromotionId) {
+      onMessage("Please select a promotion");
+      return;
+    }
+
+    // Only allow one promotion per order (frontend restriction)
+    if (selectedPromotions.length >= 1) {
+      onMessage("Only one promotion can be added per order");
+      return;
+    }
+
+    const promotion = allPromotions.find((p) => p.id === parseInt(selectedPromotionId, 10));
+    if (!promotion) {
+      onMessage("Promotion not found");
+      return;
+    }
+
+    setSelectedPromotions([promotion]);
+    setSelectedPromotionId("");
+  };
+
+  const handleRemovePromotion = (promotionId: number) => {
+    setSelectedPromotions(selectedPromotions.filter((p) => p.id !== promotionId));
+  };
+
   const calculateTotal = () => {
-    return cart.reduce((sum, item) => sum + item.priceInCents * item.quantity, 0);
+    const itemsTotal = cart.reduce((sum, item) => sum + item.priceInCents * item.quantity, 0);
+    const promotionsTotal = selectedPromotions.reduce((sum, promo) => sum + promo.totalPrice, 0);
+    return itemsTotal + promotionsTotal;
   };
 
   const handleCreateOrder = async () => {
@@ -150,10 +218,21 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
         }
       });
 
+      // First, create the order with items
       const orderId = await orderPromotionService.createOrder(customerName, itemIDs);
-      onMessage(`Order #${orderId} created successfully for ${customerName} ($${formatPrice(calculateTotal())})`);
+
+      // Then, apply all selected promotions to the order
+      for (const promotion of selectedPromotions) {
+        await orderPromotionService.applyPromotionToOrder(orderId, promotion.id);
+      }
+
+      const promoCount = selectedPromotions.length;
+      onMessage(
+        `Order #${orderId} created successfully for ${customerName} ($${formatPrice(calculateTotal())})${promoCount > 0 ? ` with ${promoCount} promotion(s)` : ""}`
+      );
       setCustomerName("");
       setCart([]);
+      setSelectedPromotions([]);
       onRefreshLogs();
     } catch (err) {
       onMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
@@ -177,45 +256,90 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       {subTab === "create" && (
         <>
           <div className="cart-container">
-            <div className="cart-header">
-              <Select
-                value={selectedItemId}
-                onChange={(e: Event) => {
-                  const target = e.target as HTMLSelectElement;
-                  setSelectedItemId(target.value);
-                }}
-                options={allItems.map((item) => ({
-                  value: item.id,
-                  label: `${item.name} - $${formatPrice(item.priceInCents)}`,
-                }))}
-                placeholder="Select an item..."
-                className="cart-select"
-              />
-              <Button onClick={handleAddItemToCart}>Add Item</Button>
+            <div className="cart-header" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                <Select
+                  value={selectedItemId}
+                  onChange={(e: Event) => {
+                    const target = e.target as HTMLSelectElement;
+                    setSelectedItemId(target.value);
+                  }}
+                  options={allItems.map((item) => ({
+                    value: item.id,
+                    label: `${item.name} - $${formatPrice(item.priceInCents)}`,
+                  }))}
+                  placeholder="Select an item..."
+                  className="cart-select"
+                />
+                <Button onClick={handleAddItemToCart}>Add Item</Button>
+              </div>
+              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                <Select
+                  value={selectedPromotionId}
+                  onChange={(e: Event) => {
+                    const target = e.target as HTMLSelectElement;
+                    setSelectedPromotionId(target.value);
+                  }}
+                  options={allPromotions.map((promo) => ({
+                    value: promo.id,
+                    label: `${promo.name} - $${formatPrice(promo.totalPrice)}`,
+                  }))}
+                  placeholder={selectedPromotions.length >= 1 ? "Max 1 promotion per order" : "Select a promotion..."}
+                  className="cart-select"
+                  style={selectedPromotions.length >= 1 ? { opacity: 0.5, pointerEvents: "none" } : {}}
+                />
+                <Button onClick={handleAddPromotion} style={selectedPromotions.length >= 1 ? { opacity: 0.5, pointerEvents: "none" } : {}}>
+                  Add Promotion
+                </Button>
+              </div>
             </div>
 
             <div className="cart-total">
-              Total: ${formatPrice(calculateTotal())} ({cart.reduce((sum, item) => sum + item.quantity, 0)} items)
+              Total: ${formatPrice(calculateTotal())} ({cart.reduce((sum, item) => sum + item.quantity, 0)} items
+              {selectedPromotions.length > 0 && `, ${selectedPromotions.length} promotions`})
             </div>
 
             <div className="cart-items">
-              {cart.length === 0 ? (
-                <div className="cart-empty">No items added yet</div>
+              {cart.length === 0 && selectedPromotions.length === 0 ? (
+                <div className="cart-empty">No items or promotions added yet</div>
               ) : (
-                cart.map((item) => (
-                  <div key={item.id} className="cart-item">
-                    <div className="cart-item-info">
-                      <div className="cart-item-name">{item.name}</div>
-                      <div className="cart-item-id">ID: {item.id} | ${formatPrice(item.priceInCents)} each</div>
+                <>
+                  {cart.map((item) => (
+                    <div key={`item-${item.id}`} className="cart-item">
+                      <div className="cart-item-info">
+                        <div className="cart-item-name">{item.name}</div>
+                        <div className="cart-item-id">ID: {item.id} | ${formatPrice(item.priceInCents)} each</div>
+                      </div>
+                      <div className="cart-item-controls">
+                        <div className="cart-item-quantity">x{item.quantity}</div>
+                        <Button size="small" variant="danger" onClick={() => handleRemoveFromCart(item.id)}>
+                          ×
+                        </Button>
+                      </div>
                     </div>
-                    <div className="cart-item-controls">
-                      <div className="cart-item-quantity">x{item.quantity}</div>
-                      <Button size="small" variant="danger" onClick={() => handleRemoveFromCart(item.id)}>
-                        ×
-                      </Button>
+                  ))}
+                  {selectedPromotions.map((promo) => (
+                    <div
+                      key={`promo-${promo.id}`}
+                      className="cart-item"
+                      style={{ backgroundColor: "rgba(100, 200, 100, 0.05)", borderColor: "rgba(100, 200, 100, 0.2)" }}
+                    >
+                      <div className="cart-item-info">
+                        <div className="cart-item-name">
+                          [PROMO] {promo.name}
+                        </div>
+                        <div className="cart-item-id">
+                          ID: {promo.id} | ${formatPrice(promo.totalPrice)} | {promo.itemCount} items
+                        </div>
+                      </div>
+                      <div className="cart-item-controls">
+                        <Button size="small" variant="danger" onClick={() => handleRemovePromotion(promo.id)}>
+                          ×
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                </>
               )}
             </div>
 
@@ -261,7 +385,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
                 </div>
                 <div className="details-row">
                   <span className="details-label">Customer:</span>
-                  <span className="details-value">{foundOrder.customer}</span>
+                  <span className="details-value">{foundOrder.customerName}</span>
                 </div>
                 <div className="details-row">
                   <span className="details-label">Total Price:</span>
@@ -273,10 +397,27 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
                 </div>
                 <div className="details-row">
                   <span className="details-label">Item IDs:</span>
-                  <span className="details-value clickable-item-ids" onClick={handleShowItems}>
+                  <span className="details-value" onClick={handleShowItems} style={{ cursor: "pointer" }}>
                     {foundOrder.itemIDs.join(", ")}
                   </span>
                 </div>
+                {foundOrder.promotions && foundOrder.promotions.length > 0 && (
+                  <>
+                    {foundOrder.promotions.map((promo) => (
+                      <div
+                        key={promo.id}
+                        className="details-row"
+                        style={{ backgroundColor: "rgba(100, 200, 100, 0.1)", cursor: "pointer" }}
+                        onClick={() => handleShowPromotionItems(promo.id, promo.name)}
+                      >
+                        <span className="details-label">[PROMO] {promo.name}:</span>
+                        <span className="details-value">
+                          ${formatPrice(promo.totalPrice)} ({promo.itemCount} items)
+                        </span>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -297,9 +438,26 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
         </div>
       )}
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Order Items">
+      <Modal isOpen={isItemModalOpen} onClose={() => setIsItemModalOpen(false)} title="Order Items">
         <div className="cart-items" style={{ maxHeight: "400px", backgroundColor: "transparent", border: "none" }}>
           {items.map((item) => (
+            <div key={item.id} className="cart-item">
+              <div className="cart-item-info">
+                <div className="cart-item-name">{item.name}</div>
+                <div className="cart-item-id">ID: {item.id} | ${formatPrice(item.priceInCents)}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isPromoModalOpen}
+        onClose={() => setIsPromoModalOpen(false)}
+        title={selectedPromoForView ? `Promotion: ${selectedPromoForView.name}` : "Promotion Items"}
+      >
+        <div className="cart-items" style={{ maxHeight: "400px", backgroundColor: "transparent", border: "none" }}>
+          {promoItems.map((item) => (
             <div key={item.id} className="cart-item">
               <div className="cart-item-info">
                 <div className="cart-item-name">{item.name}</div>

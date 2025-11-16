@@ -1,0 +1,22 @@
+[
+  {
+    "orderID": 0,
+    "promotionID": 0
+  },
+  {
+    "orderID": 1,
+    "promotionID": 3
+  },
+  {
+    "orderID": 3,
+    "promotionID": 4
+  },
+  {
+    "orderID": 6,
+    "promotionID": 5
+  },
+  {
+    "orderID": 7,
+    "promotionID": 6
+  }
+]

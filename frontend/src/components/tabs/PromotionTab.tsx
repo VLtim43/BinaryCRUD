@@ -273,7 +273,7 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
                 </div>
                 <div className="details-row">
                   <span className="details-label">Item IDs:</span>
-                  <span className="details-value clickable-item-ids" onClick={handleShowItems}>
+                  <span className="details-value" onClick={handleShowItems} style={{ cursor: "pointer" }}>
                     {foundPromotion.itemIDs.join(", ")}
                   </span>
                 </div>
