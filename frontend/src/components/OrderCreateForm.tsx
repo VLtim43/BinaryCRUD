@@ -2,8 +2,8 @@ import { h } from "preact";
 import { Button } from "./Button";
 import { Input } from "./Input";
 import { Select } from "./Select";
-import { CreateFormLayout } from "./CreateFormLayout";
 import { CartItem } from "./CartItem";
+import "./CreateFormLayout.scss";
 
 interface OrderCreateFormProps {
   customerName: string;
@@ -61,71 +61,91 @@ export const OrderCreateForm = ({
     }));
 
   return (
-    <CreateFormLayout
-      title="Create Order"
-      submitDisabled={!customerName || (cart.length === 0 && selectedPromotions.length === 0)}
-      onSubmit={onSubmit}
-      headerInputs={
-        <Input
-          value={customerName}
-          onChange={onCustomerNameChange}
-          placeholder="Customer Name"
-          className="create-form-input-full"
-        />
-      }
-      totalLabel="Order Total"
-      totalAmount={orderTotal.toFixed(2)}
-      contentLabel="Order Contents"
-      contentEmpty={cart.length === 0 && selectedPromotions.length === 0}
-      emptyMessage="No items or promotions added"
-      footer={
-        <div className="create-form-footer-row">
-          <Select
-            value={selectedItemId}
-            onChange={onItemSelect}
-            options={itemOptions}
-            placeholder="Select an item..."
-            className="flex-1"
+    <div className="create-form-container">
+      <div className="create-form">
+        {/* Fixed Header */}
+        <div className="create-form-header">
+          <div className="create-form-title-row">
+            <h3>Create Order</h3>
+            <button
+              className="btn btn-primary"
+              onClick={onSubmit}
+              disabled={!customerName || (cart.length === 0 && selectedPromotions.length === 0)}
+            >
+              Submit
+            </button>
+          </div>
+          <Input
+            value={customerName}
+            onChange={onCustomerNameChange}
+            placeholder="Customer Name"
+            className="create-form-input-full"
           />
-          <Button onClick={onAddItem} className="whitespace-nowrap">
-            Add Item
-          </Button>
-
-          <Select
-            value={selectedPromotionId}
-            onChange={onPromotionSelect}
-            options={promotionOptions}
-            placeholder="Select a promotion..."
-            className="flex-1"
-          />
-          <Button onClick={onAddPromotion} className="whitespace-nowrap">
-            Add Promo
-          </Button>
+          <div className="cart-total">Order Total: ${orderTotal.toFixed(2)}</div>
         </div>
-      }
-    >
-      {cart.map((item) => (
-        <CartItem
-          key={`item-${item.id}`}
-          type="item"
-          id={item.id}
-          name={item.name}
-          priceInCents={item.priceInCents}
-          quantity={item.quantity}
-          onRemove={onRemoveItem}
-        />
-      ))}
-      {selectedPromotions.map((promo) => (
-        <CartItem
-          key={`promo-${promo.id}`}
-          type="promo"
-          id={promo.id}
-          name={promo.name}
-          totalPrice={promo.totalPrice}
-          itemCount={promo.itemCount}
-          onRemove={onRemovePromotion}
-        />
-      ))}
-    </CreateFormLayout>
+
+        {/* Scrollable Content */}
+        <div className="create-form-content">
+          <h4 className="create-form-content-label">Order Contents</h4>
+          <div className="create-form-items-container">
+            {cart.length === 0 && selectedPromotions.length === 0 ? (
+              <div className="empty-state">No items or promotions added</div>
+            ) : (
+              <div className="create-form-items-list">
+                {cart.map((item) => (
+                  <CartItem
+                    key={`item-${item.id}`}
+                    type="item"
+                    id={item.id}
+                    name={item.name}
+                    priceInCents={item.priceInCents}
+                    quantity={item.quantity}
+                    onRemove={onRemoveItem}
+                  />
+                ))}
+                {selectedPromotions.map((promo) => (
+                  <CartItem
+                    key={`promo-${promo.id}`}
+                    type="promo"
+                    id={promo.id}
+                    name={promo.name}
+                    totalPrice={promo.totalPrice}
+                    itemCount={promo.itemCount}
+                    onRemove={onRemovePromotion}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Fixed Footer */}
+        <div className="create-form-footer">
+          <div className="create-form-footer-row">
+            <Select
+              value={selectedItemId}
+              onChange={onItemSelect}
+              options={itemOptions}
+              placeholder="Select an item..."
+              className="flex-1"
+            />
+            <Button onClick={onAddItem} className="whitespace-nowrap">
+              Add Item
+            </Button>
+
+            <Select
+              value={selectedPromotionId}
+              onChange={onPromotionSelect}
+              options={promotionOptions}
+              placeholder="Select a promotion..."
+              className="flex-1"
+            />
+            <Button onClick={onAddPromotion} className="whitespace-nowrap">
+              Add Promo
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };

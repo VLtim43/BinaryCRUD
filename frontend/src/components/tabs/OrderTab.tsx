@@ -7,7 +7,11 @@ import { orderService } from "../../services/orderService";
 import { itemService, Item } from "../../services/itemService";
 import { promotionService, Promotion } from "../../services/promotionService";
 import { useCart } from "../../hooks/useCart";
-import { isValidId, formatPrice, createIdInputHandler } from "../../utils/formatters";
+import {
+  isValidId,
+  formatPrice,
+  createIdInputHandler,
+} from "../../utils/formatters";
 
 interface OrderTabProps {
   onMessage: (msg: string) => void;
@@ -21,7 +25,9 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
   const [deleteId, setDeleteId] = useState("");
   const [orderDetails, setOrderDetails] = useState<any>(null);
   const [availableItems, setAvailableItems] = useState<Item[]>([]);
-  const [availablePromotions, setAvailablePromotions] = useState<Promotion[]>([]);
+  const [availablePromotions, setAvailablePromotions] = useState<Promotion[]>(
+    []
+  );
   const [selectedItemId, setSelectedItemId] = useState("");
   const [selectedPromotionId, setSelectedPromotionId] = useState("");
   const [selectedPromotions, setSelectedPromotions] = useState<Promotion[]>([]);
@@ -40,7 +46,11 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       setAvailableItems(items);
       setAvailablePromotions(promotions);
     } catch (err) {
-      onMessage(`Error loading data: ${err instanceof Error ? err.message : String(err)}`);
+      onMessage(
+        `Error loading data: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
     }
   };
 
@@ -50,7 +60,9 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       return;
     }
 
-    const item = availableItems.find((i) => i.id === parseInt(selectedItemId, 10));
+    const item = availableItems.find(
+      (i) => i.id === parseInt(selectedItemId, 10)
+    );
     if (!item) {
       onMessage("Error: Item not found");
       return;
@@ -74,7 +86,9 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       return;
     }
 
-    const promo = availablePromotions.find((p) => p.id === parseInt(selectedPromotionId, 10));
+    const promo = availablePromotions.find(
+      (p) => p.id === parseInt(selectedPromotionId, 10)
+    );
     if (!promo) {
       onMessage("Error: Promotion not found");
       return;
@@ -123,9 +137,13 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
         for (const promo of selectedPromotions) {
           await promotionService.applyToOrder(orderId, promo.id);
         }
-        onMessage(`Order #${orderId} created for ${customerName} with ${selectedPromotions.length} promotion(s)!`);
+        onMessage(
+          `Order #${orderId} created for ${customerName} with ${selectedPromotions.length} promotion(s)!`
+        );
       } else {
-        onMessage(`Order #${orderId} created successfully for ${customerName}!`);
+        onMessage(
+          `Order #${orderId} created successfully for ${customerName}!`
+        );
       }
 
       cart.clear();
@@ -147,9 +165,15 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
     }
 
     try {
-      const order = await orderService.getByIdWithPromotions(parseInt(readId, 10));
+      const order = await orderService.getByIdWithPromotions(
+        parseInt(readId, 10)
+      );
       setOrderDetails(order);
-      onMessage(`Order #${order.id}: ${order.customerName} - ${order.itemCount} items - Total: $${formatPrice(order.totalPrice)}`);
+      onMessage(
+        `Order #${order.id}: ${order.customerName} - ${
+          order.itemCount
+        } items - Total: $${formatPrice(order.totalPrice)}`
+      );
       onRefreshLogs();
     } catch (err) {
       setOrderDetails(null);
@@ -176,82 +200,25 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
   return (
     <>
       <div className="sub_tabs">
-        <Button className={`tab ${subTab === "create" ? "active" : ""}`} onClick={() => setSubTab("create")}>
+        <Button
+          className={`tab ${subTab === "create" ? "active" : ""}`}
+          onClick={() => setSubTab("create")}
+        >
           Create
         </Button>
-        <Button className={`tab ${subTab === "read" ? "active" : ""}`} onClick={() => setSubTab("read")}>
+        <Button
+          className={`tab ${subTab === "read" ? "active" : ""}`}
+          onClick={() => setSubTab("read")}
+        >
           Read
         </Button>
-        <Button className={`tab ${subTab === "delete" ? "active" : ""}`} onClick={() => setSubTab("delete")}>
+        <Button
+          className={`tab ${subTab === "delete" ? "active" : ""}`}
+          onClick={() => setSubTab("delete")}
+        >
           Delete
         </Button>
       </div>
-
-      {subTab === "create" && (
-        <OrderCreateForm
-          customerName={customerName}
-          onCustomerNameChange={(e: Event) => {
-            const target = e.target as HTMLInputElement;
-            setCustomerName(target.value);
-          }}
-          cart={cart.cart}
-          selectedPromotions={selectedPromotions}
-          availableItems={availableItems}
-          availablePromotions={availablePromotions}
-          selectedItemId={selectedItemId}
-          selectedPromotionId={selectedPromotionId}
-          onItemSelect={(e: Event) => {
-            const target = e.target as HTMLSelectElement;
-            setSelectedItemId(target.value);
-          }}
-          onPromotionSelect={(e: Event) => {
-            const target = e.target as HTMLSelectElement;
-            setSelectedPromotionId(target.value);
-          }}
-          onAddItem={handleAddItem}
-          onAddPromotion={handleAddPromotion}
-          onRemoveItem={handleRemoveItem}
-          onRemovePromotion={handleRemovePromotion}
-          onSubmit={handleSubmit}
-        />
-      )}
-
-      {subTab === "read" && (
-        <>
-          <div className="input-box">
-            <Input
-              placeholder="Enter Order ID"
-              value={readId}
-              onChange={createIdInputHandler(setReadId)}
-            />
-            <Button onClick={handleRead}>Get Order</Button>
-          </div>
-
-          {orderDetails && (
-            <div className="details-card">
-              <h3>Order Details</h3>
-              <div className="details-content">
-                <div className="details-row">
-                  <span className="details-label">Order ID:</span>
-                  <span className="details-value">{orderDetails.id}</span>
-                </div>
-                <div className="details-row">
-                  <span className="details-label">Customer:</span>
-                  <span className="details-value">{orderDetails.customerName}</span>
-                </div>
-                <div className="details-row">
-                  <span className="details-label">Total:</span>
-                  <span className="details-value">${formatPrice(orderDetails.totalPrice)}</span>
-                </div>
-                <div className="details-row">
-                  <span className="details-label">Items Count:</span>
-                  <span className="details-value">{orderDetails.itemCount}</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </>
-      )}
 
       {subTab === "delete" && (
         <div className="input-box">

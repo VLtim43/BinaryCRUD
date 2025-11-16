@@ -6,14 +6,21 @@ import { PromotionCreateForm } from "../PromotionCreateForm";
 import { promotionService } from "../../services/promotionService";
 import { itemService, Item } from "../../services/itemService";
 import { useCart } from "../../hooks/useCart";
-import { isValidId, formatPrice, createIdInputHandler } from "../../utils/formatters";
+import {
+  isValidId,
+  formatPrice,
+  createIdInputHandler,
+} from "../../utils/formatters";
 
 interface PromotionTabProps {
   onMessage: (msg: string) => void;
   onRefreshLogs: () => void;
 }
 
-export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) => {
+export const PromotionTab = ({
+  onMessage,
+  onRefreshLogs,
+}: PromotionTabProps) => {
   const [subTab, setSubTab] = useState<"create" | "read" | "delete">("create");
   const [promotionName, setPromotionName] = useState("");
   const [readId, setReadId] = useState("");
@@ -32,7 +39,11 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
       const items = await itemService.getAll();
       setAvailableItems(items);
     } catch (err) {
-      onMessage(`Error loading items: ${err instanceof Error ? err.message : String(err)}`);
+      onMessage(
+        `Error loading items: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
     }
   };
 
@@ -42,7 +53,9 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
       return;
     }
 
-    const item = availableItems.find((i) => i.id === parseInt(selectedItemId, 10));
+    const item = availableItems.find(
+      (i) => i.id === parseInt(selectedItemId, 10)
+    );
     if (!item) {
       onMessage("Error: Item not found");
       return;
@@ -80,7 +93,9 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
       });
 
       const promotionId = await promotionService.create(promotionName, itemIDs);
-      onMessage(`Promotion #${promotionId} "${promotionName}" created successfully!`);
+      onMessage(
+        `Promotion #${promotionId} "${promotionName}" created successfully!`
+      );
       cart.clear();
       setPromotionName("");
       setSelectedItemId("");
@@ -101,7 +116,9 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
       const promotion = await promotionService.getById(parseInt(readId, 10));
       setPromotionDetails(promotion);
       onMessage(
-        `Promotion #${promotion.id}: "${promotion.name}" - ${promotion.itemCount} items - Total: $${formatPrice(promotion.totalPrice)}`
+        `Promotion #${promotion.id}: "${promotion.name}" - ${
+          promotion.itemCount
+        } items - Total: $${formatPrice(promotion.totalPrice)}`
       );
       onRefreshLogs();
     } catch (err) {
@@ -129,79 +146,25 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
   return (
     <>
       <div className="sub_tabs">
-        <Button className={`tab ${subTab === "create" ? "active" : ""}`} onClick={() => setSubTab("create")}>
+        <Button
+          className={`tab ${subTab === "create" ? "active" : ""}`}
+          onClick={() => setSubTab("create")}
+        >
           Create
         </Button>
-        <Button className={`tab ${subTab === "read" ? "active" : ""}`} onClick={() => setSubTab("read")}>
+        <Button
+          className={`tab ${subTab === "read" ? "active" : ""}`}
+          onClick={() => setSubTab("read")}
+        >
           Read
         </Button>
-        <Button className={`tab ${subTab === "delete" ? "active" : ""}`} onClick={() => setSubTab("delete")}>
+        <Button
+          className={`tab ${subTab === "delete" ? "active" : ""}`}
+          onClick={() => setSubTab("delete")}
+        >
           Delete
         </Button>
       </div>
-
-      {subTab === "create" && (
-        <PromotionCreateForm
-          promotionName={promotionName}
-          onPromotionNameChange={(e: Event) => {
-            const target = e.target as HTMLInputElement;
-            setPromotionName(target.value);
-          }}
-          cart={cart.cart}
-          availableItems={availableItems}
-          selectedItemId={selectedItemId}
-          onItemSelect={(e: Event) => {
-            const target = e.target as HTMLSelectElement;
-            setSelectedItemId(target.value);
-          }}
-          onAddItem={handleAddItem}
-          onRemoveItem={handleRemoveItem}
-          onSubmit={handleSubmit}
-        />
-      )}
-
-      {subTab === "read" && (
-        <>
-          <div className="input-box">
-            <Input
-              placeholder="Enter Promotion ID"
-              value={readId}
-              onChange={createIdInputHandler(setReadId)}
-            />
-            <Button onClick={handleRead}>Get Promotion</Button>
-          </div>
-
-          {promotionDetails && (
-            <div className="details-card">
-              <h3>Promotion Details</h3>
-              <div className="details-content">
-                <div className="details-row">
-                  <span className="details-label">Promotion ID:</span>
-                  <span className="details-value">{promotionDetails.id}</span>
-                </div>
-                <div className="details-row">
-                  <span className="details-label">Name:</span>
-                  <span className="details-value">{promotionDetails.name}</span>
-                </div>
-                <div className="details-row">
-                  <span className="details-label">Total:</span>
-                  <span className="details-value">${formatPrice(promotionDetails.totalPrice)}</span>
-                </div>
-                <div className="details-row">
-                  <span className="details-label">Items Count:</span>
-                  <span className="details-value">{promotionDetails.itemCount}</span>
-                </div>
-                {promotionDetails.itemIDs && promotionDetails.itemIDs.length > 0 && (
-                  <div className="details-row">
-                    <span className="details-label">Item IDs:</span>
-                    <span className="details-value">{promotionDetails.itemIDs.join(", ")}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </>
-      )}
 
       {subTab === "delete" && (
         <div className="input-box">
