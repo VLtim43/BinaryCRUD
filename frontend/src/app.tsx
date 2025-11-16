@@ -18,6 +18,7 @@ export const App = () => {
   const [message, setMessage] = useState("Enter item text below 👇");
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [logsPanelOpen, setLogsPanelOpen] = useState(false);
+  const [debugSubTab, setDebugSubTab] = useState<"tools" | "print">("tools");
 
   useEffect(() => {
     if (logsPanelOpen) {
@@ -72,6 +73,7 @@ export const App = () => {
   };
 
   const showCreateTab = (activeTab === "order" || activeTab === "promotion");
+  const hideLogo = activeTab === "order" || activeTab === "promotion" || (activeTab === "debug" && debugSubTab === "print");
 
   return (
     <div className={`app-container ${logsPanelOpen ? "logs-open" : ""}`}>
@@ -95,7 +97,7 @@ export const App = () => {
       </div>
 
       <div id="App">
-        {activeTab !== "order" && activeTab !== "promotion" && <img src={logo} id="logo" alt="logo" />}
+        {!hideLogo && <img src={logo} id="logo" alt="logo" />}
 
         {!showCreateTab && (
           <div id="result" className="result">
@@ -106,7 +108,7 @@ export const App = () => {
         {activeTab === "item" && <ItemTab onMessage={setMessage} onRefreshLogs={refreshLogs} />}
         {activeTab === "order" && <OrderTab onMessage={setMessage} onRefreshLogs={refreshLogs} />}
         {activeTab === "promotion" && <PromotionTab onMessage={setMessage} onRefreshLogs={refreshLogs} />}
-        {activeTab === "debug" && <DebugTab onMessage={setMessage} onRefreshLogs={refreshLogs} />}
+        {activeTab === "debug" && <DebugTab onMessage={setMessage} onRefreshLogs={refreshLogs} subTab={debugSubTab} onSubTabChange={setDebugSubTab} />}
       </div>
 
       <LogsPanel

@@ -1,4 +1,4 @@
-import { CreateOrder, GetOrder, DeleteOrder, GetOrderWithPromotions } from "../../wailsjs/go/main/App";
+import { CreateOrder, GetOrder, DeleteOrder, GetOrderWithPromotions, GetAllOrders } from "../../wailsjs/go/main/App";
 
 export interface Order {
   id: number;
@@ -32,5 +32,10 @@ export const orderService = {
 
   delete: async (id: number): Promise<void> => {
     return DeleteOrder(id);
+  },
+
+  getAll: async (): Promise<Order[]> => {
+    const result = await GetAllOrders();
+    return result as Order[];
   },
 };

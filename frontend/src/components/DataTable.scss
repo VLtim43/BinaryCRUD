@@ -1,0 +1,60 @@
+.data-table-wrapper {
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #fff;
+}
+
+.data-table-header {
+  padding: 8px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+
+  &-left {
+    text-align: left;
+  }
+
+  &-center {
+    text-align: center;
+  }
+
+  &-right {
+    text-align: right;
+  }
+}
+
+.data-table-row {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+
+  &.even {
+    background-color: rgba(0, 0, 0, 0.2);
+  }
+
+  &.odd {
+    background-color: transparent;
+  }
+}
+
+.data-table-cell {
+  padding: 8px;
+
+  &-left {
+    text-align: left;
+  }
+
+  &-center {
+    text-align: center;
+  }
+
+  &-right {
+    text-align: right;
+  }
+}
+
+.data-table-monospace {
+  font-family: monospace;
+  color: #888;
+}
