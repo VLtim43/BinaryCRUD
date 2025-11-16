@@ -16,20 +16,6 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
   const [recordId, setRecordId] = useState("");
   const [deleteId, setDeleteId] = useState("");
   const [foundOrder, setFoundOrder] = useState<Order | null>(null);
-  const [allOrders, setAllOrders] = useState<Order[]>([]);
-
-  useEffect(() => {
-    loadAllOrders();
-  }, []);
-
-  const loadAllOrders = async () => {
-    try {
-      const orders = await orderService.getAll();
-      setAllOrders(orders);
-    } catch (err) {
-      console.error("Error loading orders:", err);
-    }
-  };
 
   const handleRead = async () => {
     if (!isValidId(recordId)) {
@@ -59,7 +45,6 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       await orderService.delete(parseInt(deleteId, 10));
       onMessage(`Successfully deleted order with ID ${deleteId}`);
       setDeleteId("");
-      await loadAllOrders();
       onRefreshLogs();
     } catch (err) {
       onMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
@@ -68,29 +53,6 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
 
   return (
     <>
-      {allOrders.length > 0 && (
-        <div className="details-card max-height-300" style={{ marginBottom: "20px" }}>
-          <h3>All Orders ({allOrders.length})</h3>
-          <DataTable
-            columns={[
-              { key: "id", header: "ID", align: "left", minWidth: "60px" },
-              { key: "customer", header: "Customer", align: "left", minWidth: "150px" },
-              {
-                key: "totalPrice",
-                header: "Total Price",
-                align: "right",
-                minWidth: "100px",
-                render: (value) => `$${formatPrice(value)}`,
-              },
-              { key: "itemCount", header: "Items", align: "center", minWidth: "80px" },
-            ]}
-            data={allOrders}
-            maxHeight="200px"
-            minWidth="500px"
-          />
-        </div>
-      )}
-
       <div className="sub_tabs">
         <Button className={`tab ${subTab === "read" ? "active" : ""}`} onClick={() => setSubTab("read")}>
           Read

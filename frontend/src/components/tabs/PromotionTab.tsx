@@ -16,20 +16,6 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
   const [recordId, setRecordId] = useState("");
   const [deleteId, setDeleteId] = useState("");
   const [foundPromotion, setFoundPromotion] = useState<Promotion | null>(null);
-  const [allPromotions, setAllPromotions] = useState<Promotion[]>([]);
-
-  useEffect(() => {
-    loadAllPromotions();
-  }, []);
-
-  const loadAllPromotions = async () => {
-    try {
-      const promotions = await promotionService.getAll();
-      setAllPromotions(promotions);
-    } catch (err) {
-      console.error("Error loading promotions:", err);
-    }
-  };
 
   const handleRead = async () => {
     if (!isValidId(recordId)) {
@@ -59,7 +45,6 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
       await promotionService.delete(parseInt(deleteId, 10));
       onMessage(`Successfully deleted promotion with ID ${deleteId}`);
       setDeleteId("");
-      await loadAllPromotions();
       onRefreshLogs();
     } catch (err) {
       onMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
@@ -68,29 +53,6 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
 
   return (
     <>
-      {allPromotions.length > 0 && (
-        <div className="details-card max-height-300" style={{ marginBottom: "20px" }}>
-          <h3>All Promotions ({allPromotions.length})</h3>
-          <DataTable
-            columns={[
-              { key: "id", header: "ID", align: "left", minWidth: "60px" },
-              { key: "name", header: "Name", align: "left", minWidth: "150px" },
-              {
-                key: "totalPrice",
-                header: "Total Price",
-                align: "right",
-                minWidth: "100px",
-                render: (value) => `$${formatPrice(value)}`,
-              },
-              { key: "itemCount", header: "Items", align: "center", minWidth: "80px" },
-            ]}
-            data={allPromotions}
-            maxHeight="200px"
-            minWidth="500px"
-          />
-        </div>
-      )}
-
       <div className="sub_tabs">
         <Button className={`tab ${subTab === "read" ? "active" : ""}`} onClick={() => setSubTab("read")}>
           Read
