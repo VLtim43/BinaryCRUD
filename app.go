@@ -53,6 +53,25 @@ func (a *App) calculateTotalPrice(itemIDs []uint64) (uint64, error) {
 	return totalPrice, nil
 }
 
+// calculateTotalPriceWithValidation calculates total price and returns only valid items
+// Returns (validItems, totalPrice) - items that exist and their total price
+func (a *App) calculateTotalPriceWithValidation(itemIDs []uint64, entityName string) ([]uint64, uint64) {
+	var totalPrice uint64
+	var validItems []uint64
+
+	for _, itemID := range itemIDs {
+		_, _, priceInCents, err := a.itemDAO.Read(itemID)
+		if err != nil {
+			a.logger.Warn(fmt.Sprintf("Item ID %d in %s not found, skipping", itemID, entityName))
+			continue
+		}
+		totalPrice += priceInCents
+		validItems = append(validItems, itemID)
+	}
+
+	return validItems, totalPrice
+}
+
 // AddItem writes an item to the binary file with a price in cents and returns the assigned ID
 func (a *App) AddItem(text string, priceInCents uint64) (uint64, error) {
 	// Convert item name to hexadecimal for debugging (with spaces between bytes)
@@ -275,19 +294,15 @@ func (a *App) PopulateInventory() error {
 
 	for i, promo := range promotions {
 		// Calculate total price for promotion
-		totalPrice := uint64(0)
-		for _, itemID := range promo.ItemIDs {
-			// Get item to calculate price
-			_, _, priceInCents, err := a.itemDAO.Read(itemID)
-			if err != nil {
-				a.logger.Warn(fmt.Sprintf("Item ID %d in promotion '%s' not found, skipping price calculation", itemID, promo.Name))
-				continue
-			}
-			totalPrice += priceInCents
+		totalPrice, err := a.calculateTotalPrice(promo.ItemIDs)
+		if err != nil {
+			a.logger.Warn(fmt.Sprintf("Failed to calculate price for promotion '%s': %v", promo.Name, err))
+			// Use 0 if calculation fails
+			totalPrice = 0
 		}
 
 		// Create promotion using CollectionDAO
-		_, err := a.promotionDAO.Write(promo.Name, totalPrice, promo.ItemIDs)
+		_, err = a.promotionDAO.Write(promo.Name, totalPrice, promo.ItemIDs)
 		if err != nil {
 			a.logger.Error(fmt.Sprintf("Failed to add promotion %d (%s): %v", i+1, promo.Name, err))
 			promoFailCount++
@@ -321,19 +336,7 @@ func (a *App) PopulateInventory() error {
 	orderFailCount := 0
 
 	for i, order := range orders {
-		totalPrice := uint64(0)
-		validItems := []uint64{}
-
-		// Calculate total price
-		for _, itemID := range order.ItemIDs {
-			_, _, priceInCents, err := a.itemDAO.Read(itemID)
-			if err != nil {
-				a.logger.Warn(fmt.Sprintf("Item ID %d in order '%s' not found, skipping price calculation", itemID, order.Owner))
-				continue
-			}
-			totalPrice += priceInCents
-			validItems = append(validItems, itemID)
-		}
+		validItems, totalPrice := a.calculateTotalPriceWithValidation(order.ItemIDs, fmt.Sprintf("order '%s'", order.Owner))
 
 		if len(validItems) == 0 {
 			a.logger.Warn(fmt.Sprintf("Order %d (%s) has no valid items, skipping", i+1, order.Owner))
@@ -463,17 +466,14 @@ func (a *App) PopulatePromotions() error {
 	failCount := 0
 
 	for i, promo := range promotions {
-		totalPrice := uint64(0)
-		for _, itemID := range promo.ItemIDs {
-			_, _, priceInCents, err := a.itemDAO.Read(itemID)
-			if err != nil {
-				a.logger.Warn(fmt.Sprintf("Item ID %d in promotion '%s' not found, skipping price calculation", itemID, promo.Name))
-				continue
-			}
-			totalPrice += priceInCents
+		totalPrice, err := a.calculateTotalPrice(promo.ItemIDs)
+		if err != nil {
+			a.logger.Warn(fmt.Sprintf("Failed to calculate price for promotion '%s': %v", promo.Name, err))
+			// Use 0 if calculation fails
+			totalPrice = 0
 		}
 
-		_, err := a.promotionDAO.Write(promo.Name, totalPrice, promo.ItemIDs)
+		_, err = a.promotionDAO.Write(promo.Name, totalPrice, promo.ItemIDs)
 		if err != nil {
 			a.logger.Error(fmt.Sprintf("Failed to add promotion %d (%s): %v", i+1, promo.Name, err))
 			failCount++
@@ -514,19 +514,7 @@ func (a *App) PopulateOrders() error {
 	failCount := 0
 
 	for i, order := range orders {
-		totalPrice := uint64(0)
-		validItems := []uint64{}
-
-		// Calculate total price
-		for _, itemID := range order.ItemIDs {
-			_, _, priceInCents, err := a.itemDAO.Read(itemID)
-			if err != nil {
-				a.logger.Warn(fmt.Sprintf("Item ID %d in order '%s' not found, skipping price calculation", itemID, order.Owner))
-				continue
-			}
-			totalPrice += priceInCents
-			validItems = append(validItems, itemID)
-		}
+		validItems, totalPrice := a.calculateTotalPriceWithValidation(order.ItemIDs, fmt.Sprintf("order '%s'", order.Owner))
 
 		if len(validItems) == 0 {
 			a.logger.Warn(fmt.Sprintf("Order %d (%s) has no valid items, skipping", i+1, order.Owner))

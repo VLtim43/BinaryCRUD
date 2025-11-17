@@ -16,4 +16,7 @@ const (
 	// HeaderSize is the total size of the file header in bytes
 	// Format: [entitiesCount(4)][tombstoneCount(4)][nextId(4)] = 12 bytes
 	HeaderSize = HeaderFieldSize * 3
+
+	// DefaultBTreeOrder is the default order for B+ tree indices
+	DefaultBTreeOrder = 4
 )

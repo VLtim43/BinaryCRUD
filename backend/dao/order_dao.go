@@ -2,6 +2,7 @@ package dao
 
 import (
 	"BinaryCRUD/backend/index"
+	"BinaryCRUD/backend/utils"
 )
 
 // OrderDAO wraps CollectionDAO for orders
@@ -11,14 +12,7 @@ type OrderDAO struct {
 
 // NewOrderDAO creates a DAO for orders.bin with B+ Tree index
 func NewOrderDAO(filePath string) *OrderDAO {
-	indexPath := filePath[:len(filePath)-4] + ".idx" // Replace .bin with .idx
-
-	// Try to load existing index
-	tree, err := index.Load(indexPath)
-	if err != nil {
-		// If load fails, create new empty tree
-		tree = index.NewBTree(4)
-	}
+	indexPath, tree := utils.InitializeDAOIndex(filePath)
 
 	return &OrderDAO{
 		CollectionDAO: &CollectionDAO{

@@ -2,6 +2,7 @@ package dao
 
 import (
 	"BinaryCRUD/backend/index"
+	"BinaryCRUD/backend/utils"
 )
 
 // PromotionDAO wraps CollectionDAO for promotions
@@ -11,14 +12,7 @@ type PromotionDAO struct {
 
 // NewPromotionDAO creates a DAO for promotions.bin with B+ Tree index
 func NewPromotionDAO(filePath string) *PromotionDAO {
-	indexPath := filePath[:len(filePath)-4] + ".idx" // Replace .bin with .idx
-
-	// Try to load existing index
-	tree, err := index.Load(indexPath)
-	if err != nil {
-		// If load fails, create new empty tree
-		tree = index.NewBTree(4)
-	}
+	indexPath, tree := utils.InitializeDAOIndex(filePath)
 
 	return &PromotionDAO{
 		CollectionDAO: &CollectionDAO{

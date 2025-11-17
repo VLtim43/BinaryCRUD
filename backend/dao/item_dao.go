@@ -18,14 +18,7 @@ type ItemDAO struct {
 
 // NewItemDAO creates a new ItemDAO instance
 func NewItemDAO(filePath string) *ItemDAO {
-	indexPath := filePath[:len(filePath)-4] + ".idx" // Replace .bin with .idx
-
-	// Try to load existing index
-	tree, err := index.Load(indexPath)
-	if err != nil {
-		// If load fails, create new empty tree
-		tree = index.NewBTree(4)
-	}
+	indexPath, tree := utils.InitializeDAOIndex(filePath)
 
 	return &ItemDAO{
 		filePath:  filePath,
