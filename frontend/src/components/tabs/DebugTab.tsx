@@ -249,6 +249,20 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
                     )
                   },
                   {
+                    key: "totalPrice",
+                    header: "Total Price",
+                    align: "right",
+                    minWidth: "100px",
+                    render: (value, row) => (
+                      <span
+                        onClick={() => handleShowOrderItems(row.id)}
+                        style={{ cursor: "pointer" }}
+                      >
+                        ${formatPrice(value)}
+                      </span>
+                    )
+                  },
+                  {
                     key: "itemCount",
                     header: "Items",
                     align: "center",
@@ -304,6 +318,20 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
                     )
                   },
                   {
+                    key: "totalPrice",
+                    header: "Total Price",
+                    align: "right",
+                    minWidth: "100px",
+                    render: (value, row) => (
+                      <span
+                        onClick={() => handleShowPromotionItems(row.id, row.name)}
+                        style={{ cursor: "pointer" }}
+                      >
+                        ${formatPrice(value)}
+                      </span>
+                    )
+                  },
+                  {
                     key: "itemCount",
                     header: "Items",
                     align: "center",
@@ -328,8 +356,7 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
       )}
 
       <Modal isOpen={isItemModalOpen} onClose={() => setIsItemModalOpen(false)} title={selectedOrderForView ? `Order #${selectedOrderForView.id} Items` : "Order Items"}>
-        <div className="cart-items" style={{ maxHeight: "400px", backgroundColor: "transparent", border: "none" }}>
-          <ItemList items={items} />
+        <ItemList items={items}>
           {selectedOrderForView && selectedOrderForView.promotions && selectedOrderForView.promotions.length > 0 && (
             <>
               {selectedOrderForView.promotions.map((promo) => (
@@ -350,7 +377,7 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
               ))}
             </>
           )}
-        </div>
+        </ItemList>
       </Modal>
 
       <Modal

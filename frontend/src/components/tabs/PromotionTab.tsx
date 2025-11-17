@@ -10,17 +10,11 @@ import { promotionService, Promotion } from "../../services/promotionService";
 import { itemService, Item } from "../../services/itemService";
 import { orderPromotionService } from "../../services/orderPromotionService";
 import { formatPrice, isValidId, createIdInputHandler, createInputHandler, createSelectHandler } from "../../utils/formatters";
+import { CartItem } from "../../types/cart";
 
 interface PromotionTabProps {
   onMessage: (msg: string) => void;
   onRefreshLogs: () => void;
-}
-
-interface CartItem {
-  id: number;
-  name: string;
-  priceInCents: number;
-  quantity: number;
 }
 
 export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) => {

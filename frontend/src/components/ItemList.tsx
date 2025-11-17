@@ -9,9 +9,10 @@ export interface Item {
 
 interface ItemListProps {
   items: Item[];
+  children?: preact.ComponentChildren;
 }
 
-export const ItemList = ({ items }: ItemListProps) => {
+export const ItemList = ({ items, children }: ItemListProps) => {
   return (
     <div className="cart-items" style={{ maxHeight: "400px", backgroundColor: "transparent", border: "none" }}>
       {items.map((item) => (
@@ -22,6 +23,7 @@ export const ItemList = ({ items }: ItemListProps) => {
           </div>
         </div>
       ))}
+      {children}
     </div>
   );
 };

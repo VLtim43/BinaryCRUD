@@ -11,17 +11,11 @@ import { itemService, Item } from "../../services/itemService";
 import { promotionService, Promotion } from "../../services/promotionService";
 import { orderPromotionService, OrderWithPromotions } from "../../services/orderPromotionService";
 import { formatPrice, isValidId, createIdInputHandler, createInputHandler, createSelectHandler, PROMO_CARD_STYLE } from "../../utils/formatters";
+import { CartItem } from "../../types/cart";
 
 interface OrderTabProps {
   onMessage: (msg: string) => void;
   onRefreshLogs: () => void;
-}
-
-interface CartItem {
-  id: number;
-  name: string;
-  priceInCents: number;
-  quantity: number;
 }
 
 export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
