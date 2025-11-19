@@ -74,23 +74,12 @@ func (a *App) calculateTotalPriceWithValidation(itemIDs []uint64, entityName str
 
 // AddItem writes an item to the binary file with a price in cents and returns the assigned ID
 func (a *App) AddItem(text string, priceInCents uint64) (uint64, error) {
-	// Convert item name to hexadecimal for debugging (with spaces between bytes)
-	var hexName strings.Builder
-	for i, b := range []byte(text) {
-		if i > 0 {
-			hexName.WriteString(" ")
-		}
-		hexName.WriteString(fmt.Sprintf("%02x", b))
-	}
-
-	// Write item and get assigned ID
 	assignedID, err := a.itemDAO.Write(text, priceInCents)
 	if err != nil {
 		return 0, err
 	}
 
-	// Log debugging information with assigned ID
-	a.logger.Debug(fmt.Sprintf("Created item #%d: %s [hex: %s]", assignedID, text, hexName.String()))
+	a.logger.Info(fmt.Sprintf("Created item #%d: %s ($%.2f)", assignedID, text, float64(priceInCents)/100))
 
 	return assignedID, nil
 }
@@ -162,9 +151,12 @@ func (a *App) DeleteAllFiles() error {
 
 	a.logger.Info(fmt.Sprintf("Deleted %d file(s), skipped .json files", deletedCount))
 
-	// Reload ItemDAO to clear the in-memory index
+	// Reload all DAOs to clear in-memory indexes
 	a.itemDAO = dao.NewItemDAO("data/items.bin")
-	a.logger.Info("Cleared in-memory index")
+	a.orderDAO = dao.NewOrderDAO("data/orders.bin")
+	a.promotionDAO = dao.NewPromotionDAO("data/promotions.bin")
+	a.orderPromotionDAO = dao.NewOrderPromotionDAO("data/order_promotions.bin")
+	a.logger.Info("Cleared all in-memory indexes")
 
 	return nil
 }
@@ -415,143 +407,6 @@ func (a *App) PopulateInventory() error {
 
 	if totalFail > 0 {
 		return fmt.Errorf("some entries failed to add: %d succeeded, %d failed", totalSuccess, totalFail)
-	}
-
-	return nil
-}
-
-// PopulateItems reads items from JSON and adds them to the database
-func (a *App) PopulateItems() error {
-	jsonPath := "data/seed/items.json"
-	data, err := os.ReadFile(jsonPath)
-	if err != nil {
-		return fmt.Errorf("failed to read items.json: %w", err)
-	}
-
-	var items []ItemEntry
-	err = json.Unmarshal(data, &items)
-	if err != nil {
-		return fmt.Errorf("failed to parse items.json: %w", err)
-	}
-
-	a.logger.Info(fmt.Sprintf("Starting items population with %d items", len(items)))
-
-	successCount := 0
-	failCount := 0
-
-	for i, item := range items {
-		_, err := a.itemDAO.Write(item.Name, item.PriceInCents)
-		if err != nil {
-			a.logger.Error(fmt.Sprintf("Failed to add item %d (%s): %v", i+1, item.Name, err))
-			failCount++
-			continue
-		}
-
-		successCount++
-		a.logger.Info(fmt.Sprintf("Added item %d/%d: %s ($%.2f)", i+1, len(items), item.Name, float64(item.PriceInCents)/100))
-	}
-
-	a.logger.Info(fmt.Sprintf("Items population complete: %d succeeded, %d failed", successCount, failCount))
-
-	if failCount > 0 {
-		return fmt.Errorf("%d items failed to add", failCount)
-	}
-
-	return nil
-}
-
-// PopulatePromotions reads promotions from JSON and adds them to the database
-func (a *App) PopulatePromotions() error {
-	jsonPath := "data/seed/promotions.json"
-	data, err := os.ReadFile(jsonPath)
-	if err != nil {
-		return fmt.Errorf("failed to read promotions.json: %w", err)
-	}
-
-	var promotions []PromotionEntry
-	err = json.Unmarshal(data, &promotions)
-	if err != nil {
-		return fmt.Errorf("failed to parse promotions.json: %w", err)
-	}
-
-	a.logger.Info(fmt.Sprintf("Starting promotions population with %d promotions", len(promotions)))
-
-	successCount := 0
-	failCount := 0
-
-	for i, promo := range promotions {
-		totalPrice, err := a.calculateTotalPrice(promo.ItemIDs)
-		if err != nil {
-			a.logger.Warn(fmt.Sprintf("Failed to calculate price for promotion '%s': %v", promo.Name, err))
-			// Use 0 if calculation fails
-			totalPrice = 0
-		}
-
-		_, err = a.promotionDAO.Write(promo.Name, totalPrice, promo.ItemIDs)
-		if err != nil {
-			a.logger.Error(fmt.Sprintf("Failed to add promotion %d (%s): %v", i+1, promo.Name, err))
-			failCount++
-			continue
-		}
-
-		successCount++
-		a.logger.Info(fmt.Sprintf("Added promotion %d/%d: %s with %d items ($%.2f)",
-			i+1, len(promotions), promo.Name, len(promo.ItemIDs), float64(totalPrice)/100))
-	}
-
-	a.logger.Info(fmt.Sprintf("Promotions population complete: %d succeeded, %d failed", successCount, failCount))
-
-	if failCount > 0 {
-		return fmt.Errorf("%d promotions failed to add", failCount)
-	}
-
-	return nil
-}
-
-// PopulateOrders reads orders from JSON and adds them to the database
-func (a *App) PopulateOrders() error {
-	jsonPath := "data/seed/orders.json"
-	data, err := os.ReadFile(jsonPath)
-	if err != nil {
-		return fmt.Errorf("failed to read orders.json: %w", err)
-	}
-
-	var orders []OrderEntry
-	err = json.Unmarshal(data, &orders)
-	if err != nil {
-		return fmt.Errorf("failed to parse orders.json: %w", err)
-	}
-
-	a.logger.Info(fmt.Sprintf("Starting orders population with %d orders", len(orders)))
-
-	successCount := 0
-	failCount := 0
-
-	for i, order := range orders {
-		validItems, totalPrice := a.calculateTotalPriceWithValidation(order.ItemIDs, fmt.Sprintf("order '%s'", order.Owner))
-
-		if len(validItems) == 0 {
-			a.logger.Warn(fmt.Sprintf("Order %d (%s) has no valid items, skipping", i+1, order.Owner))
-			failCount++
-			continue
-		}
-
-		_, err := a.orderDAO.Write(order.Owner, totalPrice, validItems)
-		if err != nil {
-			a.logger.Error(fmt.Sprintf("Failed to add order %d (%s): %v", i+1, order.Owner, err))
-			failCount++
-			continue
-		}
-
-		successCount++
-		a.logger.Info(fmt.Sprintf("Added order %d/%d: %s with %d items ($%.2f)",
-			i+1, len(orders), order.Owner, len(validItems), float64(totalPrice)/100))
-	}
-
-	a.logger.Info(fmt.Sprintf("Orders population complete: %d succeeded, %d failed", successCount, failCount))
-
-	if failCount > 0 {
-		return fmt.Errorf("%d orders failed to add", failCount)
 	}
 
 	return nil

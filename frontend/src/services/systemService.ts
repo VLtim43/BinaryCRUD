@@ -1,9 +1,6 @@
 import {
   DeleteAllFiles,
   PopulateInventory,
-  PopulateItems,
-  PopulatePromotions,
-  PopulateOrders,
   GetIndexContents,
   GetOrderIndexContents,
   GetPromotionIndexContents
@@ -16,18 +13,6 @@ export const systemService = {
 
   populateInventory: async (): Promise<void> => {
     return PopulateInventory();
-  },
-
-  populateItems: async (): Promise<void> => {
-    return PopulateItems();
-  },
-
-  populatePromotions: async (): Promise<void> => {
-    return PopulatePromotions();
-  },
-
-  populateOrders: async (): Promise<void> => {
-    return PopulateOrders();
   },
 
   getIndexContents: async (): Promise<any> => {

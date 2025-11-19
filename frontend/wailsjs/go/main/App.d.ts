@@ -48,10 +48,4 @@ export function GetPromotionOrders(arg1:number):Promise<Array<Record<string, any
 
 export function PopulateInventory():Promise<void>;
 
-export function PopulateItems():Promise<void>;
-
-export function PopulateOrders():Promise<void>;
-
-export function PopulatePromotions():Promise<void>;
-
 export function RemovePromotionFromOrder(arg1:number,arg2:number):Promise<void>;
