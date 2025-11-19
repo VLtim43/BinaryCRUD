@@ -42,11 +42,11 @@ A B+ Tree foi escolhida por manter dados ordenados nos nós folha, permitindo ra
 
 **Formato binário:**
 
-```
-[orderID(2)][0x1F][promotionID(2)][0x1F][tombstone(1)][0x1E]
+```text
+[recordLength(2)][orderID(2)][promotionID(2)][tombstone(1)]
 ```
 
-A chave primária é a combinação (orderID, promotionID). Não há ID auto-incremental - a própria combinação identifica unicamente o relacionamento. OrderID sempre vem primeiro, seguido de promotionID, cada um com 2 bytes.
+A chave primária é a combinação (orderID, promotionID). Não há ID auto-incremental - a própria combinação identifica unicamente o relacionamento. OrderID sempre vem primeiro, seguido de promotionID, cada um com 2 bytes. O prefixo de tamanho (2 bytes) indica o comprimento do registro.
 
 ---
 
@@ -85,10 +85,10 @@ Scan sequencial com filtro por orderID ou promotionID. Como o volume é reduzido
 
 ### 6. Como foi organizada a persistência dos dados dessa nova tabela (mesmo padrão de cabeçalho e lápide)?
 
-**Header (15 bytes):**
+**Header (12 bytes):**
 
-```
-[entitiesCount(4)][0x1F][tombstoneCount(4)][0x1F][nextId(4)][0x1E]
+```text
+[entitiesCount(4)][tombstoneCount(4)][nextId(4)]
 ```
 
 - `entitiesCount`: Número de relacionamentos ativos
@@ -97,15 +97,15 @@ Scan sequencial com filtro por orderID ou promotionID. Como o volume é reduzido
 
 **Registro:**
 
-```
-[orderID(2)][0x1F][promotionID(2)][0x1F][tombstone(1)][0x1E]
+```text
+[recordLength(2)][orderID(2)][promotionID(2)][tombstone(1)]
 ```
 
-Mesmo padrão das tabelas principais com separadores 0x1F entre campos e 0x1E no fim do registro.
+Mesmo padrão das tabelas principais com prefixo de tamanho (length-prefixed encoding).
 
 ---
 
-### 7. Descreva como o código da tabela intermediária se integra com o CRUD das tabelas principais.
+### 7. Descreva como o código da tabela intermediária se integra com o CRUD das tabelas principais
 
 **Arquitetura:** Camada independente
 
@@ -119,9 +119,9 @@ O frontend chama `ApplyPromotionToOrder` para criar relacionamentos e `GetOrderW
 
 ---
 
-### 8. Descreva como está organizada a estrutura de diretórios e módulos no repositório após esta fase.
+### 8. Descreva como está organizada a estrutura de diretórios e módulos no repositório após esta fase
 
-```
+```text
 BinaryCRUD/
 ├── backend/
 │   ├── dao/
@@ -203,14 +203,12 @@ BinaryCRUD/
 
 ## Observações Técnicas
 
-### Limitações:
+### Limitações
 
-1. Valores numéricos contendo bytes 0x1E ou 0x1F causam corrupção de dados
-2. Sem garbage collection de registros deletados (tombstones acumulam)
-3. Sem cascading delete nos relacionamentos
+1. Sem garbage collection de registros deletados (tombstones acumulam)
+2. Sem cascading delete nos relacionamentos
 
-### Melhorias Futuras:
+### Melhorias Futuras
 
-- Implementar escaping ou length-prefixed encoding para evitar conflito de separadores
 - Adicionar garbage collection periódica
 - Implementar índice hash em order_promotions para lookups O(1)

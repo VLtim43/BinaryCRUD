@@ -1,5 +1,3 @@
-(Relatório TPII https://github.com/VLtim43/BinaryCRUD/blob/master/relatorioTPII.md e TPIII https://github.com/VLtim43/BinaryCRUD/blob/master/relatorioTPIII.md )
-
 # BinaryCRUD
 
 A restaurant manager application built with Wails (Go + Preact) featuring custom binary file storage with B+ tree indexing.
@@ -64,10 +62,10 @@ The application stores data in the `/data` directory:
 
 **Relationship tables:**
 
-- `order_promotions.bin` - N:N relationship (no index, uses sequential scan)
+- `order_promotions.bin` - N:N relationship
 
 **Binary format:**
 
-- Fixed header: `[entitiesCount(4)][0x1F][tombstoneCount(4)][0x1F][nextId(4)][0x1E]`
-- Record separators: `0x1F` (unit), `0x1E` (record)
+- Fixed header: `[entitiesCount(4)][tombstoneCount(4)][nextId(4)]` (12 bytes)
+- Length-prefixed records: `[recordLength(2)][recordData...]`
 - Tombstone-based logical deletion
