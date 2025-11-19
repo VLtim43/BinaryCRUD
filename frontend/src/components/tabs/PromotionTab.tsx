@@ -176,7 +176,7 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
               <Select
                 value={selectedItemId}
                 onChange={createSelectHandler(setSelectedItemId)}
-                options={allItems.map((item) => ({
+                options={allItems.filter(item => !item.isDeleted).map((item) => ({
                   value: item.id,
                   label: `${item.name} - $${formatPrice(item.priceInCents)}`,
                 }))}
