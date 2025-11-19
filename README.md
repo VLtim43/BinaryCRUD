@@ -23,7 +23,8 @@ A restaurant manager application built with Wails (Go + Preact) featuring custom
 
 1. Install Go (On Windows you may need to restart your computer) and Node/NPM
    https://go.dev/doc/install
-   https://nodejs.org/en/download
+
+https://nodejs.org/en/download
 
 2. Install Wails CLI
    https://wails.io/docs/gettingstarted/installation :
