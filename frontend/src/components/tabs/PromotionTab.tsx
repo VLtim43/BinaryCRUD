@@ -3,13 +3,19 @@ import { useState, useEffect } from "preact/hooks";
 import { Button } from "../Button";
 import { Input } from "../Input";
 import { Select } from "../Select";
-import { DataTable } from "../DataTable";
 import { Modal } from "../Modal";
 import { ItemList } from "../ItemList";
 import { promotionService, Promotion } from "../../services/promotionService";
 import { itemService, Item } from "../../services/itemService";
 import { orderPromotionService } from "../../services/orderPromotionService";
-import { formatPrice, isValidId, createIdInputHandler, createInputHandler, createSelectHandler } from "../../utils/formatters";
+import { Fragment } from "preact";
+import {
+  formatPrice,
+  isValidId,
+  createIdInputHandler,
+  createInputHandler,
+  createSelectHandler,
+} from "../../utils/formatters";
 import { CartItem } from "../../types/cart";
 
 interface PromotionTabProps {
@@ -17,7 +23,10 @@ interface PromotionTabProps {
   onRefreshLogs: () => void;
 }
 
-export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) => {
+export const PromotionTab = ({
+  onMessage,
+  onRefreshLogs,
+}: PromotionTabProps) => {
   const [subTab, setSubTab] = useState<"create" | "read" | "delete">("create");
   const [promotionName, setPromotionName] = useState("");
   const [recordId, setRecordId] = useState("");
@@ -54,7 +63,11 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
     try {
       const promotion = await promotionService.getById(parseInt(recordId, 10));
       setFoundPromotion(promotion);
-      onMessage(`Found Promotion #${promotion.id}: ${promotion.name} - $${formatPrice(promotion.totalPrice)} (${promotion.itemCount} items)`);
+      onMessage(
+        `Found Promotion #${promotion.id}: ${promotion.name} - $${formatPrice(
+          promotion.totalPrice
+        )} (${promotion.itemCount} items)`
+      );
       onRefreshLogs();
     } catch (err) {
       setFoundPromotion(null);
@@ -79,7 +92,11 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
   };
 
   const handleShowItems = async () => {
-    if (!foundPromotion || !foundPromotion.itemIDs || foundPromotion.itemIDs.length === 0) {
+    if (
+      !foundPromotion ||
+      !foundPromotion.itemIDs ||
+      foundPromotion.itemIDs.length === 0
+    ) {
       onMessage("No items to display");
       return;
     }
@@ -92,7 +109,11 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
       setIsModalOpen(true);
       onRefreshLogs();
     } catch (err) {
-      onMessage(`Error fetching items: ${err instanceof Error ? err.message : String(err)}`);
+      onMessage(
+        `Error fetching items: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
     }
   };
 
@@ -110,7 +131,11 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
 
     const existingItem = cart.find((c) => c.id === item.id);
     if (existingItem) {
-      setCart(cart.map((c) => (c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c)));
+      setCart(
+        cart.map((c) =>
+          c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c
+        )
+      );
     } else {
       setCart([...cart, { ...item, quantity: 1 }]);
     }
@@ -123,7 +148,10 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
   };
 
   const calculateTotal = () => {
-    return cart.reduce((sum, item) => sum + item.priceInCents * item.quantity, 0);
+    return cart.reduce(
+      (sum, item) => sum + item.priceInCents * item.quantity,
+      0
+    );
   };
 
   const handleCreatePromotion = async () => {
@@ -145,8 +173,15 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
         }
       });
 
-      const promotionId = await orderPromotionService.createPromotion(promotionName, itemIDs);
-      onMessage(`Promotion #${promotionId} created successfully: ${promotionName} ($${formatPrice(calculateTotal())})`);
+      const promotionId = await orderPromotionService.createPromotion(
+        promotionName,
+        itemIDs
+      );
+      onMessage(
+        `Promotion #${promotionId} created successfully: ${promotionName} ($${formatPrice(
+          calculateTotal()
+        )})`
+      );
       setPromotionName("");
       setCart([]);
       onRefreshLogs();
@@ -158,13 +193,22 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
   return (
     <>
       <div className="sub_tabs">
-        <Button className={`tab ${subTab === "create" ? "active" : ""}`} onClick={() => setSubTab("create")}>
+        <Button
+          className={`tab ${subTab === "create" ? "active" : ""}`}
+          onClick={() => setSubTab("create")}
+        >
           Create
         </Button>
-        <Button className={`tab ${subTab === "read" ? "active" : ""}`} onClick={() => setSubTab("read")}>
+        <Button
+          className={`tab ${subTab === "read" ? "active" : ""}`}
+          onClick={() => setSubTab("read")}
+        >
           Read
         </Button>
-        <Button className={`tab ${subTab === "delete" ? "active" : ""}`} onClick={() => setSubTab("delete")}>
+        <Button
+          className={`tab ${subTab === "delete" ? "active" : ""}`}
+          onClick={() => setSubTab("delete")}
+        >
           Delete
         </Button>
       </div>
@@ -176,10 +220,12 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
               <Select
                 value={selectedItemId}
                 onChange={createSelectHandler(setSelectedItemId)}
-                options={allItems.filter(item => !item.isDeleted).map((item) => ({
-                  value: item.id,
-                  label: `${item.name} - $${formatPrice(item.priceInCents)}`,
-                }))}
+                options={allItems
+                  .filter((item) => !item.isDeleted)
+                  .map((item) => ({
+                    value: item.id,
+                    label: `${item.name} - $${formatPrice(item.priceInCents)}`,
+                  }))}
                 placeholder="Select an item..."
                 className="cart-select"
               />
@@ -187,7 +233,8 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
             </div>
 
             <div className="cart-total">
-              Total: ${formatPrice(calculateTotal())} ({cart.reduce((sum, item) => sum + item.quantity, 0)} items)
+              Total: ${formatPrice(calculateTotal())} (
+              {cart.reduce((sum, item) => sum + item.quantity, 0)} items)
             </div>
 
             <div className="cart-items">
@@ -198,11 +245,17 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
                   <div key={item.id} className="cart-item">
                     <div className="cart-item-info">
                       <div className="cart-item-name">{item.name}</div>
-                      <div className="cart-item-id">ID: {item.id} | ${formatPrice(item.priceInCents)} each</div>
+                      <div className="cart-item-id">
+                        ID: {item.id} | ${formatPrice(item.priceInCents)} each
+                      </div>
                     </div>
                     <div className="cart-item-controls">
                       <div className="cart-item-quantity">x{item.quantity}</div>
-                      <Button size="small" variant="danger" onClick={() => handleRemoveFromCart(item.id)}>
+                      <Button
+                        size="small"
+                        variant="danger"
+                        onClick={() => handleRemoveFromCart(item.id)}
+                      >
                         ×
                       </Button>
                     </div>
@@ -212,7 +265,10 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
             </div>
 
             <div className="cart-footer">
-              <div className="input-box" style={{ height: "35px", margin: 0, flex: 1 }}>
+              <div
+                className="input-box"
+                style={{ height: "35px", margin: 0, flex: 1 }}
+              >
                 <Input
                   id="promotion-name"
                   placeholder="Promotion Name"
@@ -254,15 +310,23 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
                 </div>
                 <div className="details-row">
                   <span className="details-label">Total Price:</span>
-                  <span className="details-value">${formatPrice(foundPromotion.totalPrice)}</span>
+                  <span className="details-value">
+                    ${formatPrice(foundPromotion.totalPrice)}
+                  </span>
                 </div>
                 <div className="details-row">
                   <span className="details-label">Item Count:</span>
-                  <span className="details-value">{foundPromotion.itemCount}</span>
+                  <span className="details-value">
+                    {foundPromotion.itemCount}
+                  </span>
                 </div>
                 <div className="details-row">
                   <span className="details-label">Item IDs:</span>
-                  <span className="details-value" onClick={handleShowItems} style={{ cursor: "pointer" }}>
+                  <span
+                    className="details-value"
+                    onClick={handleShowItems}
+                    style={{ cursor: "pointer" }}
+                  >
                     {foundPromotion.itemIDs.join(", ")}
                   </span>
                 </div>
@@ -286,7 +350,11 @@ export const PromotionTab = ({ onMessage, onRefreshLogs }: PromotionTabProps) =>
         </div>
       )}
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Promotion Items">
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title="Promotion Items"
+      >
         <ItemList items={items} />
       </Modal>
     </>

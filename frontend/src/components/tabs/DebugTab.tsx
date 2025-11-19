@@ -8,8 +8,12 @@ import { systemService } from "../../services/systemService";
 import { itemService, Item } from "../../services/itemService";
 import { orderService, Order } from "../../services/orderService";
 import { promotionService, Promotion } from "../../services/promotionService";
-import { orderPromotionService, OrderWithPromotions } from "../../services/orderPromotionService";
+import {
+  orderPromotionService,
+  OrderWithPromotions,
+} from "../../services/orderPromotionService";
 import { formatPrice, PROMO_CARD_STYLE } from "../../utils/formatters";
+import { Fragment } from "preact";
 
 interface DebugTabProps {
   onMessage: (msg: string) => void;
@@ -18,7 +22,12 @@ interface DebugTabProps {
   onSubTabChange: (subTab: "tools" | "print") => void;
 }
 
-export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: DebugTabProps) => {
+export const DebugTab = ({
+  onMessage,
+  onRefreshLogs,
+  subTab,
+  onSubTabChange,
+}: DebugTabProps) => {
   const [indexData, setIndexData] = useState<{
     items?: any;
     orders?: any;
@@ -33,8 +42,12 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
   const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
   const [promoItems, setPromoItems] = useState<Item[]>([]);
-  const [selectedOrderForView, setSelectedOrderForView] = useState<OrderWithPromotions | null>(null);
-  const [selectedPromoForView, setSelectedPromoForView] = useState<{ id: number; name: string } | null>(null);
+  const [selectedOrderForView, setSelectedOrderForView] =
+    useState<OrderWithPromotions | null>(null);
+  const [selectedPromoForView, setSelectedPromoForView] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
 
   const handlePopulateClick = async () => {
     try {
@@ -158,7 +171,10 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
     }
   };
 
-  const handleShowPromotionItems = async (promotionId: number, promotionName: string) => {
+  const handleShowPromotionItems = async (
+    promotionId: number,
+    promotionName: string
+  ) => {
     try {
       const promotion = await promotionService.getById(promotionId);
       if (!promotion.itemIDs || promotion.itemIDs.length === 0) {
@@ -181,10 +197,16 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
   return (
     <>
       <div className="sub_tabs">
-        <Button className={`tab ${subTab === "tools" ? "active" : ""}`} onClick={() => onSubTabChange("tools")}>
+        <Button
+          className={`tab ${subTab === "tools" ? "active" : ""}`}
+          onClick={() => onSubTabChange("tools")}
+        >
           Tools
         </Button>
-        <Button className={`tab ${subTab === "print" ? "active" : ""}`} onClick={() => onSubTabChange("print")}>
+        <Button
+          className={`tab ${subTab === "print" ? "active" : ""}`}
+          onClick={() => onSubTabChange("print")}
+        >
           Print
         </Button>
       </div>
@@ -206,11 +228,15 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
             <div className="button-grid-label">Data</div>
             <Button onClick={handlePrintAllItems}>Print All Items</Button>
             <Button onClick={handlePrintAllOrders}>Print All Orders</Button>
-            <Button onClick={handlePrintAllPromotions}>Print All Promotions</Button>
+            <Button onClick={handlePrintAllPromotions}>
+              Print All Promotions
+            </Button>
             <div className="button-grid-label">Indexes</div>
             <Button onClick={handlePrintItemIndex}>Print Item Index</Button>
             <Button onClick={handlePrintOrderIndex}>Print Order Index</Button>
-            <Button onClick={handlePrintPromotionIndex}>Print Promotion Index</Button>
+            <Button onClick={handlePrintPromotionIndex}>
+              Print Promotion Index
+            </Button>
           </div>
 
           {printData.items && (
@@ -219,7 +245,12 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
               <DataTable
                 columns={[
                   { key: "id", header: "ID", align: "left", minWidth: "60px" },
-                  { key: "name", header: "Name", align: "left", minWidth: "200px" },
+                  {
+                    key: "name",
+                    header: "Name",
+                    align: "left",
+                    minWidth: "200px",
+                  },
                   {
                     key: "priceInCents",
                     header: "Price",
@@ -232,7 +263,7 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
                     header: "Deleted",
                     align: "center",
                     minWidth: "60px",
-                    render: (value) => value ? "1" : "0",
+                    render: (value) => (value ? "1" : "0"),
                   },
                 ]}
                 data={printData.items}
@@ -259,7 +290,7 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
                       >
                         {value}
                       </span>
-                    )
+                    ),
                   },
                   {
                     key: "customer",
@@ -273,7 +304,7 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
                       >
                         {value}
                       </span>
-                    )
+                    ),
                   },
                   {
                     key: "totalPrice",
@@ -287,7 +318,7 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
                       >
                         ${formatPrice(value)}
                       </span>
-                    )
+                    ),
                   },
                   {
                     key: "itemCount",
@@ -301,14 +332,14 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
                       >
                         {value}
                       </span>
-                    )
+                    ),
                   },
                   {
                     key: "isDeleted",
                     header: "Deleted",
                     align: "center",
                     minWidth: "60px",
-                    render: (value) => value ? "1" : "0",
+                    render: (value) => (value ? "1" : "0"),
                   },
                 ]}
                 data={printData.orders}
@@ -330,12 +361,14 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
                     minWidth: "60px",
                     render: (value, row) => (
                       <span
-                        onClick={() => handleShowPromotionItems(row.id, row.name)}
+                        onClick={() =>
+                          handleShowPromotionItems(row.id, row.name)
+                        }
                         style={{ cursor: "pointer" }}
                       >
                         {value}
                       </span>
-                    )
+                    ),
                   },
                   {
                     key: "name",
@@ -344,12 +377,14 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
                     minWidth: "150px",
                     render: (value, row) => (
                       <span
-                        onClick={() => handleShowPromotionItems(row.id, row.name)}
+                        onClick={() =>
+                          handleShowPromotionItems(row.id, row.name)
+                        }
                         style={{ cursor: "pointer" }}
                       >
                         {value}
                       </span>
-                    )
+                    ),
                   },
                   {
                     key: "totalPrice",
@@ -358,12 +393,14 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
                     minWidth: "100px",
                     render: (value, row) => (
                       <span
-                        onClick={() => handleShowPromotionItems(row.id, row.name)}
+                        onClick={() =>
+                          handleShowPromotionItems(row.id, row.name)
+                        }
                         style={{ cursor: "pointer" }}
                       >
                         ${formatPrice(value)}
                       </span>
-                    )
+                    ),
                   },
                   {
                     key: "itemCount",
@@ -372,19 +409,21 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
                     minWidth: "80px",
                     render: (value, row) => (
                       <span
-                        onClick={() => handleShowPromotionItems(row.id, row.name)}
+                        onClick={() =>
+                          handleShowPromotionItems(row.id, row.name)
+                        }
                         style={{ cursor: "pointer" }}
                       >
                         {value}
                       </span>
-                    )
+                    ),
                   },
                   {
                     key: "isDeleted",
                     header: "Deleted",
                     align: "center",
                     minWidth: "60px",
-                    render: (value) => value ? "1" : "0",
+                    render: (value) => (value ? "1" : "0"),
                   },
                 ]}
                 data={printData.promotions}
@@ -404,7 +443,11 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
                     key: "offset",
                     header: "File Offset",
                     align: "left",
-                    render: (value) => <span className="data-table-monospace">{value} bytes</span>,
+                    render: (value) => (
+                      <span className="data-table-monospace">
+                        {value} bytes
+                      </span>
+                    ),
                   },
                 ]}
                 data={indexData.items.entries}
@@ -423,7 +466,11 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
                     key: "offset",
                     header: "File Offset",
                     align: "left",
-                    render: (value) => <span className="data-table-monospace">{value} bytes</span>,
+                    render: (value) => (
+                      <span className="data-table-monospace">
+                        {value} bytes
+                      </span>
+                    ),
                   },
                 ]}
                 data={indexData.orders.entries}
@@ -442,7 +489,11 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
                     key: "offset",
                     header: "File Offset",
                     align: "left",
-                    render: (value) => <span className="data-table-monospace">{value} bytes</span>,
+                    render: (value) => (
+                      <span className="data-table-monospace">
+                        {value} bytes
+                      </span>
+                    ),
                   },
                 ]}
                 data={indexData.promotions.entries}
@@ -453,35 +504,52 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
         </>
       )}
 
-      <Modal isOpen={isItemModalOpen} onClose={() => setIsItemModalOpen(false)} title={selectedOrderForView ? `Order #${selectedOrderForView.id} Items` : "Order Items"}>
+      <Modal
+        isOpen={isItemModalOpen}
+        onClose={() => setIsItemModalOpen(false)}
+        title={
+          selectedOrderForView
+            ? `Order #${selectedOrderForView.id} Items`
+            : "Order Items"
+        }
+      >
         <ItemList items={items}>
-          {selectedOrderForView && selectedOrderForView.promotions && selectedOrderForView.promotions.length > 0 && (
-            <>
-              {selectedOrderForView.promotions.map((promo) => (
-                <div
-                  key={promo.id}
-                  className="cart-item"
-                  style={{ ...PROMO_CARD_STYLE, cursor: "pointer" }}
-                  onClick={() => {
-                    setIsItemModalOpen(false);
-                    handleShowPromotionItems(promo.id, promo.name);
-                  }}
-                >
-                  <div className="cart-item-info">
-                    <div className="cart-item-name">[PROMO] {promo.name}</div>
-                    <div className="cart-item-id">ID: {promo.id} | ${formatPrice(promo.totalPrice)} | {promo.itemCount} items</div>
+          {selectedOrderForView &&
+            selectedOrderForView.promotions &&
+            selectedOrderForView.promotions.length > 0 && (
+              <>
+                {selectedOrderForView.promotions.map((promo) => (
+                  <div
+                    key={promo.id}
+                    className="cart-item"
+                    style={{ ...PROMO_CARD_STYLE, cursor: "pointer" }}
+                    onClick={() => {
+                      setIsItemModalOpen(false);
+                      handleShowPromotionItems(promo.id, promo.name);
+                    }}
+                  >
+                    <div className="cart-item-info">
+                      <div className="cart-item-name">[PROMO] {promo.name}</div>
+                      <div className="cart-item-id">
+                        ID: {promo.id} | ${formatPrice(promo.totalPrice)} |{" "}
+                        {promo.itemCount} items
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </>
-          )}
+                ))}
+              </>
+            )}
         </ItemList>
       </Modal>
 
       <Modal
         isOpen={isPromoModalOpen}
         onClose={() => setIsPromoModalOpen(false)}
-        title={selectedPromoForView ? `Promotion: ${selectedPromoForView.name}` : "Promotion Items"}
+        title={
+          selectedPromoForView
+            ? `Promotion: ${selectedPromoForView.name}`
+            : "Promotion Items"
+        }
       >
         <ItemList items={promoItems} />
       </Modal>

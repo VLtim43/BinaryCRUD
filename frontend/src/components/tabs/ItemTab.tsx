@@ -3,7 +3,14 @@ import { useState } from "preact/hooks";
 import { Button } from "../Button";
 import { Input } from "../Input";
 import { itemService, Item } from "../../services/itemService";
-import { formatPrice, parsePrice, isValidPrice, isValidId, createIdInputHandler } from "../../utils/formatters";
+import {
+  formatPrice,
+  parsePrice,
+  isValidPrice,
+  isValidId,
+  createIdInputHandler,
+} from "../../utils/formatters";
+import { Fragment } from "preact";
 
 interface ItemTabProps {
   onMessage: (msg: string) => void;
@@ -51,7 +58,11 @@ export const ItemTab = ({ onMessage, onRefreshLogs }: ItemTabProps) => {
     try {
       const item = await itemService.getById(parseInt(recordId, 10));
       setFoundItem(item);
-      onMessage(`Found Item #${item.id}: ${item.name} - $${formatPrice(item.priceInCents)}`);
+      onMessage(
+        `Found Item #${item.id}: ${item.name} - $${formatPrice(
+          item.priceInCents
+        )}`
+      );
       onRefreshLogs();
     } catch (err) {
       setFoundItem(null);
@@ -86,13 +97,22 @@ export const ItemTab = ({ onMessage, onRefreshLogs }: ItemTabProps) => {
   return (
     <>
       <div className="sub_tabs">
-        <Button className={`tab ${subTab === "create" ? "active" : ""}`} onClick={() => setSubTab("create")}>
+        <Button
+          className={`tab ${subTab === "create" ? "active" : ""}`}
+          onClick={() => setSubTab("create")}
+        >
           Create
         </Button>
-        <Button className={`tab ${subTab === "read" ? "active" : ""}`} onClick={() => setSubTab("read")}>
+        <Button
+          className={`tab ${subTab === "read" ? "active" : ""}`}
+          onClick={() => setSubTab("read")}
+        >
           Read
         </Button>
-        <Button className={`tab ${subTab === "delete" ? "active" : ""}`} onClick={() => setSubTab("delete")}>
+        <Button
+          className={`tab ${subTab === "delete" ? "active" : ""}`}
+          onClick={() => setSubTab("delete")}
+        >
           Delete
         </Button>
       </div>
@@ -144,7 +164,9 @@ export const ItemTab = ({ onMessage, onRefreshLogs }: ItemTabProps) => {
                 </div>
                 <div className="details-row">
                   <span className="details-label">Price:</span>
-                  <span className="details-value">${formatPrice(foundItem.priceInCents)}</span>
+                  <span className="details-value">
+                    ${formatPrice(foundItem.priceInCents)}
+                  </span>
                 </div>
               </div>
             </div>
