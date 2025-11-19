@@ -6,6 +6,7 @@ export interface Promotion {
   totalPrice: number;
   itemCount: number;
   itemIDs: number[];
+  isDeleted?: boolean;
 }
 
 export const promotionService = {
@@ -32,6 +33,7 @@ export const promotionService = {
       totalPrice: item.totalPrice,
       itemCount: item.itemCount,
       itemIDs: item.itemIDs,
+      isDeleted: item.isDeleted,
     }));
   },
 };

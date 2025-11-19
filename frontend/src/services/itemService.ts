@@ -4,6 +4,7 @@ export interface Item {
   id: number;
   name: string;
   priceInCents: number;
+  isDeleted?: boolean;
 }
 
 export const itemService = {

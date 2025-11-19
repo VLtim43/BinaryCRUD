@@ -412,7 +412,7 @@ func (a *App) PopulateInventory() error {
 	return nil
 }
 
-// GetAllItems retrieves all non-deleted items from the database
+// GetAllItems retrieves all items from the database, including deleted ones
 func (a *App) GetAllItems() ([]map[string]any, error) {
 	items, err := a.itemDAO.GetAll()
 	if err != nil {
@@ -426,6 +426,7 @@ func (a *App) GetAllItems() ([]map[string]any, error) {
 			"id":           item.ID,
 			"name":         item.Name,
 			"priceInCents": item.PriceInCents,
+			"isDeleted":    item.IsDeleted,
 		}
 	}
 
@@ -433,7 +434,7 @@ func (a *App) GetAllItems() ([]map[string]any, error) {
 	return result, nil
 }
 
-// GetAllOrders retrieves all orders
+// GetAllOrders retrieves all orders, including deleted ones
 func (a *App) GetAllOrders() ([]map[string]any, error) {
 	orders, err := a.orderDAO.GetAll()
 	if err != nil {
@@ -444,11 +445,12 @@ func (a *App) GetAllOrders() ([]map[string]any, error) {
 	result := make([]map[string]any, len(orders))
 	for i, order := range orders {
 		result[i] = map[string]any{
-			"id":          order.ID,
+			"id":           order.ID,
 			"customerName": order.OwnerOrName,
-			"totalPrice":  order.TotalPrice,
-			"itemCount":   order.ItemCount,
-			"itemIDs":     order.ItemIDs,
+			"totalPrice":   order.TotalPrice,
+			"itemCount":    order.ItemCount,
+			"itemIDs":      order.ItemIDs,
+			"isDeleted":    order.IsDeleted,
 		}
 	}
 
@@ -456,7 +458,7 @@ func (a *App) GetAllOrders() ([]map[string]any, error) {
 	return result, nil
 }
 
-// GetAllPromotions retrieves all promotions
+// GetAllPromotions retrieves all promotions, including deleted ones
 func (a *App) GetAllPromotions() ([]map[string]any, error) {
 	promotions, err := a.promotionDAO.GetAll()
 	if err != nil {
@@ -467,11 +469,12 @@ func (a *App) GetAllPromotions() ([]map[string]any, error) {
 	result := make([]map[string]any, len(promotions))
 	for i, promotion := range promotions {
 		result[i] = map[string]any{
-			"id":          promotion.ID,
-			"name":        promotion.OwnerOrName,
-			"totalPrice":  promotion.TotalPrice,
-			"itemCount":   promotion.ItemCount,
-			"itemIDs":     promotion.ItemIDs,
+			"id":         promotion.ID,
+			"name":       promotion.OwnerOrName,
+			"totalPrice": promotion.TotalPrice,
+			"itemCount":  promotion.ItemCount,
+			"itemIDs":    promotion.ItemIDs,
+			"isDeleted":  promotion.IsDeleted,
 		}
 	}
 

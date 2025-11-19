@@ -4,6 +4,7 @@ import (
 	"BinaryCRUD/backend/index"
 	"BinaryCRUD/backend/utils"
 	"fmt"
+	"io"
 	"os"
 	"sync"
 )
@@ -17,6 +18,7 @@ type Collection struct {
 	TotalPrice  uint64
 	ItemCount   uint64
 	ItemIDs     []uint64
+	IsDeleted   bool
 }
 
 type CollectionDAO struct {
@@ -229,7 +231,7 @@ func (dao *CollectionDAO) Delete(id uint64) error {
 	return utils.SoftDeleteByID(dao.filePath, id, &dao.mu, indexDeleteFunc)
 }
 
-// GetAll retrieves all non-deleted collections using the B+ tree index
+// GetAll retrieves all collections from the database, including deleted ones
 func (dao *CollectionDAO) GetAll() ([]*Collection, error) {
 	dao.mu.Lock()
 	defer dao.mu.Unlock()
@@ -239,35 +241,64 @@ func (dao *CollectionDAO) GetAll() ([]*Collection, error) {
 		return nil, err
 	}
 
-	// Get all entries from the index
-	allEntries := dao.tree.GetAll()
+	// Open file for reading
+	file, err := os.OpenFile(dao.filePath, os.O_RDONLY, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open collection file: %w", err)
+	}
+	defer file.Close()
 
-	// Collect IDs and sort them for consistent ordering
-	ids := make([]uint64, 0, len(allEntries))
-	for id := range allEntries {
-		ids = append(ids, id)
+	// Seek past header
+	_, err = file.Seek(int64(utils.HeaderSize), 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to seek past header: %w", err)
 	}
 
-	// Sort IDs for consistent, predictable ordering
-	for i := 0; i < len(ids)-1; i++ {
-		for j := i + 1; j < len(ids); j++ {
-			if ids[i] > ids[j] {
-				ids[i], ids[j] = ids[j], ids[i]
-			}
+	// Read all file data
+	fileData, err := io.ReadAll(file)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	result := make([]*Collection, 0)
+
+	// Parse all records sequentially
+	offset := 0
+	for offset < len(fileData) {
+		// Check if we have enough bytes for the length field
+		if offset+utils.RecordLengthSize > len(fileData) {
+			break
 		}
-	}
 
-	result := make([]*Collection, 0, len(ids))
-
-	// Read each collection by ID in sorted order
-	for _, id := range ids {
-		collection, err := dao.readUnlocked(id)
+		// Read the record length
+		recordLength, lengthEnd, err := utils.ReadFixedNumber(utils.RecordLengthSize, fileData, offset)
 		if err != nil {
-			// Skip deleted or errored collections
-			continue
+			break
 		}
 
-		result = append(result, collection)
+		// Check if we have enough bytes for the complete record
+		if lengthEnd+int(recordLength) > len(fileData) {
+			break
+		}
+
+		// Extract the record data (without length prefix)
+		entryData := fileData[lengthEnd : lengthEnd+int(recordLength)]
+
+		// Parse the entry
+		collection, err := utils.ParseCollectionEntry(entryData)
+		if err == nil {
+			result = append(result, &Collection{
+				ID:          collection.ID,
+				OwnerOrName: collection.OwnerOrName,
+				TotalPrice:  collection.TotalPrice,
+				ItemCount:   collection.ItemCount,
+				ItemIDs:     collection.ItemIDs,
+				IsDeleted:   collection.Tombstone != 0x00,
+			})
+		}
+
+		// Move to next record
+		offset = lengthEnd + int(recordLength)
 	}
 
 	return result, nil

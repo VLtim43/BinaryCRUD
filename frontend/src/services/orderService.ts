@@ -7,6 +7,7 @@ export interface Order {
   totalPrice: number;
   itemCount: number;
   itemIDs: number[];
+  isDeleted?: boolean;
 }
 
 export const orderService = {
@@ -33,6 +34,7 @@ export const orderService = {
       totalPrice: item.totalPrice,
       itemCount: item.itemCount,
       itemIDs: item.itemIDs,
+      isDeleted: item.isDeleted,
     }));
   },
 };

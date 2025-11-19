@@ -4,6 +4,7 @@ import (
 	"BinaryCRUD/backend/index"
 	"BinaryCRUD/backend/utils"
 	"fmt"
+	"io"
 	"os"
 	"sync"
 )
@@ -227,9 +228,10 @@ type Item struct {
 	ID           uint64
 	Name         string
 	PriceInCents uint64
+	IsDeleted    bool
 }
 
-// GetAll retrieves all non-deleted items from the database
+// GetAll retrieves all items from the database, including deleted ones
 func (dao *ItemDAO) GetAll() ([]Item, error) {
 	dao.mu.Lock()
 	defer dao.mu.Unlock()
@@ -239,39 +241,62 @@ func (dao *ItemDAO) GetAll() ([]Item, error) {
 		return nil, err
 	}
 
-	// Get all entries from the index
-	allEntries := dao.tree.GetAll()
+	// Open file for reading
+	file, err := os.OpenFile(dao.filePath, os.O_RDONLY, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open item file: %w", err)
+	}
+	defer file.Close()
 
-	// Collect IDs and sort them for consistent ordering
-	ids := make([]uint64, 0, len(allEntries))
-	for id := range allEntries {
-		ids = append(ids, id)
+	// Seek past header
+	_, err = file.Seek(int64(utils.HeaderSize), 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to seek past header: %w", err)
 	}
 
-	// Sort IDs for consistent, predictable ordering
-	for i := 0; i < len(ids)-1; i++ {
-		for j := i + 1; j < len(ids); j++ {
-			if ids[i] > ids[j] {
-				ids[i], ids[j] = ids[j], ids[i]
-			}
+	// Read all file data
+	fileData, err := io.ReadAll(file)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	items := make([]Item, 0)
+
+	// Parse all records sequentially
+	offset := 0
+	for offset < len(fileData) {
+		// Check if we have enough bytes for the length field
+		if offset+utils.RecordLengthSize > len(fileData) {
+			break
 		}
-	}
 
-	items := make([]Item, 0, len(ids))
-
-	// Read each item by ID in sorted order
-	for _, id := range ids {
-		itemID, name, priceInCents, err := dao.readWithIndex(id)
+		// Read the record length
+		recordLength, lengthEnd, err := utils.ReadFixedNumber(utils.RecordLengthSize, fileData, offset)
 		if err != nil {
-			// Skip deleted or errored items
-			continue
+			break
 		}
 
-		items = append(items, Item{
-			ID:           itemID,
-			Name:         name,
-			PriceInCents: priceInCents,
-		})
+		// Check if we have enough bytes for the complete record
+		if lengthEnd+int(recordLength) > len(fileData) {
+			break
+		}
+
+		// Extract the record data (without length prefix)
+		entryData := fileData[lengthEnd : lengthEnd+int(recordLength)]
+
+		// Parse the entry
+		item, err := utils.ParseItemEntry(entryData)
+		if err == nil {
+			items = append(items, Item{
+				ID:           item.ID,
+				Name:         item.Name,
+				PriceInCents: item.Price,
+				IsDeleted:    item.Tombstone != 0x00,
+			})
+		}
+
+		// Move to next record
+		offset = lengthEnd + int(recordLength)
 	}
 
 	return items, nil

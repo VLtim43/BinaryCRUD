@@ -227,6 +227,13 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
                     minWidth: "100px",
                     render: (value) => `$${formatPrice(value)}`,
                   },
+                  {
+                    key: "isDeleted",
+                    header: "Deleted",
+                    align: "center",
+                    minWidth: "60px",
+                    render: (value) => value ? "1" : "0",
+                  },
                 ]}
                 data={printData.items}
                 maxHeight="220px"
@@ -296,6 +303,13 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
                       </span>
                     )
                   },
+                  {
+                    key: "isDeleted",
+                    header: "Deleted",
+                    align: "center",
+                    minWidth: "60px",
+                    render: (value) => value ? "1" : "0",
+                  },
                 ]}
                 data={printData.orders}
                 maxHeight="220px"
@@ -364,6 +378,13 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
                         {value}
                       </span>
                     )
+                  },
+                  {
+                    key: "isDeleted",
+                    header: "Deleted",
+                    align: "center",
+                    minWidth: "60px",
+                    render: (value) => value ? "1" : "0",
                   },
                 ]}
                 data={printData.promotions}
