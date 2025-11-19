@@ -66,6 +66,10 @@ export function GetOrder(arg1) {
   return window['go']['main']['App']['GetOrder'](arg1);
 }
 
+export function GetOrderIndexContents() {
+  return window['go']['main']['App']['GetOrderIndexContents']();
+}
+
 export function GetOrderPromotions(arg1) {
   return window['go']['main']['App']['GetOrderPromotions'](arg1);
 }
@@ -76,6 +80,10 @@ export function GetOrderWithPromotions(arg1) {
 
 export function GetPromotion(arg1) {
   return window['go']['main']['App']['GetPromotion'](arg1);
+}
+
+export function GetPromotionIndexContents() {
+  return window['go']['main']['App']['GetPromotionIndexContents']();
 }
 
 export function GetPromotionOrders(arg1) {

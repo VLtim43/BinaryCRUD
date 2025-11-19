@@ -19,7 +19,11 @@ interface DebugTabProps {
 }
 
 export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: DebugTabProps) => {
-  const [indexData, setIndexData] = useState<any>(null);
+  const [indexData, setIndexData] = useState<{
+    items?: any;
+    orders?: any;
+    promotions?: any;
+  }>({});
   const [printData, setPrintData] = useState<{
     items?: Item[];
     orders?: Order[];
@@ -44,23 +48,52 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
     }
   };
 
-  const handlePrintIndex = async () => {
-    onMessage("Loading index contents...");
+  const handlePrintItemIndex = async () => {
+    onMessage("Loading item index contents...");
     try {
       const data = await systemService.getIndexContents();
-      setIndexData(data);
-      onMessage(`Index loaded: ${data.count} entries. Scroll down to see details.`);
+      setPrintData({});
+      setIndexData({ items: data });
+      onMessage(`Item index loaded: ${data.count} entries.`);
       onRefreshLogs();
     } catch (err: any) {
-      setIndexData(null);
-      onMessage(`Error loading index: ${err}`);
+      setIndexData({});
+      onMessage(`Error loading item index: ${err}`);
+    }
+  };
+
+  const handlePrintOrderIndex = async () => {
+    onMessage("Loading order index contents...");
+    try {
+      const data = await systemService.getOrderIndexContents();
+      setPrintData({});
+      setIndexData({ orders: data });
+      onMessage(`Order index loaded: ${data.count} entries.`);
+      onRefreshLogs();
+    } catch (err: any) {
+      setIndexData({});
+      onMessage(`Error loading order index: ${err}`);
+    }
+  };
+
+  const handlePrintPromotionIndex = async () => {
+    onMessage("Loading promotion index contents...");
+    try {
+      const data = await systemService.getPromotionIndexContents();
+      setPrintData({});
+      setIndexData({ promotions: data });
+      onMessage(`Promotion index loaded: ${data.count} entries.`);
+      onRefreshLogs();
+    } catch (err: any) {
+      setIndexData({});
+      onMessage(`Error loading promotion index: ${err}`);
     }
   };
 
   const handleDeleteAll = async () => {
     try {
       await systemService.deleteAllFiles();
-      setIndexData(null);
+      setIndexData({});
       onMessage("All generated files deleted successfully!");
       onRefreshLogs();
     } catch (err: any) {
@@ -72,6 +105,7 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
     try {
       onMessage("Loading all items...");
       const items = await itemService.getAll();
+      setIndexData({});
       setPrintData({ items });
       onMessage(`Loaded ${items.length} items`);
     } catch (err: any) {
@@ -83,6 +117,7 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
     try {
       onMessage("Loading all orders...");
       const orders = await orderService.getAll();
+      setIndexData({});
       setPrintData({ orders });
       onMessage(`Loaded ${orders.length} orders`);
     } catch (err: any) {
@@ -94,6 +129,7 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
     try {
       onMessage("Loading all promotions...");
       const promotions = await promotionService.getAll();
+      setIndexData({});
       setPrintData({ promotions });
       onMessage(`Loaded ${promotions.length} promotions`);
     } catch (err: any) {
@@ -157,40 +193,24 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
         <>
           <div className="input-box">
             <Button onClick={handlePopulateClick}>Populate All Data</Button>
-            <Button onClick={handlePrintIndex}>Print Index</Button>
             <Button variant="danger" onClick={handleDeleteAll}>
               Delete All Files
             </Button>
           </div>
-
-          {indexData && (
-            <div className="details-card max-height-400">
-              <h3>B+ Tree Index Contents</h3>
-              <div className="details-info">Total entries: {indexData.count}</div>
-              <DataTable
-                columns={[
-                  { key: "id", header: "Item ID", align: "left" },
-                  {
-                    key: "offset",
-                    header: "File Offset",
-                    align: "left",
-                    render: (value) => <span className="data-table-monospace">{value} bytes</span>,
-                  },
-                ]}
-                data={indexData.entries}
-                maxHeight="300px"
-              />
-            </div>
-          )}
         </>
       )}
 
       {subTab === "print" && (
         <>
-          <div className="input-box">
+          <div className="button-grid">
+            <div className="button-grid-label">Data</div>
             <Button onClick={handlePrintAllItems}>Print All Items</Button>
             <Button onClick={handlePrintAllOrders}>Print All Orders</Button>
             <Button onClick={handlePrintAllPromotions}>Print All Promotions</Button>
+            <div className="button-grid-label">Indexes</div>
+            <Button onClick={handlePrintItemIndex}>Print Item Index</Button>
+            <Button onClick={handlePrintOrderIndex}>Print Order Index</Button>
+            <Button onClick={handlePrintPromotionIndex}>Print Promotion Index</Button>
           </div>
 
           {printData.items && (
@@ -349,6 +369,63 @@ export const DebugTab = ({ onMessage, onRefreshLogs, subTab, onSubTabChange }: D
                 data={printData.promotions}
                 maxHeight="220px"
                 minWidth="400px"
+              />
+            </div>
+          )}
+
+          {indexData.items && (
+            <div className="details-card max-height-300">
+              <h3>Item Index ({indexData.items.count} entries)</h3>
+              <DataTable
+                columns={[
+                  { key: "id", header: "Item ID", align: "left" },
+                  {
+                    key: "offset",
+                    header: "File Offset",
+                    align: "left",
+                    render: (value) => <span className="data-table-monospace">{value} bytes</span>,
+                  },
+                ]}
+                data={indexData.items.entries}
+                maxHeight="220px"
+              />
+            </div>
+          )}
+
+          {indexData.orders && (
+            <div className="details-card max-height-300">
+              <h3>Order Index ({indexData.orders.count} entries)</h3>
+              <DataTable
+                columns={[
+                  { key: "id", header: "Order ID", align: "left" },
+                  {
+                    key: "offset",
+                    header: "File Offset",
+                    align: "left",
+                    render: (value) => <span className="data-table-monospace">{value} bytes</span>,
+                  },
+                ]}
+                data={indexData.orders.entries}
+                maxHeight="220px"
+              />
+            </div>
+          )}
+
+          {indexData.promotions && (
+            <div className="details-card max-height-300">
+              <h3>Promotion Index ({indexData.promotions.count} entries)</h3>
+              <DataTable
+                columns={[
+                  { key: "id", header: "Promotion ID", align: "left" },
+                  {
+                    key: "offset",
+                    header: "File Offset",
+                    align: "left",
+                    render: (value) => <span className="data-table-monospace">{value} bytes</span>,
+                  },
+                ]}
+                data={indexData.promotions.entries}
+                maxHeight="220px"
               />
             </div>
           )}

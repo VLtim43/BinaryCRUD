@@ -113,10 +113,11 @@
 }
 
 .result {
-    min-height: 20px;
-    line-height: 20px;
-    margin: 1.2rem auto;
-    padding: 0.5rem;
+    min-height: 16px;
+    line-height: 16px;
+    margin: 0.5rem auto;
+    padding: 0.3rem;
+    font-size: 13px;
 }
 
 .input-box {
@@ -190,6 +191,49 @@
     background-color: #e0a800;
     background-image: none;
     color: #333;
+}
+
+.button-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 8px;
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+.button-grid .btn {
+    width: 100%;
+    height: 35px;
+    border-radius: 5px;
+    border: none;
+    padding: 0 14px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.button-grid .btn:hover {
+    background-image: linear-gradient(to top, #cfd9df 0%, #e2ebf0 100%);
+    color: #333333;
+}
+
+.button-grid .btn-danger {
+    background-color: #dc3545;
+    color: white;
+}
+
+.button-grid .btn-danger:hover {
+    background-color: #c82333;
+    background-image: none;
+    color: white;
+}
+
+.button-grid-label {
+    grid-column: 1 / -1;
+    font-size: 12px;
+    color: #666;
+    margin-bottom: -5px;
+    font-weight: 500;
 }
 
 .debug-section {

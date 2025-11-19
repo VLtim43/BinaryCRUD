@@ -203,18 +203,14 @@ type OrderPromotionEntry struct {
 	PromotionID uint64 `json:"promotionID"`
 }
 
-// GetIndexContents returns the contents of the B+ tree index for debugging
-func (a *App) GetIndexContents() (map[string]any, error) {
-	// Get all entries from the tree
-	tree := a.itemDAO.GetIndexTree()
-	allEntries := tree.GetAll()
+// IndexEntry represents an entry in a B+ tree index
+type IndexEntry struct {
+	ID     uint64 `json:"id"`
+	Offset int64  `json:"offset"`
+}
 
-	// Convert to sorted slice for display
-	type IndexEntry struct {
-		ID     uint64 `json:"id"`
-		Offset int64  `json:"offset"`
-	}
-
+// getIndexContentsFromTree extracts and formats index contents from a B+ tree
+func (a *App) getIndexContentsFromTree(allEntries map[uint64]int64, indexName string) map[string]any {
 	entries := make([]IndexEntry, 0, len(allEntries))
 	for id, offset := range allEntries {
 		entries = append(entries, IndexEntry{
@@ -228,12 +224,30 @@ func (a *App) GetIndexContents() (map[string]any, error) {
 		return entries[i].ID < entries[j].ID
 	})
 
-	a.logger.Info(fmt.Sprintf("Index contains %d entries", len(entries)))
+	a.logger.Info(fmt.Sprintf("%s index contains %d entries", indexName, len(entries)))
 
 	return map[string]any{
 		"count":   len(entries),
 		"entries": entries,
-	}, nil
+	}
+}
+
+// GetIndexContents returns the contents of the item B+ tree index for debugging
+func (a *App) GetIndexContents() (map[string]any, error) {
+	tree := a.itemDAO.GetIndexTree()
+	return a.getIndexContentsFromTree(tree.GetAll(), "Item"), nil
+}
+
+// GetOrderIndexContents returns the contents of the order B+ tree index for debugging
+func (a *App) GetOrderIndexContents() (map[string]any, error) {
+	tree := a.orderDAO.GetIndexTree()
+	return a.getIndexContentsFromTree(tree.GetAll(), "Order"), nil
+}
+
+// GetPromotionIndexContents returns the contents of the promotion B+ tree index for debugging
+func (a *App) GetPromotionIndexContents() (map[string]any, error) {
+	tree := a.promotionDAO.GetIndexTree()
+	return a.getIndexContentsFromTree(tree.GetAll(), "Promotion"), nil
 }
 
 // PopulateInventory reads items and promotions from JSON files and adds them to the database

@@ -4,7 +4,9 @@ import {
   PopulateItems,
   PopulatePromotions,
   PopulateOrders,
-  GetIndexContents
+  GetIndexContents,
+  GetOrderIndexContents,
+  GetPromotionIndexContents
 } from "../../wailsjs/go/main/App";
 
 export const systemService = {
@@ -30,5 +32,13 @@ export const systemService = {
 
   getIndexContents: async (): Promise<any> => {
     return GetIndexContents();
+  },
+
+  getOrderIndexContents: async (): Promise<any> => {
+    return GetOrderIndexContents();
+  },
+
+  getPromotionIndexContents: async (): Promise<any> => {
+    return GetPromotionIndexContents();
   },
 };

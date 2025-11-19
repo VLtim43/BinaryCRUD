@@ -34,11 +34,15 @@ export function GetLogs():Promise<Array<main.LogEntry>>;
 
 export function GetOrder(arg1:number):Promise<Record<string, any>>;
 
+export function GetOrderIndexContents():Promise<Record<string, any>>;
+
 export function GetOrderPromotions(arg1:number):Promise<Array<Record<string, any>>>;
 
 export function GetOrderWithPromotions(arg1:number):Promise<Record<string, any>>;
 
 export function GetPromotion(arg1:number):Promise<Record<string, any>>;
+
+export function GetPromotionIndexContents():Promise<Record<string, any>>;
 
 export function GetPromotionOrders(arg1:number):Promise<Array<Record<string, any>>>;
 
