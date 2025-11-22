@@ -1,6 +1,7 @@
 import { h } from "preact";
-import { useState } from "preact/hooks";
+import { useState, useEffect } from "preact/hooks";
 import { Button } from "../Button";
+import { Select } from "../Select";
 import { Modal } from "../Modal";
 import { ItemList } from "../ItemList";
 import { DataTable, TableColumn } from "../DataTable";
@@ -12,14 +13,20 @@ import {
   orderPromotionService,
   OrderWithPromotions,
 } from "../../services/orderPromotionService";
+import {
+  compressionService,
+  CompressedFile,
+} from "../../services/compressionService";
 import { formatPrice, PROMO_CARD_STYLE } from "../../utils/formatters";
 import { Fragment } from "preact";
+
+type DebugSubTab = "tools" | "print" | "compress";
 
 interface DebugTabProps {
   onMessage: (msg: string) => void;
   onRefreshLogs: () => void;
-  subTab: "tools" | "print";
-  onSubTabChange: (subTab: "tools" | "print") => void;
+  subTab: DebugSubTab;
+  onSubTabChange: (subTab: DebugSubTab) => void;
 }
 
 export const DebugTab = ({
@@ -49,11 +56,73 @@ export const DebugTab = ({
     name: string;
   } | null>(null);
 
+  // Compression state
+  const [selectedFile, setSelectedFile] = useState<string>("items.bin");
+  const [selectedAlgorithm, setSelectedAlgorithm] = useState<string>("huffman");
+  const [compressedFiles, setCompressedFiles] = useState<CompressedFile[]>([]);
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [isDecompressing, setIsDecompressing] = useState<string | null>(null);
+
+  // Load compressed files when compress tab is shown
+  useEffect(() => {
+    if (subTab === "compress") {
+      loadCompressedFiles();
+    }
+  }, [subTab]);
+
+  const loadCompressedFiles = async () => {
+    try {
+      const files = await compressionService.getCompressedFiles();
+      setCompressedFiles(files);
+    } catch (err: any) {
+      onMessage(`Error loading compressed files: ${err}`);
+    }
+  };
+
+  const handleCompress = async () => {
+    setIsCompressing(true);
+    try {
+      onMessage(`Compressing ${selectedFile} with ${selectedAlgorithm}...`);
+      const result = await compressionService.compress(selectedFile, selectedAlgorithm);
+      onMessage(`Compressed ${selectedFile} -> ${result.outputFile} (${result.spaceSaved} saved)`);
+      await loadCompressedFiles();
+      onRefreshLogs();
+    } catch (err: any) {
+      onMessage(`Error compressing: ${err}`);
+    } finally {
+      setIsCompressing(false);
+    }
+  };
+
+  const handleDecompress = async (filename: string) => {
+    setIsDecompressing(filename);
+    try {
+      onMessage(`Decompressing ${filename}...`);
+      const result = await compressionService.decompress(filename);
+      onMessage(`Decompressed ${filename} -> ${result.outputFile}`);
+      onRefreshLogs();
+    } catch (err: any) {
+      onMessage(`Error decompressing: ${err}`);
+    } finally {
+      setIsDecompressing(null);
+    }
+  };
+
+  const handleDeleteCompressed = async (filename: string) => {
+    try {
+      await compressionService.deleteCompressedFile(filename);
+      onMessage(`Deleted ${filename}`);
+      await loadCompressedFiles();
+    } catch (err: any) {
+      onMessage(`Error deleting: ${err}`);
+    }
+  };
+
   const handlePopulateClick = async () => {
     try {
-      onMessage("Populating all data...");
+      onMessage("Populating inventory...");
       await systemService.populateInventory();
-      onMessage("All data populated successfully! Check logs for details.");
+      onMessage("Inventory populated successfully! Check logs for details.");
       onRefreshLogs();
     } catch (err: any) {
       onMessage(`Error: ${err}`);
@@ -209,12 +278,18 @@ export const DebugTab = ({
         >
           Print
         </Button>
+        <Button
+          className={`tab ${subTab === "compress" ? "active" : ""}`}
+          onClick={() => onSubTabChange("compress")}
+        >
+          Compress
+        </Button>
       </div>
 
       {subTab === "tools" && (
         <>
           <div className="input-box">
-            <Button onClick={handlePopulateClick}>Populate All Data</Button>
+            <Button onClick={handlePopulateClick}>Populate Inventory</Button>
             <Button variant="danger" onClick={handleDeleteAll}>
               Delete All Files
             </Button>
@@ -498,6 +573,115 @@ export const DebugTab = ({
                 ]}
                 data={indexData.promotions.entries}
                 maxHeight="220px"
+              />
+            </div>
+          )}
+        </>
+      )}
+
+      {subTab === "compress" && (
+        <>
+          <div className="details-card">
+            <h3>Compress Files</h3>
+            <div className="compress-controls">
+              <div className="compress-row">
+                <label>File:</label>
+                <Select
+                  value={selectedFile}
+                  onChange={(e) => setSelectedFile((e.target as HTMLSelectElement).value)}
+                  options={[
+                    { value: "items.bin", label: "items.bin" },
+                    { value: "orders.bin", label: "orders.bin" },
+                    { value: "promotions.bin", label: "promotions.bin" },
+                    { value: "order_promotions.bin", label: "order_promotions.bin" },
+                  ]}
+                  placeholder="Select file..."
+                />
+              </div>
+              <div className="compress-row">
+                <label>Algorithm:</label>
+                <Select
+                  value={selectedAlgorithm}
+                  onChange={(e) => setSelectedAlgorithm((e.target as HTMLSelectElement).value)}
+                  options={[
+                    { value: "huffman", label: "Huffman" },
+                    { value: "lzw", label: "LZW" },
+                  ]}
+                  placeholder="Select algorithm..."
+                />
+              </div>
+              <div className="compress-actions">
+                <Button onClick={handleCompress} disabled={isCompressing}>
+                  {isCompressing ? "Compressing..." : "Compress"}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {compressedFiles.length > 0 && (
+            <div className="details-card">
+              <h3>Compressed Files ({compressedFiles.length})</h3>
+              <DataTable
+                columns={[
+                  { key: "name", header: "File Name", align: "left", minWidth: "200px" },
+                  {
+                    key: "algorithm",
+                    header: "Algorithm",
+                    align: "center",
+                    minWidth: "100px",
+                    render: (value) => (
+                      <span className="algorithm-badge">{value.toUpperCase()}</span>
+                    ),
+                  },
+                  {
+                    key: "originalSize",
+                    header: "Original",
+                    align: "right",
+                    minWidth: "100px",
+                    render: (value) => `${value} bytes`,
+                  },
+                  {
+                    key: "compressedSize",
+                    header: "Compressed",
+                    align: "right",
+                    minWidth: "100px",
+                    render: (value) => `${value} bytes`,
+                  },
+                  {
+                    key: "ratio",
+                    header: "Ratio",
+                    align: "right",
+                    minWidth: "80px",
+                    render: (_, row) => {
+                      const ratio = ((1 - row.compressedSize / row.originalSize) * 100).toFixed(1);
+                      return <span className="ratio-badge">{ratio}%</span>;
+                    },
+                  },
+                  {
+                    key: "actions",
+                    header: "Actions",
+                    align: "center",
+                    minWidth: "150px",
+                    render: (_, row) => (
+                      <div className="compress-table-actions">
+                        <Button
+                          onClick={() => handleDecompress(row.name)}
+                          disabled={isDecompressing === row.name}
+                        >
+                          {isDecompressing === row.name ? "..." : "Decompress"}
+                        </Button>
+                        <Button
+                          variant="danger"
+                          onClick={() => handleDeleteCompressed(row.name)}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    ),
+                  },
+                ]}
+                data={compressedFiles}
+                maxHeight="300px"
               />
             </div>
           )}

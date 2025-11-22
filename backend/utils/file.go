@@ -3,10 +3,18 @@ package utils
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 // CreateFile creates a new file and returns it open for reading and writing.
+// Also creates parent directories if they don't exist.
 func CreateFile(filePath string) (*os.File, error) {
+	// Ensure parent directory exists
+	dir := filepath.Dir(filePath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create directory %s: %w", dir, err)
+	}
+
 	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0644)
 	if err != nil {
 		if os.IsExist(err) {

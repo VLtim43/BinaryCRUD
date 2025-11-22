@@ -1,11 +1,13 @@
 package main
 
 import (
+	"BinaryCRUD/backend/compression"
 	"BinaryCRUD/backend/dao"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -25,10 +27,10 @@ func NewApp() *App {
 	logger := NewLogger(1000) // Store up to 1000 log entries
 
 	return &App{
-		itemDAO:           dao.NewItemDAO("data/items.bin"),
-		orderDAO:          dao.NewOrderDAO("data/orders.bin"),
-		promotionDAO:      dao.NewPromotionDAO("data/promotions.bin"),
-		orderPromotionDAO: dao.NewOrderPromotionDAO("data/order_promotions.bin"),
+		itemDAO:           dao.NewItemDAO("data/bin/items.bin"),
+		orderDAO:          dao.NewOrderDAO("data/bin/orders.bin"),
+		promotionDAO:      dao.NewPromotionDAO("data/bin/promotions.bin"),
+		orderPromotionDAO: dao.NewOrderPromotionDAO("data/bin/order_promotions.bin"),
 		logger:            logger,
 	}
 }
@@ -111,51 +113,54 @@ func (a *App) DeleteItem(id uint64) error {
 	return nil
 }
 
-// DeleteAllFiles deletes all files in the data folder except .json files
+// DeleteAllFiles deletes all generated data (bin, indexes, compressed) but keeps seed folder
 func (a *App) DeleteAllFiles() error {
-	dataDir := "data"
-
-	// Check if data directory exists
-	if _, err := os.Stat(dataDir); os.IsNotExist(err) {
-		return nil
+	// Folders to delete contents from (but not seed)
+	foldersToClean := []string{
+		filepath.Join("data", "bin"),
+		filepath.Join("data", "indexes"),
+		filepath.Join("data", "compressed"),
 	}
 
-	// Read all entries in the data directory
-	entries, err := os.ReadDir(dataDir)
-	if err != nil {
-		return fmt.Errorf("failed to read data directory: %w", err)
-	}
+	totalDeleted := 0
 
-	// Delete each file except .json files
-	deletedCount := 0
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			fileName := entry.Name()
-			filePath := fmt.Sprintf("%s/%s", dataDir, fileName)
+	for _, folder := range foldersToClean {
+		// Check if folder exists
+		if _, err := os.Stat(folder); os.IsNotExist(err) {
+			continue
+		}
 
-			// Skip .json files
-			if strings.HasSuffix(fileName, ".json") {
-				a.logger.Debug(fmt.Sprintf("Skipping JSON file: %s", fileName))
+		// Read all entries in the folder
+		entries, err := os.ReadDir(folder)
+		if err != nil {
+			a.logger.Warn(fmt.Sprintf("Failed to read directory %s: %v", folder, err))
+			continue
+		}
+
+		// Delete each file in the folder
+		for _, entry := range entries {
+			if entry.IsDir() {
 				continue
 			}
 
+			filePath := filepath.Join(folder, entry.Name())
 			err := os.Remove(filePath)
 			if err != nil {
-				a.logger.Warn(fmt.Sprintf("Failed to delete %s: %v", fileName, err))
+				a.logger.Warn(fmt.Sprintf("Failed to delete %s: %v", filePath, err))
 			} else {
-				a.logger.Info(fmt.Sprintf("Deleted file: %s", fileName))
-				deletedCount++
+				a.logger.Info(fmt.Sprintf("Deleted file: %s", filePath))
+				totalDeleted++
 			}
 		}
 	}
 
-	a.logger.Info(fmt.Sprintf("Deleted %d file(s), skipped .json files", deletedCount))
+	a.logger.Info(fmt.Sprintf("Deleted %d file(s) from bin, indexes, and compressed folders", totalDeleted))
 
 	// Reload all DAOs to clear in-memory indexes
-	a.itemDAO = dao.NewItemDAO("data/items.bin")
-	a.orderDAO = dao.NewOrderDAO("data/orders.bin")
-	a.promotionDAO = dao.NewPromotionDAO("data/promotions.bin")
-	a.orderPromotionDAO = dao.NewOrderPromotionDAO("data/order_promotions.bin")
+	a.itemDAO = dao.NewItemDAO("data/bin/items.bin")
+	a.orderDAO = dao.NewOrderDAO("data/bin/orders.bin")
+	a.promotionDAO = dao.NewPromotionDAO("data/bin/promotions.bin")
+	a.orderPromotionDAO = dao.NewOrderPromotionDAO("data/bin/order_promotions.bin")
 	a.logger.Info("Cleared all in-memory indexes")
 
 	return nil
@@ -769,4 +774,180 @@ func (a *App) GetOrderWithPromotions(orderID uint64) (map[string]any, error) {
 		"itemCount":    order.ItemCount,
 		"itemIDs":      order.ItemIDs,
 	}, nil
+}
+
+// CompressFile compresses a binary file using the specified algorithm
+func (a *App) CompressFile(filename string, algorithm string) (map[string]any, error) {
+	// Map filename to actual path (bin files are in data/bin/)
+	inputPath := filepath.Join("data", "bin", filename)
+
+	// Check if file exists
+	fileInfo, err := os.Stat(inputPath)
+	if err != nil {
+		return nil, fmt.Errorf("file not found: %s", filename)
+	}
+	originalSize := fileInfo.Size()
+
+	// Generate output filename
+	var outputFilename string
+	var outputPath string
+
+	switch algorithm {
+	case "huffman":
+		outputFilename = strings.TrimSuffix(filename, ".bin") + ".huffman.compressed"
+		outputPath = filepath.Join("data", "compressed", outputFilename)
+
+		hc := compression.NewHuffmanCompressor()
+		err = hc.CompressFile(inputPath, outputPath)
+		if err != nil {
+			return nil, fmt.Errorf("compression failed: %w", err)
+		}
+
+	case "lzw":
+		return nil, fmt.Errorf("LZW compression not yet implemented")
+
+	default:
+		return nil, fmt.Errorf("unknown algorithm: %s", algorithm)
+	}
+
+	// Get compressed file size
+	compressedInfo, err := os.Stat(outputPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat compressed file: %w", err)
+	}
+	compressedSize := compressedInfo.Size()
+
+	// Calculate ratio
+	ratio := float64(compressedSize) / float64(originalSize) * 100
+	spaceSaved := float64(originalSize-compressedSize) / float64(originalSize) * 100
+
+	a.logger.Info(fmt.Sprintf("Compressed %s -> %s (%.2f%% of original, saved %.2f%%)",
+		filename, outputFilename, ratio, spaceSaved))
+
+	return map[string]any{
+		"originalFile":   filename,
+		"compressedFile": outputFilename,
+		"algorithm":      algorithm,
+		"originalSize":   originalSize,
+		"compressedSize": compressedSize,
+		"ratio":          fmt.Sprintf("%.2f%%", ratio),
+		"spaceSaved":     fmt.Sprintf("%.2f%%", spaceSaved),
+	}, nil
+}
+
+// DecompressFile decompresses a compressed file
+func (a *App) DecompressFile(filename string) (map[string]any, error) {
+	inputPath := filepath.Join("data", "compressed", filename)
+
+	// Check if file exists
+	if _, err := os.Stat(inputPath); err != nil {
+		return nil, fmt.Errorf("compressed file not found: %s", filename)
+	}
+
+	// Determine algorithm from filename
+	var algorithm string
+	var outputFilename string
+
+	if strings.Contains(filename, ".huffman.") {
+		algorithm = "huffman"
+		outputFilename = strings.Replace(filename, ".huffman.compressed", ".bin", 1)
+	} else if strings.Contains(filename, ".lzw.") {
+		algorithm = "lzw"
+		outputFilename = strings.Replace(filename, ".lzw.compressed", ".bin", 1)
+	} else {
+		return nil, fmt.Errorf("unknown compression format: %s", filename)
+	}
+
+	outputPath := filepath.Join("data", "bin", outputFilename)
+
+	switch algorithm {
+	case "huffman":
+		hc := compression.NewHuffmanCompressor()
+		err := hc.DecompressFile(inputPath, outputPath)
+		if err != nil {
+			return nil, fmt.Errorf("decompression failed: %w", err)
+		}
+
+	case "lzw":
+		return nil, fmt.Errorf("LZW decompression not yet implemented")
+	}
+
+	// Get decompressed file size
+	decompressedInfo, err := os.Stat(outputPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat decompressed file: %w", err)
+	}
+
+	a.logger.Info(fmt.Sprintf("Decompressed %s -> %s (%d bytes)", filename, outputFilename, decompressedInfo.Size()))
+
+	return map[string]any{
+		"compressedFile":   filename,
+		"decompressedFile": outputFilename,
+		"algorithm":        algorithm,
+		"size":             decompressedInfo.Size(),
+	}, nil
+}
+
+// GetCompressedFiles returns a list of compressed files
+func (a *App) GetCompressedFiles() ([]map[string]any, error) {
+	compressedDir := filepath.Join("data", "compressed")
+
+	// Ensure directory exists
+	if _, err := os.Stat(compressedDir); os.IsNotExist(err) {
+		return []map[string]any{}, nil
+	}
+
+	entries, err := os.ReadDir(compressedDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read compressed directory: %w", err)
+	}
+
+	files := make([]map[string]any, 0)
+
+	for _, entry := range entries {
+		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		// Determine algorithm
+		var algorithm string
+		if strings.Contains(entry.Name(), ".huffman.") {
+			algorithm = "huffman"
+		} else if strings.Contains(entry.Name(), ".lzw.") {
+			algorithm = "lzw"
+		} else {
+			algorithm = "unknown"
+		}
+
+		files = append(files, map[string]any{
+			"name":      entry.Name(),
+			"size":      info.Size(),
+			"algorithm": algorithm,
+		})
+	}
+
+	return files, nil
+}
+
+// DeleteCompressedFile deletes a compressed file
+func (a *App) DeleteCompressedFile(filename string) error {
+	filePath := filepath.Join("data", "compressed", filename)
+
+	// Check if file exists
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return fmt.Errorf("file not found: %s", filename)
+	}
+
+	err := os.Remove(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to delete file: %w", err)
+	}
+
+	a.logger.Info(fmt.Sprintf("Deleted compressed file: %s", filename))
+	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 // ExtensibleHash is a dynamic hash index that grows by doubling the directory
@@ -295,6 +296,12 @@ func (h *ExtensibleHash) GetDirectorySize() int {
 
 // Save persists the hash index to a file
 func (h *ExtensibleHash) Save(filePath string) error {
+	// Ensure parent directory exists
+	dir := filepath.Dir(filePath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", dir, err)
+	}
+
 	file, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to create index file: %w", err)

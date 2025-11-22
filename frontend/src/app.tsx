@@ -18,7 +18,7 @@ export const App = () => {
   const [message, setMessage] = useState("Enter item text below 👇");
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [logsPanelOpen, setLogsPanelOpen] = useState(false);
-  const [debugSubTab, setDebugSubTab] = useState<"tools" | "print">("tools");
+  const [debugSubTab, setDebugSubTab] = useState<"tools" | "print" | "compress">("tools");
 
   useEffect(() => {
     if (logsPanelOpen) {
@@ -72,7 +72,7 @@ export const App = () => {
     setMessage(getDefaultMessage(tab));
   };
 
-  const hideLogo = activeTab === "order" || activeTab === "promotion" || (activeTab === "debug" && debugSubTab === "print");
+  const hideLogo = activeTab === "order" || activeTab === "promotion" || (activeTab === "debug" && (debugSubTab === "print" || debugSubTab === "compress"));
 
   return (
     <div className={`app-container ${logsPanelOpen ? "logs-open" : ""}`}>
