@@ -2,13 +2,29 @@ package test
 
 import (
 	"BinaryCRUD/backend/dao"
+	"fmt"
 	"os"
 	"testing"
 )
 
+// opTestCounter provides unique IDs for order_promotion test files
+var opTestCounter uint64
+
+// createOPTestFile creates a unique test file path and returns cleanup function
+func createOPTestFile(prefix string) (string, func()) {
+	opTestCounter++
+	testFile := fmt.Sprintf("/tmp/%s_%d_%d.bin", prefix, os.Getpid(), opTestCounter)
+	indexFile := testFile[:len(testFile)-4] + ".hidx"
+	cleanup := func() {
+		os.Remove(testFile)
+		os.Remove(indexFile)
+	}
+	return testFile, cleanup
+}
+
 func TestOrderPromotionDAOWrite(t *testing.T) {
-	testFile := "/tmp/test_order_promotion_write.bin"
-	defer os.Remove(testFile)
+	testFile, cleanup := createOPTestFile("test_op_write")
+	defer cleanup()
 
 	opDAO := dao.NewOrderPromotionDAO(testFile)
 
@@ -31,8 +47,8 @@ func TestOrderPromotionDAOWrite(t *testing.T) {
 }
 
 func TestOrderPromotionDAOPreventDuplicates(t *testing.T) {
-	testFile := "/tmp/test_order_promotion_duplicate.bin"
-	defer os.Remove(testFile)
+	testFile, cleanup := createOPTestFile("test_op_dup")
+	defer cleanup()
 
 	opDAO := dao.NewOrderPromotionDAO(testFile)
 
@@ -50,8 +66,8 @@ func TestOrderPromotionDAOPreventDuplicates(t *testing.T) {
 }
 
 func TestOrderPromotionDAOGetByOrderID(t *testing.T) {
-	testFile := "/tmp/test_order_promotion_read.bin"
-	defer os.Remove(testFile)
+	testFile, cleanup := createOPTestFile("test_op_read")
+	defer cleanup()
 
 	opDAO := dao.NewOrderPromotionDAO(testFile)
 
@@ -80,8 +96,8 @@ func TestOrderPromotionDAOGetByOrderID(t *testing.T) {
 }
 
 func TestOrderPromotionDAODelete(t *testing.T) {
-	testFile := "/tmp/test_order_promotion_delete.bin"
-	defer os.Remove(testFile)
+	testFile, cleanup := createOPTestFile("test_op_delete")
+	defer cleanup()
 
 	opDAO := dao.NewOrderPromotionDAO(testFile)
 
@@ -100,8 +116,8 @@ func TestOrderPromotionDAODelete(t *testing.T) {
 }
 
 func TestOrderPromotionDAOGetOrderPromotions(t *testing.T) {
-	testFile := "/tmp/test_order_promotion_get_order.bin"
-	defer os.Remove(testFile)
+	testFile, cleanup := createOPTestFile("test_op_get_order")
+	defer cleanup()
 
 	opDAO := dao.NewOrderPromotionDAO(testFile)
 
@@ -131,8 +147,8 @@ func TestOrderPromotionDAOGetOrderPromotions(t *testing.T) {
 }
 
 func TestOrderPromotionDAOGetPromotionOrders(t *testing.T) {
-	testFile := "/tmp/test_order_promotion_get_promo.bin"
-	defer os.Remove(testFile)
+	testFile, cleanup := createOPTestFile("test_op_get_promo")
+	defer cleanup()
 
 	opDAO := dao.NewOrderPromotionDAO(testFile)
 
@@ -162,8 +178,8 @@ func TestOrderPromotionDAOGetPromotionOrders(t *testing.T) {
 }
 
 func TestOrderPromotionDAOGetAll(t *testing.T) {
-	testFile := "/tmp/test_order_promotion_get_all.bin"
-	defer os.Remove(testFile)
+	testFile, cleanup := createOPTestFile("test_op_get_all")
+	defer cleanup()
 
 	opDAO := dao.NewOrderPromotionDAO(testFile)
 
@@ -184,8 +200,8 @@ func TestOrderPromotionDAOGetAll(t *testing.T) {
 }
 
 func TestOrderPromotionDAODeletedRelationships(t *testing.T) {
-	testFile := "/tmp/test_order_promotion_deleted.bin"
-	defer os.Remove(testFile)
+	testFile, cleanup := createOPTestFile("test_op_deleted")
+	defer cleanup()
 
 	opDAO := dao.NewOrderPromotionDAO(testFile)
 
@@ -210,8 +226,8 @@ func TestOrderPromotionDAODeletedRelationships(t *testing.T) {
 }
 
 func TestOrderPromotionDAOEmptyResults(t *testing.T) {
-	testFile := "/tmp/test_order_promotion_empty.bin"
-	defer os.Remove(testFile)
+	testFile, cleanup := createOPTestFile("test_op_empty")
+	defer cleanup()
 
 	opDAO := dao.NewOrderPromotionDAO(testFile)
 
@@ -227,8 +243,8 @@ func TestOrderPromotionDAOEmptyResults(t *testing.T) {
 }
 
 func TestOrderPromotionDAOMultipleOrdersMultiplePromotions(t *testing.T) {
-	testFile := "/tmp/test_order_promotion_multiple.bin"
-	defer os.Remove(testFile)
+	testFile, cleanup := createOPTestFile("test_op_multiple")
+	defer cleanup()
 
 	opDAO := dao.NewOrderPromotionDAO(testFile)
 

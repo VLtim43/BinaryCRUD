@@ -16,12 +16,18 @@ func (l *TestLogger) Info(msg string)  { l.logs = append(l.logs, "INFO: "+msg) }
 func (l *TestLogger) Warn(msg string)  { l.logs = append(l.logs, "WARN: "+msg) }
 func (l *TestLogger) Error(msg string) { l.logs = append(l.logs, "ERROR: "+msg) }
 
+// testCounter provides unique IDs for test files
+var testCounter uint64
+
 // Helper to create test app with minimal setup
 func createTestApp() (*TestApp, func()) {
-	itemFile := fmt.Sprintf("/tmp/test_app_items_%d.bin", os.Getpid())
-	orderFile := fmt.Sprintf("/tmp/test_app_orders_%d.bin", os.Getpid())
-	promoFile := fmt.Sprintf("/tmp/test_app_promos_%d.bin", os.Getpid())
-	opFile := fmt.Sprintf("/tmp/test_app_op_%d.bin", os.Getpid())
+	testCounter++
+	uniqueID := fmt.Sprintf("%d_%d", os.Getpid(), testCounter)
+
+	itemFile := fmt.Sprintf("/tmp/test_app_items_%s.bin", uniqueID)
+	orderFile := fmt.Sprintf("/tmp/test_app_orders_%s.bin", uniqueID)
+	promoFile := fmt.Sprintf("/tmp/test_app_promos_%s.bin", uniqueID)
+	opFile := fmt.Sprintf("/tmp/test_app_op_%s.bin", uniqueID)
 
 	cleanup := func() {
 		os.Remove(itemFile)
@@ -31,6 +37,7 @@ func createTestApp() (*TestApp, func()) {
 		os.Remove(itemFile[:len(itemFile)-4] + ".idx")
 		os.Remove(orderFile[:len(orderFile)-4] + ".idx")
 		os.Remove(promoFile[:len(promoFile)-4] + ".idx")
+		os.Remove(opFile[:len(opFile)-4] + ".hidx") // Hash index for order_promotion
 	}
 
 	app := &TestApp{
