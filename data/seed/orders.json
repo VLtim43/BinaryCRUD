@@ -1,11 +1,13 @@
 [
   {
     "owner": "John Doe",
-    "itemIDs": [0, 3, 6]
+    "itemIDs": [0, 3, 6],
+    "promotionIDs": [0]
   },
   {
     "owner": "Jane Smith",
-    "itemIDs": [9, 10, 6, 6]
+    "itemIDs": [9, 10, 6, 6],
+    "promotionIDs": [3]
   },
   {
     "owner": "Bob Johnson",
@@ -13,7 +15,8 @@
   },
   {
     "owner": "Alice Williams",
-    "itemIDs": [26, 27, 24, 8]
+    "itemIDs": [26, 27, 24, 8],
+    "promotionIDs": [4]
   },
   {
     "owner": "Charlie Brown",
@@ -25,11 +28,13 @@
   },
   {
     "owner": "Frank Castle",
-    "itemIDs": [32, 33, 3, 3, 6, 6]
+    "itemIDs": [32, 33, 3, 3, 6, 6],
+    "promotionIDs": [5]
   },
   {
     "owner": "Grace Lee",
-    "itemIDs": [14, 15, 38]
+    "itemIDs": [14, 15, 38],
+    "promotionIDs": [6]
   },
   {
     "owner": "Henry Miller",

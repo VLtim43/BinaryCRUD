@@ -185,8 +185,9 @@ type PromotionEntry struct {
 
 // OrderEntry represents an order in the JSON file
 type OrderEntry struct {
-	Owner   string   `json:"owner"`
-	ItemIDs []uint64 `json:"itemIDs"`
+	Owner        string   `json:"owner"`
+	ItemIDs      []uint64 `json:"itemIDs"`
+	PromotionIDs []uint64 `json:"promotionIDs,omitempty"`
 }
 
 // OrderPromotionEntry represents an order-promotion relationship in the JSON file
@@ -279,48 +280,47 @@ func (a *App) PopulateInventory() error {
 
 	a.logger.Info(fmt.Sprintf("Items population complete: %d succeeded, %d failed", itemSuccessCount, itemFailCount))
 
-	promoJsonPath := "data/seed/promotions.json"
-	promoData, err := os.ReadFile(promoJsonPath)
-	if err != nil {
-		return fmt.Errorf("failed to read promotions.json: %w", err)
-	}
-
-	// Parse JSON into slice of promotions
-	var promotions []PromotionEntry
-	err = json.Unmarshal(promoData, &promotions)
-	if err != nil {
-		return fmt.Errorf("failed to parse promotions.json: %w", err)
-	}
-
-	a.logger.Info(fmt.Sprintf("Starting promotion population with %d promotions", len(promotions)))
-
-	// Add each promotion sequentially
 	promoSuccessCount := 0
 	promoFailCount := 0
 
-	for i, promo := range promotions {
-		// Calculate total price for promotion
-		totalPrice, err := a.calculateTotalPrice(promo.ItemIDs)
+	promoJsonPath := "data/seed/promotions.json"
+	promoData, err := os.ReadFile(promoJsonPath)
+	if err != nil {
+		a.logger.Warn(fmt.Sprintf("No promotions.json found, skipping promotions: %v", err))
+	} else {
+		// Parse JSON into slice of promotions
+		var promotions []PromotionEntry
+		err = json.Unmarshal(promoData, &promotions)
 		if err != nil {
-			a.logger.Warn(fmt.Sprintf("Failed to calculate price for promotion '%s': %v", promo.Name, err))
-			// Use 0 if calculation fails
-			totalPrice = 0
+			return fmt.Errorf("failed to parse promotions.json: %w", err)
 		}
 
-		// Create promotion using CollectionDAO
-		_, err = a.promotionDAO.Write(promo.Name, totalPrice, promo.ItemIDs)
-		if err != nil {
-			a.logger.Error(fmt.Sprintf("Failed to add promotion %d (%s): %v", i+1, promo.Name, err))
-			promoFailCount++
-			continue
+		a.logger.Info(fmt.Sprintf("Starting promotion population with %d promotions", len(promotions)))
+
+		for i, promo := range promotions {
+			// Calculate total price for promotion
+			totalPrice, err := a.calculateTotalPrice(promo.ItemIDs)
+			if err != nil {
+				a.logger.Warn(fmt.Sprintf("Failed to calculate price for promotion '%s': %v", promo.Name, err))
+				// Use 0 if calculation fails
+				totalPrice = 0
+			}
+
+			// Create promotion using CollectionDAO
+			_, err = a.promotionDAO.Write(promo.Name, totalPrice, promo.ItemIDs)
+			if err != nil {
+				a.logger.Error(fmt.Sprintf("Failed to add promotion %d (%s): %v", i+1, promo.Name, err))
+				promoFailCount++
+				continue
+			}
+
+			promoSuccessCount++
+			a.logger.Info(fmt.Sprintf("Added promotion %d/%d: %s with %d items ($%.2f)",
+				i+1, len(promotions), promo.Name, len(promo.ItemIDs), float64(totalPrice)/100))
 		}
 
-		promoSuccessCount++
-		a.logger.Info(fmt.Sprintf("Added promotion %d/%d: %s with %d items ($%.2f)",
-			i+1, len(promotions), promo.Name, len(promo.ItemIDs), float64(totalPrice)/100))
+		a.logger.Info(fmt.Sprintf("Promotions population complete: %d succeeded, %d failed", promoSuccessCount, promoFailCount))
 	}
-
-	a.logger.Info(fmt.Sprintf("Promotions population complete: %d succeeded, %d failed", promoSuccessCount, promoFailCount))
 
 	orderJsonPath := "data/seed/orders.json"
 	orderData, err := os.ReadFile(orderJsonPath)
@@ -341,6 +341,13 @@ func (a *App) PopulateInventory() error {
 	orderSuccessCount := 0
 	orderFailCount := 0
 
+	// Track embedded promotions to apply after all orders are created
+	type embeddedPromotion struct {
+		orderID      uint64
+		promotionIDs []uint64
+	}
+	var embeddedPromotions []embeddedPromotion
+
 	for i, order := range orders {
 		validItems, totalPrice := a.calculateTotalPriceWithValidation(order.ItemIDs, fmt.Sprintf("order '%s'", order.Owner))
 
@@ -350,11 +357,19 @@ func (a *App) PopulateInventory() error {
 			continue
 		}
 
-		_, err := a.orderDAO.Write(order.Owner, totalPrice, validItems)
+		orderID, err := a.orderDAO.Write(order.Owner, totalPrice, validItems)
 		if err != nil {
 			a.logger.Error(fmt.Sprintf("Failed to add order %d (%s): %v", i+1, order.Owner, err))
 			orderFailCount++
 			continue
+		}
+
+		// Track embedded promotions for this order
+		if len(order.PromotionIDs) > 0 {
+			embeddedPromotions = append(embeddedPromotions, embeddedPromotion{
+				orderID:      orderID,
+				promotionIDs: order.PromotionIDs,
+			})
 		}
 
 		orderSuccessCount++
@@ -396,6 +411,30 @@ func (a *App) PopulateInventory() error {
 
 		a.logger.Info(fmt.Sprintf("Order-promotion relationships complete: %d succeeded, %d failed",
 			orderPromoSuccessCount, orderPromoFailCount))
+	}
+
+	// Apply embedded promotions from orders.json
+	if len(embeddedPromotions) > 0 {
+		a.logger.Info(fmt.Sprintf("Applying %d embedded order-promotion relationships", len(embeddedPromotions)))
+
+		embeddedSuccessCount := 0
+		embeddedFailCount := 0
+
+		for _, ep := range embeddedPromotions {
+			for _, promoID := range ep.promotionIDs {
+				err := a.ApplyPromotionToOrder(ep.orderID, promoID)
+				if err != nil {
+					a.logger.Error(fmt.Sprintf("Failed to apply embedded promotion %d to order %d: %v", promoID, ep.orderID, err))
+					embeddedFailCount++
+					continue
+				}
+				embeddedSuccessCount++
+				a.logger.Info(fmt.Sprintf("Applied embedded promotion #%d to order #%d", promoID, ep.orderID))
+			}
+		}
+
+		a.logger.Info(fmt.Sprintf("Embedded order-promotion relationships complete: %d succeeded, %d failed",
+			embeddedSuccessCount, embeddedFailCount))
 	}
 
 	// Final summary
