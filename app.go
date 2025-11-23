@@ -463,7 +463,6 @@ func (a *App) GetAllItems() ([]map[string]any, error) {
 		return nil, err
 	}
 
-	// Convert to map format for JSON serialization
 	result := make([]map[string]any, len(items))
 	for i, item := range items {
 		result[i] = map[string]any{
@@ -485,7 +484,6 @@ func (a *App) GetAllOrders() ([]map[string]any, error) {
 		return nil, err
 	}
 
-	// Convert to map format for JSON serialization
 	result := make([]map[string]any, len(orders))
 	for i, order := range orders {
 		result[i] = map[string]any{
@@ -509,7 +507,6 @@ func (a *App) GetAllPromotions() ([]map[string]any, error) {
 		return nil, err
 	}
 
-	// Convert to map format for JSON serialization
 	result := make([]map[string]any, len(promotions))
 	for i, promotion := range promotions {
 		result[i] = map[string]any{
@@ -526,24 +523,28 @@ func (a *App) GetAllPromotions() ([]map[string]any, error) {
 	return result, nil
 }
 
+// validateCollectionInput validates name and itemIDs for order/promotion creation
+func (a *App) validateCollectionInput(name string, itemIDs []uint64, entityType string) error {
+	if name == "" {
+		return fmt.Errorf("%s name cannot be empty", entityType)
+	}
+	if len(itemIDs) == 0 {
+		return fmt.Errorf("%s must contain at least one item", entityType)
+	}
+	return nil
+}
+
 // CreateOrder creates a new order with the given customer name and item IDs
 func (a *App) CreateOrder(customerName string, itemIDs []uint64) (uint64, error) {
-	// Validate inputs
-	if customerName == "" {
-		return 0, fmt.Errorf("customer name cannot be empty")
+	if err := a.validateCollectionInput(customerName, itemIDs, "customer"); err != nil {
+		return 0, err
 	}
 
-	if len(itemIDs) == 0 {
-		return 0, fmt.Errorf("order must contain at least one item")
-	}
-
-	// Calculate total price by reading each item
 	totalPrice, err := a.calculateTotalPrice(itemIDs)
 	if err != nil {
 		return 0, err
 	}
 
-	// Write order to orders.bin and get assigned ID
 	assignedID, err := a.orderDAO.Write(customerName, totalPrice, itemIDs)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create order: %w", err)
@@ -586,22 +587,15 @@ func (a *App) DeleteOrder(id uint64) error {
 
 // CreatePromotion creates a new promotion with the given name and item IDs
 func (a *App) CreatePromotion(promotionName string, itemIDs []uint64) (uint64, error) {
-	// Validate inputs
-	if promotionName == "" {
-		return 0, fmt.Errorf("promotion name cannot be empty")
+	if err := a.validateCollectionInput(promotionName, itemIDs, "promotion"); err != nil {
+		return 0, err
 	}
 
-	if len(itemIDs) == 0 {
-		return 0, fmt.Errorf("promotion must contain at least one item")
-	}
-
-	// Calculate total price by reading each item
 	totalPrice, err := a.calculateTotalPrice(itemIDs)
 	if err != nil {
 		return 0, err
 	}
 
-	// Write promotion to promotions.bin and get assigned ID
 	assignedID, err := a.promotionDAO.Write(promotionName, totalPrice, itemIDs)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create promotion: %w", err)
@@ -888,24 +882,23 @@ func (a *App) DecompressFile(filename string) (map[string]any, error) {
 	}, nil
 }
 
-// GetCompressedFiles returns a list of compressed files
-func (a *App) GetCompressedFiles() ([]map[string]any, error) {
-	compressedDir := filepath.Join("data", "compressed")
-
-	// Ensure directory exists
-	if _, err := os.Stat(compressedDir); os.IsNotExist(err) {
+// listFilesInDir is a helper to list files in a directory with optional filtering and mapping
+func (a *App) listFilesInDir(dir string, filter func(string) bool, mapper func(string, int64) map[string]any) ([]map[string]any, error) {
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		return []map[string]any{}, nil
 	}
 
-	entries, err := os.ReadDir(compressedDir)
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read compressed directory: %w", err)
+		return nil, fmt.Errorf("failed to read directory %s: %w", dir, err)
 	}
 
 	files := make([]map[string]any, 0)
-
 	for _, entry := range entries {
 		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+		if filter != nil && !filter(entry.Name()) {
 			continue
 		}
 
@@ -914,37 +907,42 @@ func (a *App) GetCompressedFiles() ([]map[string]any, error) {
 			continue
 		}
 
-		// Determine algorithm
-		var algorithm string
-		if strings.Contains(entry.Name(), ".huffman.") {
-			algorithm = "huffman"
-		} else if strings.Contains(entry.Name(), ".lzw.") {
-			algorithm = "lzw"
-		} else {
-			algorithm = "unknown"
-		}
-
-		files = append(files, map[string]any{
-			"name":      entry.Name(),
-			"size":      info.Size(),
-			"algorithm": algorithm,
-		})
+		files = append(files, mapper(entry.Name(), info.Size()))
 	}
 
 	return files, nil
+}
+
+// GetCompressedFiles returns a list of compressed files
+func (a *App) GetCompressedFiles() ([]map[string]any, error) {
+	return a.listFilesInDir(
+		filepath.Join("data", "compressed"),
+		nil, // no filter
+		func(name string, size int64) map[string]any {
+			algorithm := "unknown"
+			if strings.Contains(name, ".huffman.") {
+				algorithm = "huffman"
+			} else if strings.Contains(name, ".lzw.") {
+				algorithm = "lzw"
+			}
+			return map[string]any{
+				"name":      name,
+				"size":      size,
+				"algorithm": algorithm,
+			}
+		},
+	)
 }
 
 // DeleteCompressedFile deletes a compressed file
 func (a *App) DeleteCompressedFile(filename string) error {
 	filePath := filepath.Join("data", "compressed", filename)
 
-	// Check if file exists
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return fmt.Errorf("file not found: %s", filename)
 	}
 
-	err := os.Remove(filePath)
-	if err != nil {
+	if err := os.Remove(filePath); err != nil {
 		return fmt.Errorf("failed to delete file: %w", err)
 	}
 
@@ -954,35 +952,14 @@ func (a *App) DeleteCompressedFile(filename string) error {
 
 // GetBinFiles returns a list of .bin files in the data/bin directory
 func (a *App) GetBinFiles() ([]map[string]any, error) {
-	binDir := filepath.Join("data", "bin")
-
-	// Check if directory exists
-	if _, err := os.Stat(binDir); os.IsNotExist(err) {
-		return []map[string]any{}, nil
-	}
-
-	entries, err := os.ReadDir(binDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read bin directory: %w", err)
-	}
-
-	files := make([]map[string]any, 0)
-
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".bin") {
-			continue
-		}
-
-		info, err := entry.Info()
-		if err != nil {
-			continue
-		}
-
-		files = append(files, map[string]any{
-			"name": entry.Name(),
-			"size": info.Size(),
-		})
-	}
-
-	return files, nil
+	return a.listFilesInDir(
+		filepath.Join("data", "bin"),
+		func(name string) bool { return strings.HasSuffix(name, ".bin") },
+		func(name string, size int64) map[string]any {
+			return map[string]any{
+				"name": name,
+				"size": size,
+			}
+		},
+	)
 }

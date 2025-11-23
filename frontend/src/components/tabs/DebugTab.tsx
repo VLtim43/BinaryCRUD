@@ -4,7 +4,8 @@ import { Button } from "../Button";
 import { Select } from "../Select";
 import { Modal } from "../Modal";
 import { ItemList } from "../ItemList";
-import { DataTable, TableColumn } from "../DataTable";
+import { DataTable } from "../DataTable";
+import { SubTabs } from "../SubTabs";
 import { systemService } from "../../services/systemService";
 import { itemService, Item } from "../../services/itemService";
 import { orderService, Order } from "../../services/orderService";
@@ -18,8 +19,13 @@ import {
   CompressedFile,
   BinFile,
 } from "../../services/compressionService";
-import { formatPrice, PROMO_CARD_STYLE } from "../../utils/formatters";
-import { Fragment } from "preact";
+import {
+  formatPrice,
+  formatError,
+  createSelectHandler,
+  PROMO_CARD_STYLE,
+  DEBUG_TABS,
+} from "../../utils/formatters";
 
 type DebugSubTab = "tools" | "print" | "compress";
 
@@ -29,6 +35,9 @@ interface DebugTabProps {
   subTab: DebugSubTab;
   onSubTabChange: (subTab: DebugSubTab) => void;
 }
+
+type IndexType = "items" | "orders" | "promotions";
+type PrintDataType = "items" | "orders" | "promotions";
 
 export const DebugTab = ({
   onMessage,
@@ -65,7 +74,6 @@ export const DebugTab = ({
   const [isCompressing, setIsCompressing] = useState(false);
   const [isDecompressing, setIsDecompressing] = useState<string | null>(null);
 
-  // Load compressed files and bin files when compress tab is shown
   useEffect(() => {
     if (subTab === "compress") {
       loadCompressedFiles();
@@ -77,8 +85,8 @@ export const DebugTab = ({
     try {
       const files = await compressionService.getCompressedFiles();
       setCompressedFiles(files);
-    } catch (err: any) {
-      onMessage(`Error loading compressed files: ${err}`);
+    } catch (err) {
+      onMessage(`Error loading compressed files: ${formatError(err)}`);
     }
   };
 
@@ -86,12 +94,11 @@ export const DebugTab = ({
     try {
       const files = await compressionService.getBinFiles();
       setBinFiles(files);
-      // Auto-select first file if none selected
       if (files.length > 0 && !selectedFile) {
         setSelectedFile(files[0].name);
       }
-    } catch (err: any) {
-      onMessage(`Error loading bin files: ${err}`);
+    } catch (err) {
+      onMessage(`Error loading bin files: ${formatError(err)}`);
     }
   };
 
@@ -99,12 +106,17 @@ export const DebugTab = ({
     setIsCompressing(true);
     try {
       onMessage(`Compressing ${selectedFile} with ${selectedAlgorithm}...`);
-      const result = await compressionService.compress(selectedFile, selectedAlgorithm);
-      onMessage(`Compressed ${selectedFile} -> ${result.outputFile} (${result.spaceSaved} saved)`);
+      const result = await compressionService.compress(
+        selectedFile,
+        selectedAlgorithm
+      );
+      onMessage(
+        `Compressed ${selectedFile} -> ${result.outputFile} (${result.spaceSaved} saved)`
+      );
       await loadCompressedFiles();
       onRefreshLogs();
-    } catch (err: any) {
-      onMessage(`Error compressing: ${err}`);
+    } catch (err) {
+      onMessage(`Error compressing: ${formatError(err)}`);
     } finally {
       setIsCompressing(false);
     }
@@ -117,8 +129,8 @@ export const DebugTab = ({
       const result = await compressionService.decompress(filename);
       onMessage(`Decompressed ${filename} -> ${result.outputFile}`);
       onRefreshLogs();
-    } catch (err: any) {
-      onMessage(`Error decompressing: ${err}`);
+    } catch (err) {
+      onMessage(`Error decompressing: ${formatError(err)}`);
     } finally {
       setIsDecompressing(null);
     }
@@ -129,8 +141,8 @@ export const DebugTab = ({
       await compressionService.deleteCompressedFile(filename);
       onMessage(`Deleted ${filename}`);
       await loadCompressedFiles();
-    } catch (err: any) {
-      onMessage(`Error deleting: ${err}`);
+    } catch (err) {
+      onMessage(`Error deleting: ${formatError(err)}`);
     }
   };
 
@@ -140,51 +152,9 @@ export const DebugTab = ({
       await systemService.populateInventory();
       onMessage("Inventory populated successfully! Check logs for details.");
       onRefreshLogs();
-    } catch (err: any) {
-      onMessage(`Error: ${err}`);
+    } catch (err) {
+      onMessage(`Error: ${formatError(err)}`);
       onRefreshLogs();
-    }
-  };
-
-  const handlePrintItemIndex = async () => {
-    onMessage("Loading item index contents...");
-    try {
-      const data = await systemService.getIndexContents();
-      setPrintData({});
-      setIndexData({ items: data });
-      onMessage(`Item index loaded: ${data.count} entries.`);
-      onRefreshLogs();
-    } catch (err: any) {
-      setIndexData({});
-      onMessage(`Error loading item index: ${err}`);
-    }
-  };
-
-  const handlePrintOrderIndex = async () => {
-    onMessage("Loading order index contents...");
-    try {
-      const data = await systemService.getOrderIndexContents();
-      setPrintData({});
-      setIndexData({ orders: data });
-      onMessage(`Order index loaded: ${data.count} entries.`);
-      onRefreshLogs();
-    } catch (err: any) {
-      setIndexData({});
-      onMessage(`Error loading order index: ${err}`);
-    }
-  };
-
-  const handlePrintPromotionIndex = async () => {
-    onMessage("Loading promotion index contents...");
-    try {
-      const data = await systemService.getPromotionIndexContents();
-      setPrintData({});
-      setIndexData({ promotions: data });
-      onMessage(`Promotion index loaded: ${data.count} entries.`);
-      onRefreshLogs();
-    } catch (err: any) {
-      setIndexData({});
-      onMessage(`Error loading promotion index: ${err}`);
     }
   };
 
@@ -194,44 +164,74 @@ export const DebugTab = ({
       setIndexData({});
       onMessage("All generated files deleted successfully!");
       onRefreshLogs();
-    } catch (err: any) {
-      onMessage(`Error: ${err}`);
+    } catch (err) {
+      onMessage(`Error: ${formatError(err)}`);
     }
   };
 
-  const handlePrintAllItems = async () => {
+  // Consolidated index loading function
+  const handlePrintIndex = async (type: IndexType) => {
+    const indexNames: Record<IndexType, string> = {
+      items: "item",
+      orders: "order",
+      promotions: "promotion",
+    };
+    const indexName = indexNames[type];
+
+    onMessage(`Loading ${indexName} index contents...`);
     try {
-      onMessage("Loading all items...");
-      const items = await itemService.getAll();
+      let data;
+      switch (type) {
+        case "items":
+          data = await systemService.getIndexContents();
+          break;
+        case "orders":
+          data = await systemService.getOrderIndexContents();
+          break;
+        case "promotions":
+          data = await systemService.getPromotionIndexContents();
+          break;
+      }
+      setPrintData({});
+      setIndexData({ [type]: data });
+      onMessage(
+        `${indexName.charAt(0).toUpperCase() + indexName.slice(1)} index loaded: ${data.count} entries.`
+      );
+      onRefreshLogs();
+    } catch (err) {
       setIndexData({});
-      setPrintData({ items });
-      onMessage(`Loaded ${items.length} items`);
-    } catch (err: any) {
-      onMessage(`Error loading items: ${err}`);
+      onMessage(`Error loading ${indexName} index: ${formatError(err)}`);
     }
   };
 
-  const handlePrintAllOrders = async () => {
-    try {
-      onMessage("Loading all orders...");
-      const orders = await orderService.getAll();
-      setIndexData({});
-      setPrintData({ orders });
-      onMessage(`Loaded ${orders.length} orders`);
-    } catch (err: any) {
-      onMessage(`Error loading orders: ${err}`);
-    }
-  };
+  // Consolidated print all function
+  const handlePrintAll = async (type: PrintDataType) => {
+    const typeNames: Record<PrintDataType, string> = {
+      items: "items",
+      orders: "orders",
+      promotions: "promotions",
+    };
+    const typeName = typeNames[type];
 
-  const handlePrintAllPromotions = async () => {
     try {
-      onMessage("Loading all promotions...");
-      const promotions = await promotionService.getAll();
+      onMessage(`Loading all ${typeName}...`);
+      let data;
+      switch (type) {
+        case "items":
+          data = await itemService.getAll();
+          break;
+        case "orders":
+          data = await orderService.getAll();
+          break;
+        case "promotions":
+          data = await promotionService.getAll();
+          break;
+      }
       setIndexData({});
-      setPrintData({ promotions });
-      onMessage(`Loaded ${promotions.length} promotions`);
-    } catch (err: any) {
-      onMessage(`Error loading promotions: ${err}`);
+      setPrintData({ [type]: data });
+      onMessage(`Loaded ${data.length} ${typeName}`);
+    } catch (err) {
+      onMessage(`Error loading ${typeName}: ${formatError(err)}`);
     }
   };
 
@@ -251,8 +251,8 @@ export const DebugTab = ({
       setItems(fetchedItems);
       setIsItemModalOpen(true);
       onRefreshLogs();
-    } catch (err: any) {
-      onMessage(`Error fetching order items: ${err}`);
+    } catch (err) {
+      onMessage(`Error fetching order items: ${formatError(err)}`);
     }
   };
 
@@ -274,33 +274,18 @@ export const DebugTab = ({
       setSelectedPromoForView({ id: promotionId, name: promotionName });
       setIsPromoModalOpen(true);
       onRefreshLogs();
-    } catch (err: any) {
-      onMessage(`Error fetching promotion items: ${err}`);
+    } catch (err) {
+      onMessage(`Error fetching promotion items: ${formatError(err)}`);
     }
   };
 
   return (
     <>
-      <div className="sub_tabs">
-        <Button
-          className={`tab ${subTab === "tools" ? "active" : ""}`}
-          onClick={() => onSubTabChange("tools")}
-        >
-          Tools
-        </Button>
-        <Button
-          className={`tab ${subTab === "print" ? "active" : ""}`}
-          onClick={() => onSubTabChange("print")}
-        >
-          Print
-        </Button>
-        <Button
-          className={`tab ${subTab === "compress" ? "active" : ""}`}
-          onClick={() => onSubTabChange("compress")}
-        >
-          Compress
-        </Button>
-      </div>
+      <SubTabs
+        tabs={[...DEBUG_TABS]}
+        activeTab={subTab}
+        onTabChange={(tab) => onSubTabChange(tab as DebugSubTab)}
+      />
 
       {subTab === "tools" && (
         <>
@@ -317,15 +302,23 @@ export const DebugTab = ({
         <>
           <div className="button-grid">
             <div className="button-grid-label">Data</div>
-            <Button onClick={handlePrintAllItems}>Print All Items</Button>
-            <Button onClick={handlePrintAllOrders}>Print All Orders</Button>
-            <Button onClick={handlePrintAllPromotions}>
+            <Button onClick={() => handlePrintAll("items")}>
+              Print All Items
+            </Button>
+            <Button onClick={() => handlePrintAll("orders")}>
+              Print All Orders
+            </Button>
+            <Button onClick={() => handlePrintAll("promotions")}>
               Print All Promotions
             </Button>
             <div className="button-grid-label">Indexes</div>
-            <Button onClick={handlePrintItemIndex}>Print Item Index</Button>
-            <Button onClick={handlePrintOrderIndex}>Print Order Index</Button>
-            <Button onClick={handlePrintPromotionIndex}>
+            <Button onClick={() => handlePrintIndex("items")}>
+              Print Item Index
+            </Button>
+            <Button onClick={() => handlePrintIndex("orders")}>
+              Print Order Index
+            </Button>
+            <Button onClick={() => handlePrintIndex("promotions")}>
               Print Promotion Index
             </Button>
           </div>
@@ -607,8 +600,11 @@ export const DebugTab = ({
                   <label>File:</label>
                   <Select
                     value={selectedFile}
-                    onChange={(e) => setSelectedFile((e.target as HTMLSelectElement).value)}
-                    options={binFiles.map((f) => ({ value: f.name, label: f.name }))}
+                    onChange={createSelectHandler(setSelectedFile)}
+                    options={binFiles.map((f) => ({
+                      value: f.name,
+                      label: f.name,
+                    }))}
                     placeholder="Select file..."
                   />
                 </div>
@@ -616,7 +612,7 @@ export const DebugTab = ({
                   <label>Algorithm:</label>
                   <Select
                     value={selectedAlgorithm}
-                    onChange={(e) => setSelectedAlgorithm((e.target as HTMLSelectElement).value)}
+                    onChange={createSelectHandler(setSelectedAlgorithm)}
                     options={[
                       { value: "huffman", label: "Huffman" },
                       { value: "lzw", label: "LZW" },
@@ -625,7 +621,10 @@ export const DebugTab = ({
                   />
                 </div>
                 <div className="compress-actions">
-                  <Button onClick={handleCompress} disabled={isCompressing || !selectedFile}>
+                  <Button
+                    onClick={handleCompress}
+                    disabled={isCompressing || !selectedFile}
+                  >
                     {isCompressing ? "Compressing..." : "Compress"}
                   </Button>
                 </div>
@@ -638,14 +637,21 @@ export const DebugTab = ({
               <h3>Compressed Files ({compressedFiles.length})</h3>
               <DataTable
                 columns={[
-                  { key: "name", header: "File Name", align: "left", minWidth: "200px" },
+                  {
+                    key: "name",
+                    header: "File Name",
+                    align: "left",
+                    minWidth: "200px",
+                  },
                   {
                     key: "algorithm",
                     header: "Algorithm",
                     align: "center",
                     minWidth: "100px",
                     render: (value) => (
-                      <span className="algorithm-badge">{value.toUpperCase()}</span>
+                      <span className="algorithm-badge">
+                        {value.toUpperCase()}
+                      </span>
                     ),
                   },
                   {
@@ -668,7 +674,10 @@ export const DebugTab = ({
                     align: "right",
                     minWidth: "80px",
                     render: (_, row) => {
-                      const ratio = ((1 - row.compressedSize / row.originalSize) * 100).toFixed(1);
+                      const ratio = (
+                        (1 - row.compressedSize / row.originalSize) *
+                        100
+                      ).toFixed(1);
                       return <span className="ratio-badge">{ratio}%</span>;
                     },
                   },

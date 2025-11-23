@@ -2,6 +2,8 @@ import { h } from "preact";
 import { useState } from "preact/hooks";
 import { Button } from "../Button";
 import { Input } from "../Input";
+import { SubTabs } from "../SubTabs";
+import { DeleteForm } from "../DeleteForm";
 import { itemService, Item } from "../../services/itemService";
 import {
   formatPrice,
@@ -9,8 +11,9 @@ import {
   isValidPrice,
   isValidId,
   createIdInputHandler,
+  formatError,
+  CRUD_TABS,
 } from "../../utils/formatters";
-import { Fragment } from "preact";
 
 interface ItemTabProps {
   onMessage: (msg: string) => void;
@@ -44,7 +47,7 @@ export const ItemTab = ({ onMessage, onRefreshLogs }: ItemTabProps) => {
       setItemPrice("");
       onRefreshLogs();
     } catch (err) {
-      onMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      onMessage(`Error: ${formatError(err)}`);
     }
   };
 
@@ -66,7 +69,7 @@ export const ItemTab = ({ onMessage, onRefreshLogs }: ItemTabProps) => {
       onRefreshLogs();
     } catch (err) {
       setFoundItem(null);
-      onMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      onMessage(`Error: ${formatError(err)}`);
     }
   };
 
@@ -82,7 +85,7 @@ export const ItemTab = ({ onMessage, onRefreshLogs }: ItemTabProps) => {
       setDeleteId("");
       onRefreshLogs();
     } catch (err) {
-      onMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      onMessage(`Error: ${formatError(err)}`);
     }
   };
 
@@ -96,26 +99,11 @@ export const ItemTab = ({ onMessage, onRefreshLogs }: ItemTabProps) => {
 
   return (
     <>
-      <div className="sub_tabs">
-        <Button
-          className={`tab ${subTab === "create" ? "active" : ""}`}
-          onClick={() => setSubTab("create")}
-        >
-          Create
-        </Button>
-        <Button
-          className={`tab ${subTab === "read" ? "active" : ""}`}
-          onClick={() => setSubTab("read")}
-        >
-          Read
-        </Button>
-        <Button
-          className={`tab ${subTab === "delete" ? "active" : ""}`}
-          onClick={() => setSubTab("delete")}
-        >
-          Delete
-        </Button>
-      </div>
+      <SubTabs
+        tabs={[...CRUD_TABS]}
+        activeTab={subTab}
+        onTabChange={(tab) => setSubTab(tab as typeof subTab)}
+      />
 
       {subTab === "create" && (
         <div className="input-box">
@@ -175,17 +163,12 @@ export const ItemTab = ({ onMessage, onRefreshLogs }: ItemTabProps) => {
       )}
 
       {subTab === "delete" && (
-        <div className="input-box">
-          <Input
-            id="delete-record-id"
-            placeholder="Enter Record ID"
-            value={deleteId}
-            onChange={createIdInputHandler(setDeleteId)}
-          />
-          <Button variant="danger" onClick={handleDelete}>
-            Delete Record
-          </Button>
-        </div>
+        <DeleteForm
+          deleteId={deleteId}
+          setDeleteId={setDeleteId}
+          onDelete={handleDelete}
+          entityName="Record"
+        />
       )}
     </>
   );

@@ -46,3 +46,19 @@ export const PROMO_CARD_STYLE = {
   backgroundColor: "rgba(100, 200, 100, 0.05)",
   borderColor: "rgba(100, 200, 100, 0.2)",
 };
+
+export const formatError = (err: unknown): string => {
+  return err instanceof Error ? err.message : String(err);
+};
+
+export const CRUD_TABS = [
+  { id: "create", label: "Create" },
+  { id: "read", label: "Read" },
+  { id: "delete", label: "Delete" },
+] as const;
+
+export const DEBUG_TABS = [
+  { id: "tools", label: "Tools" },
+  { id: "print", label: "Print" },
+  { id: "compress", label: "Compress" },
+] as const;

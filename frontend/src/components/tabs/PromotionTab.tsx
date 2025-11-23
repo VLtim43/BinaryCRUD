@@ -5,18 +5,22 @@ import { Input } from "../Input";
 import { Select } from "../Select";
 import { Modal } from "../Modal";
 import { ItemList } from "../ItemList";
+import { SubTabs } from "../SubTabs";
+import { DeleteForm } from "../DeleteForm";
 import { promotionService, Promotion } from "../../services/promotionService";
 import { itemService, Item } from "../../services/itemService";
 import { orderPromotionService } from "../../services/orderPromotionService";
-import { Fragment } from "preact";
 import {
   formatPrice,
   isValidId,
   createIdInputHandler,
   createInputHandler,
   createSelectHandler,
+  formatError,
+  CRUD_TABS,
 } from "../../utils/formatters";
-import { CartItem } from "../../types/cart";
+import { useCart } from "../../hooks/useCart";
+import { useItems } from "../../hooks/useItems";
 
 interface PromotionTabProps {
   onMessage: (msg: string) => void;
@@ -34,24 +38,25 @@ export const PromotionTab = ({
   const [foundPromotion, setFoundPromotion] = useState<Promotion | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
-  const [allItems, setAllItems] = useState<Item[]>([]);
-  const [selectedItemId, setSelectedItemId] = useState("");
-  const [cart, setCart] = useState<CartItem[]>([]);
+
+  const { allItems, loadAllItems, getActiveItems } = useItems();
+  const {
+    cart,
+    selectedItemId,
+    setSelectedItemId,
+    addItemToCart,
+    removeFromCart,
+    calculateTotal,
+    getTotalItemCount,
+    getItemIDs,
+    clearCart,
+  } = useCart({ onMessage });
 
   useEffect(() => {
     if (subTab === "create") {
       loadAllItems();
     }
   }, [subTab]);
-
-  const loadAllItems = async () => {
-    try {
-      const items = await itemService.getAll();
-      setAllItems(items);
-    } catch (err) {
-      console.error("Error loading items:", err);
-    }
-  };
 
   const handleRead = async () => {
     if (!isValidId(recordId)) {
@@ -71,7 +76,7 @@ export const PromotionTab = ({
       onRefreshLogs();
     } catch (err) {
       setFoundPromotion(null);
-      onMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      onMessage(`Error: ${formatError(err)}`);
     }
   };
 
@@ -87,7 +92,7 @@ export const PromotionTab = ({
       setDeleteId("");
       onRefreshLogs();
     } catch (err) {
-      onMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      onMessage(`Error: ${formatError(err)}`);
     }
   };
 
@@ -109,49 +114,8 @@ export const PromotionTab = ({
       setIsModalOpen(true);
       onRefreshLogs();
     } catch (err) {
-      onMessage(
-        `Error fetching items: ${
-          err instanceof Error ? err.message : String(err)
-        }`
-      );
+      onMessage(`Error fetching items: ${formatError(err)}`);
     }
-  };
-
-  const handleAddItemToCart = () => {
-    if (!selectedItemId) {
-      onMessage("Please select an item");
-      return;
-    }
-
-    const item = allItems.find((i) => i.id === parseInt(selectedItemId, 10));
-    if (!item) {
-      onMessage("Item not found");
-      return;
-    }
-
-    const existingItem = cart.find((c) => c.id === item.id);
-    if (existingItem) {
-      setCart(
-        cart.map((c) =>
-          c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c
-        )
-      );
-    } else {
-      setCart([...cart, { ...item, quantity: 1 }]);
-    }
-
-    setSelectedItemId("");
-  };
-
-  const handleRemoveFromCart = (itemId: number) => {
-    setCart(cart.filter((c) => c.id !== itemId));
-  };
-
-  const calculateTotal = () => {
-    return cart.reduce(
-      (sum, item) => sum + item.priceInCents * item.quantity,
-      0
-    );
   };
 
   const handleCreatePromotion = async () => {
@@ -166,13 +130,7 @@ export const PromotionTab = ({
     }
 
     try {
-      const itemIDs: number[] = [];
-      cart.forEach((item) => {
-        for (let i = 0; i < item.quantity; i++) {
-          itemIDs.push(item.id);
-        }
-      });
-
+      const itemIDs = getItemIDs();
       const promotionId = await orderPromotionService.createPromotion(
         promotionName,
         itemIDs
@@ -183,35 +141,20 @@ export const PromotionTab = ({
         )})`
       );
       setPromotionName("");
-      setCart([]);
+      clearCart();
       onRefreshLogs();
     } catch (err) {
-      onMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      onMessage(`Error: ${formatError(err)}`);
     }
   };
 
   return (
     <>
-      <div className="sub_tabs">
-        <Button
-          className={`tab ${subTab === "create" ? "active" : ""}`}
-          onClick={() => setSubTab("create")}
-        >
-          Create
-        </Button>
-        <Button
-          className={`tab ${subTab === "read" ? "active" : ""}`}
-          onClick={() => setSubTab("read")}
-        >
-          Read
-        </Button>
-        <Button
-          className={`tab ${subTab === "delete" ? "active" : ""}`}
-          onClick={() => setSubTab("delete")}
-        >
-          Delete
-        </Button>
-      </div>
+      <SubTabs
+        tabs={[...CRUD_TABS]}
+        activeTab={subTab}
+        onTabChange={(tab) => setSubTab(tab as typeof subTab)}
+      />
 
       {subTab === "create" && (
         <>
@@ -220,21 +163,19 @@ export const PromotionTab = ({
               <Select
                 value={selectedItemId}
                 onChange={createSelectHandler(setSelectedItemId)}
-                options={allItems
-                  .filter((item) => !item.isDeleted)
-                  .map((item) => ({
-                    value: item.id,
-                    label: `${item.name} - $${formatPrice(item.priceInCents)}`,
-                  }))}
+                options={getActiveItems().map((item) => ({
+                  value: item.id,
+                  label: `${item.name} - $${formatPrice(item.priceInCents)}`,
+                }))}
                 placeholder="Select an item..."
                 className="cart-select"
               />
-              <Button onClick={handleAddItemToCart}>Add Item</Button>
+              <Button onClick={() => addItemToCart(allItems)}>Add Item</Button>
             </div>
 
             <div className="cart-total">
-              Total: ${formatPrice(calculateTotal())} (
-              {cart.reduce((sum, item) => sum + item.quantity, 0)} items)
+              Total: ${formatPrice(calculateTotal())} ({getTotalItemCount()}{" "}
+              items)
             </div>
 
             <div className="cart-items">
@@ -254,7 +195,7 @@ export const PromotionTab = ({
                       <Button
                         size="small"
                         variant="danger"
-                        onClick={() => handleRemoveFromCart(item.id)}
+                        onClick={() => removeFromCart(item.id)}
                       >
                         ×
                       </Button>
@@ -337,17 +278,12 @@ export const PromotionTab = ({
       )}
 
       {subTab === "delete" && (
-        <div className="input-box">
-          <Input
-            id="delete-record-id"
-            placeholder="Enter Record ID"
-            value={deleteId}
-            onChange={createIdInputHandler(setDeleteId)}
-          />
-          <Button variant="danger" onClick={handleDelete}>
-            Delete Record
-          </Button>
-        </div>
+        <DeleteForm
+          deleteId={deleteId}
+          setDeleteId={setDeleteId}
+          onDelete={handleDelete}
+          entityName="Record"
+        />
       )}
 
       <Modal
