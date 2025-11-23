@@ -16,6 +16,7 @@ import {
 import {
   compressionService,
   CompressedFile,
+  BinFile,
 } from "../../services/compressionService";
 import { formatPrice, PROMO_CARD_STYLE } from "../../utils/formatters";
 import { Fragment } from "preact";
@@ -57,16 +58,18 @@ export const DebugTab = ({
   } | null>(null);
 
   // Compression state
-  const [selectedFile, setSelectedFile] = useState<string>("items.bin");
+  const [selectedFile, setSelectedFile] = useState<string>("");
   const [selectedAlgorithm, setSelectedAlgorithm] = useState<string>("huffman");
   const [compressedFiles, setCompressedFiles] = useState<CompressedFile[]>([]);
+  const [binFiles, setBinFiles] = useState<BinFile[]>([]);
   const [isCompressing, setIsCompressing] = useState(false);
   const [isDecompressing, setIsDecompressing] = useState<string | null>(null);
 
-  // Load compressed files when compress tab is shown
+  // Load compressed files and bin files when compress tab is shown
   useEffect(() => {
     if (subTab === "compress") {
       loadCompressedFiles();
+      loadBinFiles();
     }
   }, [subTab]);
 
@@ -76,6 +79,19 @@ export const DebugTab = ({
       setCompressedFiles(files);
     } catch (err: any) {
       onMessage(`Error loading compressed files: ${err}`);
+    }
+  };
+
+  const loadBinFiles = async () => {
+    try {
+      const files = await compressionService.getBinFiles();
+      setBinFiles(files);
+      // Auto-select first file if none selected
+      if (files.length > 0 && !selectedFile) {
+        setSelectedFile(files[0].name);
+      }
+    } catch (err: any) {
+      onMessage(`Error loading bin files: ${err}`);
     }
   };
 
@@ -583,39 +599,38 @@ export const DebugTab = ({
         <>
           <div className="details-card">
             <h3>Compress Files</h3>
-            <div className="compress-controls">
-              <div className="compress-row">
-                <label>File:</label>
-                <Select
-                  value={selectedFile}
-                  onChange={(e) => setSelectedFile((e.target as HTMLSelectElement).value)}
-                  options={[
-                    { value: "items.bin", label: "items.bin" },
-                    { value: "orders.bin", label: "orders.bin" },
-                    { value: "promotions.bin", label: "promotions.bin" },
-                    { value: "order_promotions.bin", label: "order_promotions.bin" },
-                  ]}
-                  placeholder="Select file..."
-                />
+            {binFiles.length === 0 ? (
+              <p>No .bin files found in data/bin/. Populate inventory first.</p>
+            ) : (
+              <div className="compress-controls">
+                <div className="compress-row">
+                  <label>File:</label>
+                  <Select
+                    value={selectedFile}
+                    onChange={(e) => setSelectedFile((e.target as HTMLSelectElement).value)}
+                    options={binFiles.map((f) => ({ value: f.name, label: f.name }))}
+                    placeholder="Select file..."
+                  />
+                </div>
+                <div className="compress-row">
+                  <label>Algorithm:</label>
+                  <Select
+                    value={selectedAlgorithm}
+                    onChange={(e) => setSelectedAlgorithm((e.target as HTMLSelectElement).value)}
+                    options={[
+                      { value: "huffman", label: "Huffman" },
+                      { value: "lzw", label: "LZW" },
+                    ]}
+                    placeholder="Select algorithm..."
+                  />
+                </div>
+                <div className="compress-actions">
+                  <Button onClick={handleCompress} disabled={isCompressing || !selectedFile}>
+                    {isCompressing ? "Compressing..." : "Compress"}
+                  </Button>
+                </div>
               </div>
-              <div className="compress-row">
-                <label>Algorithm:</label>
-                <Select
-                  value={selectedAlgorithm}
-                  onChange={(e) => setSelectedAlgorithm((e.target as HTMLSelectElement).value)}
-                  options={[
-                    { value: "huffman", label: "Huffman" },
-                    { value: "lzw", label: "LZW" },
-                  ]}
-                  placeholder="Select algorithm..."
-                />
-              </div>
-              <div className="compress-actions">
-                <Button onClick={handleCompress} disabled={isCompressing}>
-                  {isCompressing ? "Compressing..." : "Compress"}
-                </Button>
-              </div>
-            </div>
+            )}
           </div>
 
           {compressedFiles.length > 0 && (

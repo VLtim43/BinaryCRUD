@@ -62,6 +62,10 @@ export function GetAllPromotions() {
   return window['go']['main']['App']['GetAllPromotions']();
 }
 
+export function GetBinFiles() {
+  return window['go']['main']['App']['GetBinFiles']();
+}
+
 export function GetCompressedFiles() {
   return window['go']['main']['App']['GetCompressedFiles']();
 }

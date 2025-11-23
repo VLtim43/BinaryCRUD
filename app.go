@@ -951,3 +951,38 @@ func (a *App) DeleteCompressedFile(filename string) error {
 	a.logger.Info(fmt.Sprintf("Deleted compressed file: %s", filename))
 	return nil
 }
+
+// GetBinFiles returns a list of .bin files in the data/bin directory
+func (a *App) GetBinFiles() ([]map[string]any, error) {
+	binDir := filepath.Join("data", "bin")
+
+	// Check if directory exists
+	if _, err := os.Stat(binDir); os.IsNotExist(err) {
+		return []map[string]any{}, nil
+	}
+
+	entries, err := os.ReadDir(binDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read bin directory: %w", err)
+	}
+
+	files := make([]map[string]any, 0)
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".bin") {
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		files = append(files, map[string]any{
+			"name": entry.Name(),
+			"size": info.Size(),
+		})
+	}
+
+	return files, nil
+}

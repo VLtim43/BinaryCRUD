@@ -32,6 +32,8 @@ export function GetAllOrders():Promise<Array<Record<string, any>>>;
 
 export function GetAllPromotions():Promise<Array<Record<string, any>>>;
 
+export function GetBinFiles():Promise<Array<Record<string, any>>>;
+
 export function GetCompressedFiles():Promise<Array<Record<string, any>>>;
 
 export function GetIndexContents():Promise<Record<string, any>>;

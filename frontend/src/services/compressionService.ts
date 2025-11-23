@@ -3,6 +3,7 @@ import {
   DecompressFile,
   GetCompressedFiles,
   DeleteCompressedFile,
+  GetBinFiles,
 } from "../../wailsjs/go/main/App";
 
 export interface CompressedFile {
@@ -20,6 +21,11 @@ export interface CompressionResult {
   compressedSize: number;
   ratio: string;
   spaceSaved: string;
+}
+
+export interface BinFile {
+  name: string;
+  size: number;
 }
 
 export const compressionService = {
@@ -62,5 +68,13 @@ export const compressionService = {
 
   deleteCompressedFile: async (filename: string): Promise<void> => {
     return DeleteCompressedFile(filename);
+  },
+
+  getBinFiles: async (): Promise<BinFile[]> => {
+    const files = await GetBinFiles();
+    return files.map((f: any) => ({
+      name: f.name as string,
+      size: f.size as number,
+    }));
   },
 };
