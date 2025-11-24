@@ -4,6 +4,7 @@ import (
 	"BinaryCRUD/backend/compression"
 	"BinaryCRUD/backend/dao"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -20,6 +21,7 @@ type App struct {
 	promotionDAO      *dao.PromotionDAO
 	orderPromotionDAO *dao.OrderPromotionDAO
 	logger            *Logger
+	toast             *Toast
 }
 
 // NewApp creates a new App application struct
@@ -39,6 +41,7 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	a.toast = NewToast(a)
 	a.logger.Info("Application started")
 }
 
@@ -788,7 +791,7 @@ func (a *App) CompressFile(filename string, algorithm string) (map[string]any, e
 
 	switch algorithm {
 	case "huffman":
-		outputFilename = strings.TrimSuffix(filename, ".bin") + ".huffman.compressed"
+		outputFilename = filename + ".huffman.compressed"
 		outputPath = filepath.Join("data", "compressed", outputFilename)
 
 		hc := compression.NewHuffmanCompressor()
@@ -819,9 +822,7 @@ func (a *App) CompressFile(filename string, algorithm string) (map[string]any, e
 		filename, outputFilename, ratio, spaceSaved))
 
 	return map[string]any{
-		"originalFile":   filename,
-		"compressedFile": outputFilename,
-		"algorithm":      algorithm,
+		"outputFile":     outputFilename,
 		"originalSize":   originalSize,
 		"compressedSize": compressedSize,
 		"ratio":          fmt.Sprintf("%.2f%%", ratio),
@@ -844,10 +845,10 @@ func (a *App) DecompressFile(filename string) (map[string]any, error) {
 
 	if strings.Contains(filename, ".huffman.") {
 		algorithm = "huffman"
-		outputFilename = strings.Replace(filename, ".huffman.compressed", ".bin", 1)
+		outputFilename = strings.TrimSuffix(filename, ".huffman.compressed")
 	} else if strings.Contains(filename, ".lzw.") {
 		algorithm = "lzw"
-		outputFilename = strings.Replace(filename, ".lzw.compressed", ".bin", 1)
+		outputFilename = strings.TrimSuffix(filename, ".lzw.compressed")
 	} else {
 		return nil, fmt.Errorf("unknown compression format: %s", filename)
 	}
@@ -866,19 +867,31 @@ func (a *App) DecompressFile(filename string) (map[string]any, error) {
 		return nil, fmt.Errorf("LZW decompression not yet implemented")
 	}
 
-	// Get decompressed file size
+	// Get file sizes
+	compressedInfo, err := os.Stat(inputPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat compressed file: %w", err)
+	}
+	compressedSize := compressedInfo.Size()
+
 	decompressedInfo, err := os.Stat(outputPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to stat decompressed file: %w", err)
 	}
+	originalSize := decompressedInfo.Size()
 
-	a.logger.Info(fmt.Sprintf("Decompressed %s -> %s (%d bytes)", filename, outputFilename, decompressedInfo.Size()))
+	// Calculate ratio
+	ratio := float64(compressedSize) / float64(originalSize) * 100
+	spaceSaved := float64(originalSize-compressedSize) / float64(originalSize) * 100
+
+	a.logger.Info(fmt.Sprintf("Decompressed %s -> %s (%d bytes)", filename, outputFilename, originalSize))
 
 	return map[string]any{
-		"compressedFile":   filename,
-		"decompressedFile": outputFilename,
-		"algorithm":        algorithm,
-		"size":             decompressedInfo.Size(),
+		"outputFile":     outputFilename,
+		"originalSize":   originalSize,
+		"compressedSize": compressedSize,
+		"ratio":          fmt.Sprintf("%.2f%%", ratio),
+		"spaceSaved":     fmt.Sprintf("%.2f%%", spaceSaved),
 	}, nil
 }
 
@@ -913,25 +926,73 @@ func (a *App) listFilesInDir(dir string, filter func(string) bool, mapper func(s
 	return files, nil
 }
 
-// GetCompressedFiles returns a list of compressed files
+// GetCompressedFiles returns a list of compressed files with metadata
 func (a *App) GetCompressedFiles() ([]map[string]any, error) {
-	return a.listFilesInDir(
-		filepath.Join("data", "compressed"),
-		nil, // no filter
-		func(name string, size int64) map[string]any {
-			algorithm := "unknown"
-			if strings.Contains(name, ".huffman.") {
-				algorithm = "huffman"
-			} else if strings.Contains(name, ".lzw.") {
-				algorithm = "lzw"
+	compressedDir := filepath.Join("data", "compressed")
+
+	if _, err := os.Stat(compressedDir); os.IsNotExist(err) {
+		return []map[string]any{}, nil
+	}
+
+	entries, err := os.ReadDir(compressedDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read compressed directory: %w", err)
+	}
+
+	files := make([]map[string]any, 0)
+	for _, entry := range entries {
+		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		compressedSize := info.Size()
+		name := entry.Name()
+
+		// Determine algorithm
+		algorithm := "unknown"
+		if strings.Contains(name, ".huffman.") {
+			algorithm = "huffman"
+		} else if strings.Contains(name, ".lzw.") {
+			algorithm = "lzw"
+		}
+
+		// Read original size from file header (Huffman format: HUFF + uint32 originalSize)
+		var originalSize int64 = 0
+		filePath := filepath.Join(compressedDir, name)
+		if algorithm == "huffman" {
+			file, err := os.Open(filePath)
+			if err == nil {
+				header := make([]byte, 8) // 4 magic + 4 size
+				if n, err := file.Read(header); err == nil && n == 8 {
+					originalSize = int64(binary.LittleEndian.Uint32(header[4:8]))
+				}
+				file.Close()
 			}
-			return map[string]any{
-				"name":      name,
-				"size":      size,
-				"algorithm": algorithm,
-			}
-		},
-	)
+		}
+
+		// Calculate ratio and space saved
+		var ratio, spaceSaved float64
+		if originalSize > 0 {
+			ratio = float64(compressedSize) / float64(originalSize) * 100
+			spaceSaved = float64(originalSize-compressedSize) / float64(originalSize) * 100
+		}
+
+		files = append(files, map[string]any{
+			"name":           name,
+			"originalSize":   originalSize,
+			"compressedSize": compressedSize,
+			"algorithm":      algorithm,
+			"ratio":          fmt.Sprintf("%.2f%%", ratio),
+			"spaceSaved":     fmt.Sprintf("%.2f%%", spaceSaved),
+		})
+	}
+
+	return files, nil
 }
 
 // DeleteCompressedFile deletes a compressed file

@@ -1,4 +1,5 @@
 import "./App.scss";
+import "./components/Toast.scss";
 import logo from "./assets/images/logo-universal.png";
 import { Quit } from "../wailsjs/runtime/runtime";
 import { useState, useEffect } from "preact/hooks";
@@ -9,6 +10,7 @@ import { OrderTab } from "./components/tabs/OrderTab";
 import { PromotionTab } from "./components/tabs/PromotionTab";
 import { DebugTab } from "./components/tabs/DebugTab";
 import { LogsPanel } from "./components/LogsPanel";
+import { ToastContainer } from "./components/Toast";
 import { logService, LogEntry } from "./services/logService";
 
 type TabType = "item" | "order" | "promotion" | "debug";
@@ -115,6 +117,8 @@ export const App = () => {
         onClear={handleClearLogs}
         onCopy={handleCopyLogs}
       />
+
+      <ToastContainer position="bottom-right" />
     </div>
   );
 };
