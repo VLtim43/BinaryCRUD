@@ -83,7 +83,7 @@ func TestWriteHeaderToFile(t *testing.T) {
 	defer file.Close()
 
 	// Create header
-	header, err := utils.WriteHeader(1, 2, 3)
+	header, err := utils.WriteHeader("test.bin", 1, 2, 3)
 	if err != nil {
 		t.Fatalf("failed to create header: %v", err)
 	}
@@ -101,9 +101,16 @@ func TestWriteHeaderToFile(t *testing.T) {
 		t.Fatalf("failed to read file: %v", err)
 	}
 
-	expected := []byte{0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x03}
-	if string(data) != string(expected) {
-		t.Errorf("expected %v, got %v", expected, data)
+	// Header format: [fileName(32)][entitiesCount(4)][tombstoneCount(4)][nextId(4)] = 44 bytes
+	if len(data) != utils.HeaderSize {
+		t.Errorf("expected header size %d, got %d", utils.HeaderSize, len(data))
+	}
+
+	// Verify the numeric fields at the end (after 32-byte fileName)
+	expectedSuffix := []byte{0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x03}
+	actualSuffix := data[32:]
+	if string(actualSuffix) != string(expectedSuffix) {
+		t.Errorf("expected suffix %v, got %v", expectedSuffix, actualSuffix)
 	}
 }
 
@@ -124,7 +131,7 @@ func TestWriteHeaderToFileRejectsNonEmpty(t *testing.T) {
 	}
 
 	// Try to write header - should fail
-	header, err := utils.WriteHeader(1, 2, 3)
+	header, err := utils.WriteHeader("test.bin", 1, 2, 3)
 	if err != nil {
 		t.Fatalf("failed to create header: %v", err)
 	}
@@ -145,7 +152,7 @@ func TestReadHeader(t *testing.T) {
 		t.Fatalf("failed to create file: %v", err)
 	}
 
-	header, err := utils.WriteHeader(10, 5, 20)
+	header, err := utils.WriteHeader("test.bin", 10, 5, 20)
 	if err != nil {
 		t.Fatalf("failed to create header: %v", err)
 	}
@@ -156,7 +163,7 @@ func TestReadHeader(t *testing.T) {
 	}
 
 	// Read header back
-	entitiesCount, tombstoneCount, nextId, err := utils.ReadHeader(file)
+	_, entitiesCount, tombstoneCount, nextId, err := utils.ReadHeader(file)
 	if err != nil {
 		t.Errorf("failed to read header: %v", err)
 	}
@@ -184,7 +191,7 @@ func TestUpdateHeader(t *testing.T) {
 		t.Fatalf("failed to create file: %v", err)
 	}
 
-	header, err := utils.WriteHeader(1, 2, 3)
+	header, err := utils.WriteHeader("test.bin", 1, 2, 3)
 	if err != nil {
 		t.Fatalf("failed to create header: %v", err)
 	}
@@ -201,7 +208,7 @@ func TestUpdateHeader(t *testing.T) {
 	}
 
 	// Read back and verify
-	entitiesCount, tombstoneCount, nextId, err := utils.ReadHeader(file)
+	_, entitiesCount, tombstoneCount, nextId, err := utils.ReadHeader(file)
 	if err != nil {
 		t.Errorf("failed to read header: %v", err)
 	}
@@ -229,7 +236,7 @@ func TestAppendEntry(t *testing.T) {
 		t.Fatalf("failed to create file: %v", err)
 	}
 
-	header, err := utils.WriteHeader(0, 0, 1) // Start with nextId=1
+	header, err := utils.WriteHeader("test.bin", 0, 0, 1) // Start with nextId=1
 	if err != nil {
 		t.Fatalf("failed to create header: %v", err)
 	}
@@ -247,7 +254,7 @@ func TestAppendEntry(t *testing.T) {
 	}
 
 	// Verify header was updated
-	entitiesCount, tombstoneCount, nextId, err := utils.ReadHeader(file)
+	_, entitiesCount, tombstoneCount, nextId, err := utils.ReadHeader(file)
 	if err != nil {
 		t.Errorf("failed to read header: %v", err)
 	}
@@ -269,7 +276,7 @@ func TestAppendEntry(t *testing.T) {
 	}
 
 	// Verify header again
-	entitiesCount, tombstoneCount, nextId, err = utils.ReadHeader(file)
+	_, entitiesCount, tombstoneCount, nextId, err = utils.ReadHeader(file)
 	if err != nil {
 		t.Errorf("failed to read header: %v", err)
 	}

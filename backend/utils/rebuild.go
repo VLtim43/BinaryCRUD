@@ -26,7 +26,7 @@ func RebuildBTreeIndex(binFilePath string, indexPath string) (*index.BTree, erro
 	defer file.Close()
 
 	// Read header to verify file is valid
-	_, _, _, err = ReadHeader(file)
+	_, _, _, _, err = ReadHeader(file)
 	if err != nil {
 		// Corrupted or empty file, return empty tree
 		return tree, nil
@@ -109,7 +109,7 @@ func RebuildCollectionBTreeIndex(binFilePath string, indexPath string) (*index.B
 	defer file.Close()
 
 	// Read header to verify file is valid
-	_, _, _, err = ReadHeader(file)
+	_, _, _, _, err = ReadHeader(file)
 	if err != nil {
 		// Corrupted or empty file, return empty tree
 		return tree, nil
@@ -191,7 +191,7 @@ func RebuildExtensibleHashIndex(binFilePath string, indexPath string, bucketSize
 	defer file.Close()
 
 	// Read header to verify file is valid
-	_, _, _, err = ReadHeader(file)
+	_, _, _, _, err = ReadHeader(file)
 	if err != nil {
 		// Corrupted or empty file, return empty hash
 		return hashIndex, nil

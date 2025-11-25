@@ -16,7 +16,7 @@ func createTestFileWithItems(filePath string) error {
 	defer file.Close()
 
 	// Write header: 3 entities, 0 tombstones, next ID = 3
-	header, _ := utils.WriteHeader(3, 0, 3)
+	header, _ := utils.WriteHeader("test.bin", 3, 0, 3)
 	_, err = file.Write(header)
 	if err != nil {
 		return err
@@ -72,7 +72,7 @@ func createTestFileWithOrderPromotions(filePath string) error {
 	defer file.Close()
 
 	// Write header: 3 entities, 0 tombstones, next ID = 3
-	header, _ := utils.WriteHeader(3, 0, 3)
+	header, _ := utils.WriteHeader("test.bin", 3, 0, 3)
 	_, err = file.Write(header)
 	if err != nil {
 		return err
@@ -166,7 +166,7 @@ func TestSoftDeleteByID(t *testing.T) {
 	}
 	defer file.Close()
 
-	entitiesCount, tombstoneCount, nextID, err := utils.ReadHeader(file)
+	_, entitiesCount, tombstoneCount, nextID, err := utils.ReadHeader(file)
 	if err != nil {
 		t.Fatalf("Failed to read header: %v", err)
 	}
@@ -279,7 +279,7 @@ func TestSoftDeleteByIDNotFound(t *testing.T) {
 	}
 	defer file.Close()
 
-	_, tombstoneCount, _, err := utils.ReadHeader(file)
+	_, _, tombstoneCount, _, err := utils.ReadHeader(file)
 	if err != nil {
 		t.Fatalf("Failed to read header: %v", err)
 	}
@@ -318,7 +318,7 @@ func TestSoftDeleteByIDAlreadyDeleted(t *testing.T) {
 	}
 	defer file.Close()
 
-	_, tombstoneCount, _, err := utils.ReadHeader(file)
+	_, _, tombstoneCount, _, err := utils.ReadHeader(file)
 	if err != nil {
 		t.Fatalf("Failed to read header: %v", err)
 	}
@@ -377,7 +377,7 @@ func TestSoftDeleteByCompositeKey(t *testing.T) {
 	}
 	defer file.Close()
 
-	_, tombstoneCount, _, err := utils.ReadHeader(file)
+	_, _, tombstoneCount, _, err := utils.ReadHeader(file)
 	if err != nil {
 		t.Fatalf("Failed to read header: %v", err)
 	}
@@ -449,7 +449,7 @@ func TestSoftDeleteByCompositeKeyNotFound(t *testing.T) {
 	}
 	defer file.Close()
 
-	_, tombstoneCount, _, err := utils.ReadHeader(file)
+	_, _, tombstoneCount, _, err := utils.ReadHeader(file)
 	if err != nil {
 		t.Fatalf("Failed to read header: %v", err)
 	}
@@ -488,7 +488,7 @@ func TestSoftDeleteByCompositeKeyAlreadyDeleted(t *testing.T) {
 	}
 	defer file.Close()
 
-	_, tombstoneCount, _, err := utils.ReadHeader(file)
+	_, _, tombstoneCount, _, err := utils.ReadHeader(file)
 	if err != nil {
 		t.Fatalf("Failed to read header: %v", err)
 	}
@@ -540,7 +540,7 @@ func TestSoftDeleteByIDMultipleDeletes(t *testing.T) {
 	}
 	defer file.Close()
 
-	_, tombstoneCount, _, err := utils.ReadHeader(file)
+	_, _, tombstoneCount, _, err := utils.ReadHeader(file)
 	if err != nil {
 		t.Fatalf("Failed to read header: %v", err)
 	}

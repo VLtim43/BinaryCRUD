@@ -74,7 +74,7 @@ func WriteHeaderToFile(file *os.File, header []byte) error {
 // Format: [recordLength(2)][ID(2)][tombstone(1)][entry data]
 func AppendEntry(file *os.File, entryWithoutId []byte) error {
 	// Read current header to get nextId
-	entitiesCount, tombstoneCount, nextId, err := ReadHeader(file)
+	_, entitiesCount, tombstoneCount, nextId, err := ReadHeader(file)
 	if err != nil {
 		return fmt.Errorf("failed to read header: %w", err)
 	}
@@ -144,7 +144,7 @@ func AppendEntry(file *os.File, entryWithoutId []byte) error {
 // The caller is responsible for including all fields (keys, tombstone, etc.) in entryData
 func AppendEntryManual(file *os.File, entryData []byte) error {
 	// Read current header to get counts
-	entitiesCount, tombstoneCount, nextId, err := ReadHeader(file)
+	_, entitiesCount, tombstoneCount, nextId, err := ReadHeader(file)
 	if err != nil {
 		return fmt.Errorf("failed to read header: %w", err)
 	}

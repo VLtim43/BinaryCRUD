@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 // EntryInfo represents an entry found in the binary file
@@ -79,8 +80,11 @@ func EnsureFileExists(filePath string) error {
 	}
 	defer file.Close()
 
-	// Write empty header (0 entities, 0 tombstones, nextId=0)
-	header, err := WriteHeader(0, 0, 0)
+	// Extract base filename from path for the header
+	fileName := filepath.Base(filePath)
+
+	// Write empty header with fileName (0 entities, 0 tombstones, nextId=0)
+	header, err := WriteHeader(fileName, 0, 0, 0)
 	if err != nil {
 		return fmt.Errorf("failed to create header: %w", err)
 	}

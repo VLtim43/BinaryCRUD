@@ -84,7 +84,7 @@ func (dao *ItemDAO) Write(name string, priceInCents uint64) (uint64, error) {
 	entry = append(entry, priceBytes...)
 
 	// Read header to get the next ID
-	_, _, nextId, err := utils.ReadHeader(file)
+	_, _, _, nextId, err := utils.ReadHeader(file)
 	if err != nil {
 		return 0, fmt.Errorf("failed to read header: %w", err)
 	}

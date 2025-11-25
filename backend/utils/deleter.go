@@ -21,7 +21,7 @@ func SoftDeleteByID(filePath string, id uint64, mu *sync.Mutex, indexDeleteFunc 
 	}
 	defer file.Close()
 
-	entitiesCount, tombstoneCount, nextId, err := ReadHeader(file)
+	_, entitiesCount, tombstoneCount, nextId, err := ReadHeader(file)
 	if err != nil {
 		return fmt.Errorf("failed to read header: %w", err)
 	}
@@ -103,7 +103,7 @@ func SoftDeleteByCompositeKey(filePath string, key1, key2 uint64, mu *sync.Mutex
 	}
 	defer file.Close()
 
-	entitiesCount, tombstoneCount, nextId, err := ReadHeader(file)
+	_, entitiesCount, tombstoneCount, nextId, err := ReadHeader(file)
 	if err != nil {
 		return fmt.Errorf("failed to read header: %w", err)
 	}
