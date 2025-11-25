@@ -5,7 +5,9 @@ import { Input } from "../Input";
 import { Select } from "../Select";
 import { Modal } from "../Modal";
 import { ItemList } from "../ItemList";
-import { orderService, Order } from "../../services/orderService";
+import { SubTabs } from "../SubTabs";
+import { DeleteForm } from "../DeleteForm";
+import { orderService } from "../../services/orderService";
 import { itemService, Item } from "../../services/itemService";
 import { promotionService, Promotion } from "../../services/promotionService";
 import {
@@ -18,10 +20,13 @@ import {
   createIdInputHandler,
   createInputHandler,
   createSelectHandler,
+  formatError,
   PROMO_CARD_STYLE,
+  CRUD_TABS,
 } from "../../utils/formatters";
-import { CartItem } from "../../types/cart";
-import { Fragment } from "preact";
+import { toast } from "../../utils/toast";
+import { useCart } from "../../hooks/useCart";
+import { useItems } from "../../hooks/useItems";
 
 interface OrderTabProps {
   onMessage: (msg: string) => void;
@@ -33,9 +38,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
   const [customerName, setCustomerName] = useState("");
   const [recordId, setRecordId] = useState("");
   const [deleteId, setDeleteId] = useState("");
-  const [foundOrder, setFoundOrder] = useState<OrderWithPromotions | null>(
-    null
-  );
+  const [foundOrder, setFoundOrder] = useState<OrderWithPromotions | null>(null);
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
   const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
@@ -44,12 +47,22 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
     id: number;
     name: string;
   } | null>(null);
-  const [allItems, setAllItems] = useState<Item[]>([]);
   const [allPromotions, setAllPromotions] = useState<Promotion[]>([]);
-  const [selectedItemId, setSelectedItemId] = useState("");
   const [selectedPromotionId, setSelectedPromotionId] = useState("");
-  const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedPromotions, setSelectedPromotions] = useState<Promotion[]>([]);
+
+  const { allItems, loadAllItems, getActiveItems } = useItems();
+  const {
+    cart,
+    selectedItemId,
+    setSelectedItemId,
+    addItemToCart,
+    removeFromCart,
+    calculateTotal,
+    getTotalItemCount,
+    getItemIDs,
+    clearCart,
+  } = useCart({ onMessage });
 
   useEffect(() => {
     if (subTab === "create") {
@@ -58,27 +71,18 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
     }
   }, [subTab]);
 
-  const loadAllItems = async () => {
-    try {
-      const items = await itemService.getAll();
-      setAllItems(items);
-    } catch (err) {
-      console.error("Error loading items:", err);
-    }
-  };
-
   const loadAllPromotions = async () => {
     try {
       const promotions = await promotionService.getAll();
       setAllPromotions(promotions);
     } catch (err) {
-      console.error("Error loading promotions:", err);
+      toast.error("Failed to load promotions");
     }
   };
 
   const handleRead = async () => {
     if (!isValidId(recordId)) {
-      onMessage("Error: Please enter a valid record ID");
+      toast.warning("Please enter a valid record ID");
       setFoundOrder(null);
       return;
     }
@@ -88,40 +92,32 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
         parseInt(recordId, 10)
       );
       setFoundOrder(order);
-      const promoCount = order.promotions?.length || 0;
-      onMessage(
-        `Found Order #${order.id}: ${order.customerName} - $${formatPrice(
-          order.totalPrice
-        )} (${order.itemCount} items${
-          promoCount > 0 ? `, ${promoCount} promotions` : ""
-        })`
-      );
       onRefreshLogs();
     } catch (err) {
       setFoundOrder(null);
-      onMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(formatError(err));
     }
   };
 
   const handleDelete = async () => {
     if (!isValidId(deleteId)) {
-      onMessage("Error: Please enter a valid record ID");
+      toast.warning("Please enter a valid record ID");
       return;
     }
 
     try {
       await orderService.delete(parseInt(deleteId, 10));
-      onMessage(`Successfully deleted order with ID ${deleteId}`);
+      toast.success(`Order ${deleteId} deleted`);
       setDeleteId("");
       onRefreshLogs();
     } catch (err) {
-      onMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(formatError(err));
     }
   };
 
   const handleShowItems = async () => {
     if (!foundOrder || !foundOrder.itemIDs || foundOrder.itemIDs.length === 0) {
-      onMessage("No items to display");
+      toast.warning("No items to display");
       return;
     }
 
@@ -133,11 +129,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       setIsItemModalOpen(true);
       onRefreshLogs();
     } catch (err) {
-      onMessage(
-        `Error fetching items: ${
-          err instanceof Error ? err.message : String(err)
-        }`
-      );
+      toast.error("Failed to fetch items");
     }
   };
 
@@ -148,7 +140,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
     try {
       const promotion = await promotionService.getById(promotionId);
       if (!promotion.itemIDs || promotion.itemIDs.length === 0) {
-        onMessage("No items in this promotion");
+        toast.warning("No items in this promotion");
         return;
       }
 
@@ -160,53 +152,18 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       setIsPromoModalOpen(true);
       onRefreshLogs();
     } catch (err) {
-      onMessage(
-        `Error fetching promotion items: ${
-          err instanceof Error ? err.message : String(err)
-        }`
-      );
+      toast.error("Failed to fetch promotion items");
     }
-  };
-
-  const handleAddItemToCart = () => {
-    if (!selectedItemId) {
-      onMessage("Please select an item");
-      return;
-    }
-
-    const item = allItems.find((i) => i.id === parseInt(selectedItemId, 10));
-    if (!item) {
-      onMessage("Item not found");
-      return;
-    }
-
-    const existingItem = cart.find((c) => c.id === item.id);
-    if (existingItem) {
-      setCart(
-        cart.map((c) =>
-          c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c
-        )
-      );
-    } else {
-      setCart([...cart, { ...item, quantity: 1 }]);
-    }
-
-    setSelectedItemId("");
-  };
-
-  const handleRemoveFromCart = (itemId: number) => {
-    setCart(cart.filter((c) => c.id !== itemId));
   };
 
   const handleAddPromotion = () => {
     if (!selectedPromotionId) {
-      onMessage("Please select a promotion");
+      toast.warning("Please select a promotion");
       return;
     }
 
-    // Only allow one promotion per order (frontend restriction)
     if (selectedPromotions.length >= 1) {
-      onMessage("Only one promotion can be added per order");
+      toast.warning("Max 1 promotion per order");
       return;
     }
 
@@ -214,7 +171,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       (p) => p.id === parseInt(selectedPromotionId, 10)
     );
     if (!promotion) {
-      onMessage("Promotion not found");
+      toast.warning("Promotion not found");
       return;
     }
 
@@ -228,11 +185,8 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
     );
   };
 
-  const calculateTotal = () => {
-    const itemsTotal = cart.reduce(
-      (sum, item) => sum + item.priceInCents * item.quantity,
-      0
-    );
+  const calculateOrderTotal = () => {
+    const itemsTotal = calculateTotal();
     const promotionsTotal = selectedPromotions.reduce(
       (sum, promo) => sum + promo.totalPrice,
       0
@@ -242,30 +196,22 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
 
   const handleCreateOrder = async () => {
     if (!customerName || customerName.trim().length === 0) {
-      onMessage("Error: Please enter a customer name");
+      toast.warning("Please enter a customer name");
       return;
     }
 
     if (cart.length === 0) {
-      onMessage("Error: Please add at least one item to the order");
+      toast.warning("Please add at least one item to the order");
       return;
     }
 
     try {
-      const itemIDs: number[] = [];
-      cart.forEach((item) => {
-        for (let i = 0; i < item.quantity; i++) {
-          itemIDs.push(item.id);
-        }
-      });
-
-      // First, create the order with items
+      const itemIDs = getItemIDs();
       const orderId = await orderPromotionService.createOrder(
         customerName,
         itemIDs
       );
 
-      // Then, apply all selected promotions to the order
       for (const promotion of selectedPromotions) {
         await orderPromotionService.applyPromotionToOrder(
           orderId,
@@ -273,43 +219,23 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
         );
       }
 
-      const promoCount = selectedPromotions.length;
-      onMessage(
-        `Order #${orderId} created successfully for ${customerName} ($${formatPrice(
-          calculateTotal()
-        )})${promoCount > 0 ? ` with ${promoCount} promotion(s)` : ""}`
-      );
+      toast.success(`Order #${orderId} created for ${customerName}`);
       setCustomerName("");
-      setCart([]);
+      clearCart();
       setSelectedPromotions([]);
       onRefreshLogs();
     } catch (err) {
-      onMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(formatError(err));
     }
   };
 
   return (
     <>
-      <div className="sub_tabs">
-        <Button
-          className={`tab ${subTab === "create" ? "active" : ""}`}
-          onClick={() => setSubTab("create")}
-        >
-          Create
-        </Button>
-        <Button
-          className={`tab ${subTab === "read" ? "active" : ""}`}
-          onClick={() => setSubTab("read")}
-        >
-          Read
-        </Button>
-        <Button
-          className={`tab ${subTab === "delete" ? "active" : ""}`}
-          onClick={() => setSubTab("delete")}
-        >
-          Delete
-        </Button>
-      </div>
+      <SubTabs
+        tabs={[...CRUD_TABS]}
+        activeTab={subTab}
+        onTabChange={(tab) => setSubTab(tab as typeof subTab)}
+      />
 
       {subTab === "create" && (
         <>
@@ -324,18 +250,14 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
                 <Select
                   value={selectedItemId}
                   onChange={createSelectHandler(setSelectedItemId)}
-                  options={allItems
-                    .filter((item) => !item.isDeleted)
-                    .map((item) => ({
-                      value: item.id,
-                      label: `${item.name} - $${formatPrice(
-                        item.priceInCents
-                      )}`,
-                    }))}
+                  options={getActiveItems().map((item) => ({
+                    value: item.id,
+                    label: `${item.name} - $${formatPrice(item.priceInCents)}`,
+                  }))}
                   placeholder="Select an item..."
                   className="cart-select"
                 />
-                <Button onClick={handleAddItemToCart}>Add Item</Button>
+                <Button onClick={() => addItemToCart(allItems)}>Add Item</Button>
               </div>
               <div
                 style={{ display: "flex", gap: "10px", alignItems: "center" }}
@@ -373,8 +295,8 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
             </div>
 
             <div className="cart-total">
-              Total: ${formatPrice(calculateTotal())} (
-              {cart.reduce((sum, item) => sum + item.quantity, 0)} items
+              Total: ${formatPrice(calculateOrderTotal())} (
+              {getTotalItemCount()} items
               {selectedPromotions.length > 0 &&
                 `, ${selectedPromotions.length} promotions`}
               )
@@ -402,7 +324,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
                         <Button
                           size="small"
                           variant="danger"
-                          onClick={() => handleRemoveFromCart(item.id)}
+                          onClick={() => removeFromCart(item.id)}
                         >
                           ×
                         </Button>
@@ -538,17 +460,12 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       )}
 
       {subTab === "delete" && (
-        <div className="input-box">
-          <Input
-            id="delete-record-id"
-            placeholder="Enter Record ID"
-            value={deleteId}
-            onChange={createIdInputHandler(setDeleteId)}
-          />
-          <Button variant="danger" onClick={handleDelete}>
-            Delete Record
-          </Button>
-        </div>
+        <DeleteForm
+          deleteId={deleteId}
+          setDeleteId={setDeleteId}
+          onDelete={handleDelete}
+          entityName="Record"
+        />
       )}
 
       <Modal

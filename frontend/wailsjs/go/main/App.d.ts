@@ -8,11 +8,17 @@ export function ApplyPromotionToOrder(arg1:number,arg2:number):Promise<void>;
 
 export function ClearLogs():Promise<void>;
 
+export function CompressFile(arg1:string,arg2:string):Promise<Record<string, any>>;
+
 export function CreateOrder(arg1:string,arg2:Array<number>):Promise<number>;
 
 export function CreatePromotion(arg1:string,arg2:Array<number>):Promise<number>;
 
+export function DecompressFile(arg1:string):Promise<Record<string, any>>;
+
 export function DeleteAllFiles():Promise<void>;
+
+export function DeleteCompressedFile(arg1:string):Promise<void>;
 
 export function DeleteItem(arg1:number):Promise<void>;
 
@@ -25,6 +31,10 @@ export function GetAllItems():Promise<Array<Record<string, any>>>;
 export function GetAllOrders():Promise<Array<Record<string, any>>>;
 
 export function GetAllPromotions():Promise<Array<Record<string, any>>>;
+
+export function GetBinFiles():Promise<Array<Record<string, any>>>;
+
+export function GetCompressedFiles():Promise<Array<Record<string, any>>>;
 
 export function GetIndexContents():Promise<Record<string, any>>;
 

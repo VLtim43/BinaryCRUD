@@ -3,12 +3,22 @@ package test
 import (
 	"BinaryCRUD/backend/dao"
 	"os"
+	"strings"
 	"testing"
 )
 
+// cleanupCollectionTest removes both .bin file and index file
+func cleanupCollectionTest(testFile string) {
+	os.Remove(testFile)
+	// Extract base name and remove from data/indexes/
+	baseName := strings.TrimPrefix(testFile, "/tmp/")
+	baseName = strings.TrimSuffix(baseName, ".bin")
+	os.Remove("data/indexes/" + baseName + ".idx")
+}
+
 func TestCollectionDAOWrite(t *testing.T) {
 	testFile := "/tmp/test_collection_write.bin"
-	defer os.Remove(testFile)
+	defer cleanupCollectionTest(testFile)
 
 	// Create DAO
 	collectionDAO := dao.NewOrderDAO(testFile)
@@ -33,7 +43,7 @@ func TestCollectionDAOWrite(t *testing.T) {
 
 func TestCollectionDAORead(t *testing.T) {
 	testFile := "/tmp/test_collection_read.bin"
-	defer os.Remove(testFile)
+	defer cleanupCollectionTest(testFile)
 
 	// Create DAO and add collections
 	collectionDAO := dao.NewOrderDAO(testFile)
@@ -92,7 +102,7 @@ func TestCollectionDAORead(t *testing.T) {
 
 func TestCollectionDAODelete(t *testing.T) {
 	testFile := "/tmp/test_collection_delete.bin"
-	defer os.Remove(testFile)
+	defer cleanupCollectionTest(testFile)
 
 	// Create DAO and add collections
 	collectionDAO := dao.NewOrderDAO(testFile)
@@ -132,7 +142,7 @@ func TestCollectionDAODelete(t *testing.T) {
 
 func TestCollectionDAOFullCRUDFlow(t *testing.T) {
 	testFile := "/tmp/test_collection_crud.bin"
-	defer os.Remove(testFile)
+	defer cleanupCollectionTest(testFile)
 
 	// Create DAO
 	collectionDAO := dao.NewPromotionDAO(testFile)
@@ -236,7 +246,7 @@ func TestCollectionDAOFullCRUDFlow(t *testing.T) {
 
 func TestCollectionDAOEmptyItemList(t *testing.T) {
 	testFile := "/tmp/test_collection_empty.bin"
-	defer os.Remove(testFile)
+	defer cleanupCollectionTest(testFile)
 
 	collectionDAO := dao.NewOrderDAO(testFile)
 
@@ -262,7 +272,7 @@ func TestCollectionDAOEmptyItemList(t *testing.T) {
 
 func TestCollectionDAOLargeItemList(t *testing.T) {
 	testFile := "/tmp/test_collection_large.bin"
-	defer os.Remove(testFile)
+	defer cleanupCollectionTest(testFile)
 
 	collectionDAO := dao.NewPromotionDAO(testFile)
 
@@ -303,8 +313,8 @@ func TestCollectionDAOLargeItemList(t *testing.T) {
 func TestCollectionDAOOrdersVsPromotions(t *testing.T) {
 	orderFile := "/tmp/test_orders.bin"
 	promoFile := "/tmp/test_promos.bin"
-	defer os.Remove(orderFile)
-	defer os.Remove(promoFile)
+	defer cleanupCollectionTest(orderFile)
+	defer cleanupCollectionTest(promoFile)
 
 	// Create separate DAOs
 	orderDAO := dao.NewOrderDAO(orderFile)

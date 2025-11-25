@@ -1,11 +1,15 @@
 package main
 
 import (
+	"BinaryCRUD/backend/compression"
 	"BinaryCRUD/backend/dao"
+	"BinaryCRUD/backend/utils"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -18,6 +22,7 @@ type App struct {
 	promotionDAO      *dao.PromotionDAO
 	orderPromotionDAO *dao.OrderPromotionDAO
 	logger            *Logger
+	toast             *Toast
 }
 
 // NewApp creates a new App application struct
@@ -25,10 +30,10 @@ func NewApp() *App {
 	logger := NewLogger(1000) // Store up to 1000 log entries
 
 	return &App{
-		itemDAO:           dao.NewItemDAO("data/items.bin"),
-		orderDAO:          dao.NewOrderDAO("data/orders.bin"),
-		promotionDAO:      dao.NewPromotionDAO("data/promotions.bin"),
-		orderPromotionDAO: dao.NewOrderPromotionDAO("data/order_promotions.bin"),
+		itemDAO:           dao.NewItemDAO("data/bin/items.bin"),
+		orderDAO:          dao.NewOrderDAO("data/bin/orders.bin"),
+		promotionDAO:      dao.NewPromotionDAO("data/bin/promotions.bin"),
+		orderPromotionDAO: dao.NewOrderPromotionDAO("data/bin/order_promotions.bin"),
 		logger:            logger,
 	}
 }
@@ -37,6 +42,7 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	a.toast = NewToast(a)
 	a.logger.Info("Application started")
 }
 
@@ -111,51 +117,44 @@ func (a *App) DeleteItem(id uint64) error {
 	return nil
 }
 
-// DeleteAllFiles deletes all files in the data folder except .json files
+// DeleteAllFiles deletes all generated data (bin, indexes, compressed) but keeps seed folder
 func (a *App) DeleteAllFiles() error {
-	dataDir := "data"
-
-	// Check if data directory exists
-	if _, err := os.Stat(dataDir); os.IsNotExist(err) {
-		return nil
-	}
-
-	// Read all entries in the data directory
-	entries, err := os.ReadDir(dataDir)
+	// Use the shared cleanup utility
+	results, err := utils.CleanupDataFiles()
 	if err != nil {
-		return fmt.Errorf("failed to read data directory: %w", err)
+		a.logger.Warn(fmt.Sprintf("Error during cleanup: %v", err))
 	}
 
-	// Delete each file except .json files
-	deletedCount := 0
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			fileName := entry.Name()
-			filePath := fmt.Sprintf("%s/%s", dataDir, fileName)
+	// Emit toast for each folder with deleted files
+	folderNames := map[string]string{
+		"data/bin":        "bin files",
+		"data/indexes":    "indexes",
+		"data/compressed": "compressed files",
+	}
 
-			// Skip .json files
-			if strings.HasSuffix(fileName, ".json") {
-				a.logger.Debug(fmt.Sprintf("Skipping JSON file: %s", fileName))
-				continue
+	totalDeleted := 0
+	for _, result := range results {
+		totalDeleted += result.Count
+		if result.Count > 0 {
+			name := folderNames[result.Folder]
+			if name == "" {
+				name = result.Folder
 			}
-
-			err := os.Remove(filePath)
-			if err != nil {
-				a.logger.Warn(fmt.Sprintf("Failed to delete %s: %v", fileName, err))
-			} else {
-				a.logger.Info(fmt.Sprintf("Deleted file: %s", fileName))
-				deletedCount++
-			}
+			a.toast.Success(fmt.Sprintf("Deleted all %s (%d)", name, result.Count))
 		}
 	}
 
-	a.logger.Info(fmt.Sprintf("Deleted %d file(s), skipped .json files", deletedCount))
+	if totalDeleted == 0 {
+		a.toast.Info("No files to delete")
+	}
+
+	a.logger.Info(fmt.Sprintf("Deleted %d file(s) from bin, indexes, and compressed folders", totalDeleted))
 
 	// Reload all DAOs to clear in-memory indexes
-	a.itemDAO = dao.NewItemDAO("data/items.bin")
-	a.orderDAO = dao.NewOrderDAO("data/orders.bin")
-	a.promotionDAO = dao.NewPromotionDAO("data/promotions.bin")
-	a.orderPromotionDAO = dao.NewOrderPromotionDAO("data/order_promotions.bin")
+	a.itemDAO = dao.NewItemDAO("data/bin/items.bin")
+	a.orderDAO = dao.NewOrderDAO("data/bin/orders.bin")
+	a.promotionDAO = dao.NewPromotionDAO("data/bin/promotions.bin")
+	a.orderPromotionDAO = dao.NewOrderPromotionDAO("data/bin/order_promotions.bin")
 	a.logger.Info("Cleared all in-memory indexes")
 
 	return nil
@@ -185,8 +184,9 @@ type PromotionEntry struct {
 
 // OrderEntry represents an order in the JSON file
 type OrderEntry struct {
-	Owner   string   `json:"owner"`
-	ItemIDs []uint64 `json:"itemIDs"`
+	Owner        string   `json:"owner"`
+	ItemIDs      []uint64 `json:"itemIDs"`
+	PromotionIDs []uint64 `json:"promotionIDs,omitempty"`
 }
 
 // OrderPromotionEntry represents an order-promotion relationship in the JSON file
@@ -279,48 +279,47 @@ func (a *App) PopulateInventory() error {
 
 	a.logger.Info(fmt.Sprintf("Items population complete: %d succeeded, %d failed", itemSuccessCount, itemFailCount))
 
-	promoJsonPath := "data/seed/promotions.json"
-	promoData, err := os.ReadFile(promoJsonPath)
-	if err != nil {
-		return fmt.Errorf("failed to read promotions.json: %w", err)
-	}
-
-	// Parse JSON into slice of promotions
-	var promotions []PromotionEntry
-	err = json.Unmarshal(promoData, &promotions)
-	if err != nil {
-		return fmt.Errorf("failed to parse promotions.json: %w", err)
-	}
-
-	a.logger.Info(fmt.Sprintf("Starting promotion population with %d promotions", len(promotions)))
-
-	// Add each promotion sequentially
 	promoSuccessCount := 0
 	promoFailCount := 0
 
-	for i, promo := range promotions {
-		// Calculate total price for promotion
-		totalPrice, err := a.calculateTotalPrice(promo.ItemIDs)
+	promoJsonPath := "data/seed/promotions.json"
+	promoData, err := os.ReadFile(promoJsonPath)
+	if err != nil {
+		a.logger.Warn(fmt.Sprintf("No promotions.json found, skipping promotions: %v", err))
+	} else {
+		// Parse JSON into slice of promotions
+		var promotions []PromotionEntry
+		err = json.Unmarshal(promoData, &promotions)
 		if err != nil {
-			a.logger.Warn(fmt.Sprintf("Failed to calculate price for promotion '%s': %v", promo.Name, err))
-			// Use 0 if calculation fails
-			totalPrice = 0
+			return fmt.Errorf("failed to parse promotions.json: %w", err)
 		}
 
-		// Create promotion using CollectionDAO
-		_, err = a.promotionDAO.Write(promo.Name, totalPrice, promo.ItemIDs)
-		if err != nil {
-			a.logger.Error(fmt.Sprintf("Failed to add promotion %d (%s): %v", i+1, promo.Name, err))
-			promoFailCount++
-			continue
+		a.logger.Info(fmt.Sprintf("Starting promotion population with %d promotions", len(promotions)))
+
+		for i, promo := range promotions {
+			// Calculate total price for promotion
+			totalPrice, err := a.calculateTotalPrice(promo.ItemIDs)
+			if err != nil {
+				a.logger.Warn(fmt.Sprintf("Failed to calculate price for promotion '%s': %v", promo.Name, err))
+				// Use 0 if calculation fails
+				totalPrice = 0
+			}
+
+			// Create promotion using CollectionDAO
+			_, err = a.promotionDAO.Write(promo.Name, totalPrice, promo.ItemIDs)
+			if err != nil {
+				a.logger.Error(fmt.Sprintf("Failed to add promotion %d (%s): %v", i+1, promo.Name, err))
+				promoFailCount++
+				continue
+			}
+
+			promoSuccessCount++
+			a.logger.Info(fmt.Sprintf("Added promotion %d/%d: %s with %d items ($%.2f)",
+				i+1, len(promotions), promo.Name, len(promo.ItemIDs), float64(totalPrice)/100))
 		}
 
-		promoSuccessCount++
-		a.logger.Info(fmt.Sprintf("Added promotion %d/%d: %s with %d items ($%.2f)",
-			i+1, len(promotions), promo.Name, len(promo.ItemIDs), float64(totalPrice)/100))
+		a.logger.Info(fmt.Sprintf("Promotions population complete: %d succeeded, %d failed", promoSuccessCount, promoFailCount))
 	}
-
-	a.logger.Info(fmt.Sprintf("Promotions population complete: %d succeeded, %d failed", promoSuccessCount, promoFailCount))
 
 	orderJsonPath := "data/seed/orders.json"
 	orderData, err := os.ReadFile(orderJsonPath)
@@ -341,6 +340,13 @@ func (a *App) PopulateInventory() error {
 	orderSuccessCount := 0
 	orderFailCount := 0
 
+	// Track embedded promotions to apply after all orders are created
+	type embeddedPromotion struct {
+		orderID      uint64
+		promotionIDs []uint64
+	}
+	var embeddedPromotions []embeddedPromotion
+
 	for i, order := range orders {
 		validItems, totalPrice := a.calculateTotalPriceWithValidation(order.ItemIDs, fmt.Sprintf("order '%s'", order.Owner))
 
@@ -350,11 +356,19 @@ func (a *App) PopulateInventory() error {
 			continue
 		}
 
-		_, err := a.orderDAO.Write(order.Owner, totalPrice, validItems)
+		orderID, err := a.orderDAO.Write(order.Owner, totalPrice, validItems)
 		if err != nil {
 			a.logger.Error(fmt.Sprintf("Failed to add order %d (%s): %v", i+1, order.Owner, err))
 			orderFailCount++
 			continue
+		}
+
+		// Track embedded promotions for this order
+		if len(order.PromotionIDs) > 0 {
+			embeddedPromotions = append(embeddedPromotions, embeddedPromotion{
+				orderID:      orderID,
+				promotionIDs: order.PromotionIDs,
+			})
 		}
 
 		orderSuccessCount++
@@ -398,6 +412,30 @@ func (a *App) PopulateInventory() error {
 			orderPromoSuccessCount, orderPromoFailCount))
 	}
 
+	// Apply embedded promotions from orders.json
+	if len(embeddedPromotions) > 0 {
+		a.logger.Info(fmt.Sprintf("Applying %d embedded order-promotion relationships", len(embeddedPromotions)))
+
+		embeddedSuccessCount := 0
+		embeddedFailCount := 0
+
+		for _, ep := range embeddedPromotions {
+			for _, promoID := range ep.promotionIDs {
+				err := a.ApplyPromotionToOrder(ep.orderID, promoID)
+				if err != nil {
+					a.logger.Error(fmt.Sprintf("Failed to apply embedded promotion %d to order %d: %v", promoID, ep.orderID, err))
+					embeddedFailCount++
+					continue
+				}
+				embeddedSuccessCount++
+				a.logger.Info(fmt.Sprintf("Applied embedded promotion #%d to order #%d", promoID, ep.orderID))
+			}
+		}
+
+		a.logger.Info(fmt.Sprintf("Embedded order-promotion relationships complete: %d succeeded, %d failed",
+			embeddedSuccessCount, embeddedFailCount))
+	}
+
 	// Final summary
 	totalSuccess := itemSuccessCount + promoSuccessCount + orderSuccessCount
 	totalFail := itemFailCount + promoFailCount + orderFailCount
@@ -419,7 +457,6 @@ func (a *App) GetAllItems() ([]map[string]any, error) {
 		return nil, err
 	}
 
-	// Convert to map format for JSON serialization
 	result := make([]map[string]any, len(items))
 	for i, item := range items {
 		result[i] = map[string]any{
@@ -441,7 +478,6 @@ func (a *App) GetAllOrders() ([]map[string]any, error) {
 		return nil, err
 	}
 
-	// Convert to map format for JSON serialization
 	result := make([]map[string]any, len(orders))
 	for i, order := range orders {
 		result[i] = map[string]any{
@@ -465,7 +501,6 @@ func (a *App) GetAllPromotions() ([]map[string]any, error) {
 		return nil, err
 	}
 
-	// Convert to map format for JSON serialization
 	result := make([]map[string]any, len(promotions))
 	for i, promotion := range promotions {
 		result[i] = map[string]any{
@@ -482,24 +517,28 @@ func (a *App) GetAllPromotions() ([]map[string]any, error) {
 	return result, nil
 }
 
+// validateCollectionInput validates name and itemIDs for order/promotion creation
+func (a *App) validateCollectionInput(name string, itemIDs []uint64, entityType string) error {
+	if name == "" {
+		return fmt.Errorf("%s name cannot be empty", entityType)
+	}
+	if len(itemIDs) == 0 {
+		return fmt.Errorf("%s must contain at least one item", entityType)
+	}
+	return nil
+}
+
 // CreateOrder creates a new order with the given customer name and item IDs
 func (a *App) CreateOrder(customerName string, itemIDs []uint64) (uint64, error) {
-	// Validate inputs
-	if customerName == "" {
-		return 0, fmt.Errorf("customer name cannot be empty")
+	if err := a.validateCollectionInput(customerName, itemIDs, "customer"); err != nil {
+		return 0, err
 	}
 
-	if len(itemIDs) == 0 {
-		return 0, fmt.Errorf("order must contain at least one item")
-	}
-
-	// Calculate total price by reading each item
 	totalPrice, err := a.calculateTotalPrice(itemIDs)
 	if err != nil {
 		return 0, err
 	}
 
-	// Write order to orders.bin and get assigned ID
 	assignedID, err := a.orderDAO.Write(customerName, totalPrice, itemIDs)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create order: %w", err)
@@ -542,22 +581,15 @@ func (a *App) DeleteOrder(id uint64) error {
 
 // CreatePromotion creates a new promotion with the given name and item IDs
 func (a *App) CreatePromotion(promotionName string, itemIDs []uint64) (uint64, error) {
-	// Validate inputs
-	if promotionName == "" {
-		return 0, fmt.Errorf("promotion name cannot be empty")
+	if err := a.validateCollectionInput(promotionName, itemIDs, "promotion"); err != nil {
+		return 0, err
 	}
 
-	if len(itemIDs) == 0 {
-		return 0, fmt.Errorf("promotion must contain at least one item")
-	}
-
-	// Calculate total price by reading each item
 	totalPrice, err := a.calculateTotalPrice(itemIDs)
 	if err != nil {
 		return 0, err
 	}
 
-	// Write promotion to promotions.bin and get assigned ID
 	assignedID, err := a.promotionDAO.Write(promotionName, totalPrice, itemIDs)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create promotion: %w", err)
@@ -730,4 +762,256 @@ func (a *App) GetOrderWithPromotions(orderID uint64) (map[string]any, error) {
 		"itemCount":    order.ItemCount,
 		"itemIDs":      order.ItemIDs,
 	}, nil
+}
+
+// CompressFile compresses a binary file using the specified algorithm
+func (a *App) CompressFile(filename string, algorithm string) (map[string]any, error) {
+	// Map filename to actual path (bin files are in data/bin/)
+	inputPath := filepath.Join("data", "bin", filename)
+
+	// Check if file exists
+	fileInfo, err := os.Stat(inputPath)
+	if err != nil {
+		return nil, fmt.Errorf("file not found: %s", filename)
+	}
+	originalSize := fileInfo.Size()
+
+	// Generate output filename
+	var outputFilename string
+	var outputPath string
+
+	switch algorithm {
+	case "huffman":
+		outputFilename = filename + ".huffman.compressed"
+		outputPath = filepath.Join("data", "compressed", outputFilename)
+
+		hc := compression.NewHuffmanCompressor()
+		err = hc.CompressFile(inputPath, outputPath)
+		if err != nil {
+			return nil, fmt.Errorf("compression failed: %w", err)
+		}
+
+	case "lzw":
+		return nil, fmt.Errorf("LZW compression not yet implemented")
+
+	default:
+		return nil, fmt.Errorf("unknown algorithm: %s", algorithm)
+	}
+
+	// Get compressed file size
+	compressedInfo, err := os.Stat(outputPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat compressed file: %w", err)
+	}
+	compressedSize := compressedInfo.Size()
+
+	// Calculate ratio
+	ratio := float64(compressedSize) / float64(originalSize) * 100
+	spaceSaved := float64(originalSize-compressedSize) / float64(originalSize) * 100
+
+	a.logger.Info(fmt.Sprintf("Compressed %s -> %s (%.2f%% of original, saved %.2f%%)",
+		filename, outputFilename, ratio, spaceSaved))
+
+	return map[string]any{
+		"outputFile":     outputFilename,
+		"originalSize":   originalSize,
+		"compressedSize": compressedSize,
+		"ratio":          fmt.Sprintf("%.2f%%", ratio),
+		"spaceSaved":     fmt.Sprintf("%.2f%%", spaceSaved),
+	}, nil
+}
+
+// DecompressFile decompresses a compressed file
+func (a *App) DecompressFile(filename string) (map[string]any, error) {
+	inputPath := filepath.Join("data", "compressed", filename)
+
+	// Check if file exists
+	if _, err := os.Stat(inputPath); err != nil {
+		return nil, fmt.Errorf("compressed file not found: %s", filename)
+	}
+
+	// Determine algorithm from filename
+	var algorithm string
+	var outputFilename string
+
+	if strings.Contains(filename, ".huffman.") {
+		algorithm = "huffman"
+		outputFilename = strings.TrimSuffix(filename, ".huffman.compressed")
+	} else if strings.Contains(filename, ".lzw.") {
+		algorithm = "lzw"
+		outputFilename = strings.TrimSuffix(filename, ".lzw.compressed")
+	} else {
+		return nil, fmt.Errorf("unknown compression format: %s", filename)
+	}
+
+	outputPath := filepath.Join("data", "bin", outputFilename)
+
+	switch algorithm {
+	case "huffman":
+		hc := compression.NewHuffmanCompressor()
+		err := hc.DecompressFile(inputPath, outputPath)
+		if err != nil {
+			return nil, fmt.Errorf("decompression failed: %w", err)
+		}
+
+	case "lzw":
+		return nil, fmt.Errorf("LZW decompression not yet implemented")
+	}
+
+	// Get file sizes
+	compressedInfo, err := os.Stat(inputPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat compressed file: %w", err)
+	}
+	compressedSize := compressedInfo.Size()
+
+	decompressedInfo, err := os.Stat(outputPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat decompressed file: %w", err)
+	}
+	originalSize := decompressedInfo.Size()
+
+	// Calculate ratio
+	ratio := float64(compressedSize) / float64(originalSize) * 100
+	spaceSaved := float64(originalSize-compressedSize) / float64(originalSize) * 100
+
+	a.logger.Info(fmt.Sprintf("Decompressed %s -> %s (%d bytes)", filename, outputFilename, originalSize))
+
+	return map[string]any{
+		"outputFile":     outputFilename,
+		"originalSize":   originalSize,
+		"compressedSize": compressedSize,
+		"ratio":          fmt.Sprintf("%.2f%%", ratio),
+		"spaceSaved":     fmt.Sprintf("%.2f%%", spaceSaved),
+	}, nil
+}
+
+// listFilesInDir is a helper to list files in a directory with optional filtering and mapping
+func (a *App) listFilesInDir(dir string, filter func(string) bool, mapper func(string, int64) map[string]any) ([]map[string]any, error) {
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return []map[string]any{}, nil
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read directory %s: %w", dir, err)
+	}
+
+	files := make([]map[string]any, 0)
+	for _, entry := range entries {
+		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+		if filter != nil && !filter(entry.Name()) {
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		files = append(files, mapper(entry.Name(), info.Size()))
+	}
+
+	return files, nil
+}
+
+// GetCompressedFiles returns a list of compressed files with metadata
+func (a *App) GetCompressedFiles() ([]map[string]any, error) {
+	compressedDir := filepath.Join("data", "compressed")
+
+	if _, err := os.Stat(compressedDir); os.IsNotExist(err) {
+		return []map[string]any{}, nil
+	}
+
+	entries, err := os.ReadDir(compressedDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read compressed directory: %w", err)
+	}
+
+	files := make([]map[string]any, 0)
+	for _, entry := range entries {
+		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		compressedSize := info.Size()
+		name := entry.Name()
+
+		// Determine algorithm
+		algorithm := "unknown"
+		if strings.Contains(name, ".huffman.") {
+			algorithm = "huffman"
+		} else if strings.Contains(name, ".lzw.") {
+			algorithm = "lzw"
+		}
+
+		// Read original size from file header (Huffman format: HUFF + uint32 originalSize)
+		var originalSize int64 = 0
+		filePath := filepath.Join(compressedDir, name)
+		if algorithm == "huffman" {
+			file, err := os.Open(filePath)
+			if err == nil {
+				header := make([]byte, 8) // 4 magic + 4 size
+				if n, err := file.Read(header); err == nil && n == 8 {
+					originalSize = int64(binary.LittleEndian.Uint32(header[4:8]))
+				}
+				file.Close()
+			}
+		}
+
+		// Calculate ratio and space saved
+		var ratio, spaceSaved float64
+		if originalSize > 0 {
+			ratio = float64(compressedSize) / float64(originalSize) * 100
+			spaceSaved = float64(originalSize-compressedSize) / float64(originalSize) * 100
+		}
+
+		files = append(files, map[string]any{
+			"name":           name,
+			"originalSize":   originalSize,
+			"compressedSize": compressedSize,
+			"algorithm":      algorithm,
+			"ratio":          fmt.Sprintf("%.2f%%", ratio),
+			"spaceSaved":     fmt.Sprintf("%.2f%%", spaceSaved),
+		})
+	}
+
+	return files, nil
+}
+
+// DeleteCompressedFile deletes a compressed file
+func (a *App) DeleteCompressedFile(filename string) error {
+	filePath := filepath.Join("data", "compressed", filename)
+
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return fmt.Errorf("file not found: %s", filename)
+	}
+
+	if err := os.Remove(filePath); err != nil {
+		return fmt.Errorf("failed to delete file: %w", err)
+	}
+
+	a.logger.Info(fmt.Sprintf("Deleted compressed file: %s", filename))
+	return nil
+}
+
+// GetBinFiles returns a list of .bin files in the data/bin directory
+func (a *App) GetBinFiles() ([]map[string]any, error) {
+	return a.listFilesInDir(
+		filepath.Join("data", "bin"),
+		func(name string) bool { return strings.HasSuffix(name, ".bin") },
+		func(name string, size int64) map[string]any {
+			return map[string]any{
+				"name": name,
+				"size": size,
+			}
+		},
+	)
 }

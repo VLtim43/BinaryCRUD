@@ -1,6 +1,7 @@
 package dao
 
 import (
+	"BinaryCRUD/backend/index"
 	"BinaryCRUD/backend/utils"
 	"fmt"
 	"os"
@@ -14,13 +15,22 @@ type OrderPromotion struct {
 }
 
 type OrderPromotionDAO struct {
-	filePath string
-	mu       sync.Mutex
+	filePath  string
+	indexPath string
+	hashIndex *index.ExtensibleHash
+	mu        sync.Mutex
 }
 
 // NewOrderPromotionDAO creates a DAO for order_promotions.bin
 func NewOrderPromotionDAO(filePath string) *OrderPromotionDAO {
-	return &OrderPromotionDAO{filePath: filePath}
+	// Use the utility function that handles rebuild on corruption
+	indexPath, hashIndex := utils.InitializeOrderPromotionIndex(filePath, 4)
+
+	return &OrderPromotionDAO{
+		filePath:  filePath,
+		indexPath: indexPath,
+		hashIndex: hashIndex,
+	}
 }
 
 // ensureFileExists creates the file with empty header if it doesn't exist
@@ -40,11 +50,8 @@ func (dao *OrderPromotionDAO) Write(orderID, promotionID uint64) error {
 		return err
 	}
 
-	// Check for duplicate composite key
-	exists, err := dao.existsUnlocked(orderID, promotionID)
-	if err != nil {
-		return fmt.Errorf("failed to check for duplicates: %w", err)
-	}
+	// Check for duplicate using hash index (fast O(1) lookup)
+	_, exists := dao.hashIndex.Search(orderID, promotionID)
 	if exists {
 		return fmt.Errorf("order-promotion relationship already exists (orderID=%d, promotionID=%d)", orderID, promotionID)
 	}
@@ -55,6 +62,13 @@ func (dao *OrderPromotionDAO) Write(orderID, promotionID uint64) error {
 		return fmt.Errorf("failed to open order_promotion file: %w", err)
 	}
 	defer file.Close()
+
+	// Get current file offset before writing (for index)
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat file: %w", err)
+	}
+	entryOffset := fileInfo.Size()
 
 	// Build entry data: [orderID(2)][promotionID(2)][tombstone(1)]
 
@@ -85,33 +99,19 @@ func (dao *OrderPromotionDAO) Write(orderID, promotionID uint64) error {
 		return fmt.Errorf("failed to append entry: %w", err)
 	}
 
-	return nil
-}
-
-// existsUnlocked checks if a relationship already exists (must be called with lock held)
-func (dao *OrderPromotionDAO) existsUnlocked(orderID, promotionID uint64) (bool, error) {
-	// Split file into entries
-	entries, err := utils.SplitFileIntoEntries(dao.filePath)
+	// Add to hash index
+	err = dao.hashIndex.Insert(orderID, promotionID, entryOffset)
 	if err != nil {
-		return false, fmt.Errorf("failed to split file into entries: %w", err)
+		return fmt.Errorf("failed to update index: %w", err)
 	}
 
-	// Check each entry for matching composite key using utility parser
-	for _, entry := range entries {
-		// Parse the entry using utility function
-		orderPromo, err := utils.ParseOrderPromotionEntry(entry.Data)
-		if err != nil {
-			// Skip malformed entries
-			continue
-		}
-
-		// Check if this is an active entry with matching composite key
-		if orderPromo.Tombstone == 0x00 && orderPromo.OrderID == orderID && orderPromo.PromotionID == promotionID {
-			return true, nil
-		}
+	// Persist index
+	err = dao.hashIndex.Save(dao.indexPath)
+	if err != nil {
+		return fmt.Errorf("failed to save index: %w", err)
 	}
 
-	return false, nil
+	return nil
 }
 
 // GetByOrderID retrieves all promotions applied to an order
@@ -119,39 +119,14 @@ func (dao *OrderPromotionDAO) GetByOrderID(orderID uint64) ([]*OrderPromotion, e
 	dao.mu.Lock()
 	defer dao.mu.Unlock()
 
-	// Ensure file exists
-	if err := dao.ensureFileExists(); err != nil {
-		return nil, err
-	}
+	// Use hash index for fast lookup
+	entries := dao.hashIndex.GetByOrderID(orderID)
 
-	// Split file into entries
-	entries, err := utils.SplitFileIntoEntries(dao.filePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to split file into entries: %w", err)
-	}
-
-	// Parse each entry and filter by orderID using utility function
-	result := make([]*OrderPromotion, 0)
-
-	for _, entry := range entries {
-		// Parse the entry using utility function
-		orderPromo, err := utils.ParseOrderPromotionEntry(entry.Data)
-		if err != nil {
-			// Skip malformed entries
-			continue
-		}
-
-		// Skip deleted entries
-		if orderPromo.Tombstone != 0x00 {
-			continue
-		}
-
-		// Filter by orderID
-		if orderPromo.OrderID == orderID {
-			result = append(result, &OrderPromotion{
-				OrderID:     orderPromo.OrderID,
-				PromotionID: orderPromo.PromotionID,
-			})
+	result := make([]*OrderPromotion, len(entries))
+	for i, entry := range entries {
+		result[i] = &OrderPromotion{
+			OrderID:     entry.OrderID,
+			PromotionID: entry.PromotionID,
 		}
 	}
 
@@ -163,39 +138,14 @@ func (dao *OrderPromotionDAO) GetByPromotionID(promotionID uint64) ([]*OrderProm
 	dao.mu.Lock()
 	defer dao.mu.Unlock()
 
-	// Ensure file exists
-	if err := dao.ensureFileExists(); err != nil {
-		return nil, err
-	}
+	// Use hash index for fast lookup
+	entries := dao.hashIndex.GetByPromotionID(promotionID)
 
-	// Split file into entries
-	entries, err := utils.SplitFileIntoEntries(dao.filePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to split file into entries: %w", err)
-	}
-
-	// Parse each entry and filter by promotionID using utility function
-	result := make([]*OrderPromotion, 0)
-
-	for _, entry := range entries {
-		// Parse the entry using utility function
-		orderPromo, err := utils.ParseOrderPromotionEntry(entry.Data)
-		if err != nil {
-			// Skip malformed entries
-			continue
-		}
-
-		// Skip deleted entries
-		if orderPromo.Tombstone != 0x00 {
-			continue
-		}
-
-		// Filter by promotionID
-		if orderPromo.PromotionID == promotionID {
-			result = append(result, &OrderPromotion{
-				OrderID:     orderPromo.OrderID,
-				PromotionID: orderPromo.PromotionID,
-			})
+	result := make([]*OrderPromotion, len(entries))
+	for i, entry := range entries {
+		result[i] = &OrderPromotion{
+			OrderID:     entry.OrderID,
+			PromotionID: entry.PromotionID,
 		}
 	}
 
@@ -207,37 +157,15 @@ func (dao *OrderPromotionDAO) GetAll() ([]*OrderPromotion, error) {
 	dao.mu.Lock()
 	defer dao.mu.Unlock()
 
-	// Ensure file exists
-	if err := dao.ensureFileExists(); err != nil {
-		return nil, err
-	}
+	// Use hash index for fast retrieval
+	entries := dao.hashIndex.GetAll()
 
-	// Split file into entries
-	entries, err := utils.SplitFileIntoEntries(dao.filePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to split file into entries: %w", err)
-	}
-
-	// Parse each entry using utility function
-	result := make([]*OrderPromotion, 0)
-
-	for _, entry := range entries {
-		// Parse the entry using utility function
-		orderPromo, err := utils.ParseOrderPromotionEntry(entry.Data)
-		if err != nil {
-			// Skip malformed entries
-			continue
+	result := make([]*OrderPromotion, len(entries))
+	for i, entry := range entries {
+		result[i] = &OrderPromotion{
+			OrderID:     entry.OrderID,
+			PromotionID: entry.PromotionID,
 		}
-
-		// Skip deleted entries
-		if orderPromo.Tombstone != 0x00 {
-			continue
-		}
-
-		result = append(result, &OrderPromotion{
-			OrderID:     orderPromo.OrderID,
-			PromotionID: orderPromo.PromotionID,
-		})
 	}
 
 	return result, nil
@@ -246,11 +174,31 @@ func (dao *OrderPromotionDAO) GetAll() ([]*OrderPromotion, error) {
 // Delete removes an order-promotion relationship by marking it as deleted
 // Finds entry by composite key (orderID, promotionID)
 func (dao *OrderPromotionDAO) Delete(orderID, promotionID uint64) error {
+	dao.mu.Lock()
+	defer dao.mu.Unlock()
+
 	// Ensure file exists
 	if err := dao.ensureFileExists(); err != nil {
 		return err
 	}
 
-	// Use the generic soft delete utility for composite keys
-	return utils.SoftDeleteByCompositeKey(dao.filePath, orderID, promotionID, &dao.mu)
+	// Remove from hash index first
+	err := dao.hashIndex.Delete(orderID, promotionID)
+	if err != nil {
+		return fmt.Errorf("key not found: orderID=%d, promotionID=%d", orderID, promotionID)
+	}
+
+	// Save updated index
+	err = dao.hashIndex.Save(dao.indexPath)
+	if err != nil {
+		return fmt.Errorf("failed to save index: %w", err)
+	}
+
+	// Use the generic soft delete utility for composite keys (without mutex since we already hold it)
+	return utils.SoftDeleteByCompositeKey(dao.filePath, orderID, promotionID, nil)
+}
+
+// GetHashIndex returns the hash index for debugging/inspection
+func (dao *OrderPromotionDAO) GetHashIndex() *index.ExtensibleHash {
+	return dao.hashIndex
 }

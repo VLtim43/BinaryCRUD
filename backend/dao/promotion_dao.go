@@ -12,7 +12,7 @@ type PromotionDAO struct {
 
 // NewPromotionDAO creates a DAO for promotions.bin with B+ Tree index
 func NewPromotionDAO(filePath string) *PromotionDAO {
-	indexPath, tree := utils.InitializeDAOIndex(filePath)
+	indexPath, tree := utils.InitializeCollectionDAOIndex(filePath)
 
 	return &PromotionDAO{
 		CollectionDAO: &CollectionDAO{

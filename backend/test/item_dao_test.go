@@ -8,9 +8,10 @@ import (
 
 func TestItemDAOWrite(t *testing.T) {
 	testFile := "/tmp/test_item_write.bin"
-	testIdx := "/tmp/test_item_write.idx"
+	testIdx := "data/indexes/test_item_write.idx"
 	defer os.Remove(testFile)
 	defer os.Remove(testIdx)
+	os.MkdirAll("data/indexes", 0755)
 
 	// Create DAO
 	itemDAO := dao.NewItemDAO(testFile)
@@ -47,9 +48,10 @@ func TestItemDAOWrite(t *testing.T) {
 
 func TestItemDAOReadWithIndex(t *testing.T) {
 	testFile := "/tmp/test_item_read.bin"
-	testIdx := "/tmp/test_item_read.idx"
+	testIdx := "data/indexes/test_item_read.idx"
 	defer os.Remove(testFile)
 	defer os.Remove(testIdx)
+	os.MkdirAll("data/indexes", 0755)
 
 	// Create DAO and add items
 	itemDAO := dao.NewItemDAO(testFile)
@@ -92,9 +94,10 @@ func TestItemDAOReadWithIndex(t *testing.T) {
 
 func TestItemDAODelete(t *testing.T) {
 	testFile := "/tmp/test_item_delete.bin"
-	testIdx := "/tmp/test_item_delete.idx"
+	testIdx := "data/indexes/test_item_delete.idx"
 	defer os.Remove(testFile)
 	defer os.Remove(testIdx)
+	os.MkdirAll("data/indexes", 0755)
 
 	// Create DAO and add items
 	itemDAO := dao.NewItemDAO(testFile)
@@ -149,9 +152,10 @@ func TestItemDAODelete(t *testing.T) {
 
 func TestItemDAOFullCRUDFlow(t *testing.T) {
 	testFile := "/tmp/test_item_crud.bin"
-	testIdx := "/tmp/test_item_crud.idx"
+	testIdx := "data/indexes/test_item_crud.idx"
 	defer os.Remove(testFile)
 	defer os.Remove(testIdx)
+	os.MkdirAll("data/indexes", 0755)
 
 	// Create DAO
 	itemDAO := dao.NewItemDAO(testFile)
@@ -261,9 +265,10 @@ func TestItemDAOFullCRUDFlow(t *testing.T) {
 
 func TestItemDAOIndexPersistence(t *testing.T) {
 	testFile := "/tmp/test_item_persist.bin"
-	testIdx := "/tmp/test_item_persist.idx"
+	testIdx := "data/indexes/test_item_persist.idx"
 	defer os.Remove(testFile)
 	defer os.Remove(testIdx)
+	os.MkdirAll("data/indexes", 0755)
 
 	// Create DAO and add items
 	itemDAO := dao.NewItemDAO(testFile)
@@ -293,9 +298,10 @@ func TestItemDAOIndexPersistence(t *testing.T) {
 
 func TestItemDAOConcurrentWrites(t *testing.T) {
 	testFile := "/tmp/test_item_concurrent.bin"
-	testIdx := "/tmp/test_item_concurrent.idx"
+	testIdx := "data/indexes/test_item_concurrent.idx"
 	defer os.Remove(testFile)
 	defer os.Remove(testIdx)
+	os.MkdirAll("data/indexes", 0755)
 
 	itemDAO := dao.NewItemDAO(testFile)
 

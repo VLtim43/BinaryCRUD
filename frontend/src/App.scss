@@ -883,3 +883,90 @@
         color: #93c5fd;
     }
 }
+
+// Compression tab styles
+.compress-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.compress-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    label {
+        min-width: 80px;
+        font-weight: 500;
+        color: #e0e0e0;
+        text-align: right;
+    }
+
+    select {
+        flex: 1;
+        height: 35px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 5px;
+        padding: 0 10px;
+        background-color: rgba(255, 255, 255, 0.1);
+        color: #e0e0e0;
+        font-size: 14px;
+        transition: all 0.2s ease;
+
+        &:hover {
+            border-color: rgba(255, 255, 255, 0.3);
+            background-color: rgba(255, 255, 255, 0.15);
+        }
+
+        &:focus {
+            outline: none;
+            border-color: #60a5fa;
+            background-color: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+        }
+
+        option {
+            background-color: #2a2a2a;
+            color: #e0e0e0;
+        }
+    }
+}
+
+.compress-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+}
+
+.compress-table-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+
+    .btn {
+        padding: 4px 10px;
+        font-size: 12px;
+        height: auto;
+    }
+}
+
+.algorithm-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    background-color: rgba(96, 165, 250, 0.2);
+    color: #60a5fa;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.ratio-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    background-color: rgba(34, 197, 94, 0.2);
+    color: #22c55e;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+}

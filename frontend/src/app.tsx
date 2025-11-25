@@ -1,4 +1,5 @@
 import "./App.scss";
+import "./components/Toast.scss";
 import logo from "./assets/images/logo-universal.png";
 import { Quit } from "../wailsjs/runtime/runtime";
 import { useState, useEffect } from "preact/hooks";
@@ -9,7 +10,9 @@ import { OrderTab } from "./components/tabs/OrderTab";
 import { PromotionTab } from "./components/tabs/PromotionTab";
 import { DebugTab } from "./components/tabs/DebugTab";
 import { LogsPanel } from "./components/LogsPanel";
+import { ToastContainer } from "./components/Toast";
 import { logService, LogEntry } from "./services/logService";
+import { toast } from "./utils/toast";
 
 type TabType = "item" | "order" | "promotion" | "debug";
 
@@ -18,7 +21,7 @@ export const App = () => {
   const [message, setMessage] = useState("Enter item text below 👇");
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [logsPanelOpen, setLogsPanelOpen] = useState(false);
-  const [debugSubTab, setDebugSubTab] = useState<"tools" | "print">("tools");
+  const [debugSubTab, setDebugSubTab] = useState<"tools" | "print" | "compress">("tools");
 
   useEffect(() => {
     if (logsPanelOpen) {
@@ -31,7 +34,7 @@ export const App = () => {
       const newLogs = await logService.getAll();
       setLogs(newLogs);
     } catch (err) {
-      console.error("Error loading logs:", err);
+      toast.error("Failed to load logs");
     }
   };
 
@@ -39,9 +42,9 @@ export const App = () => {
     try {
       await logService.clear();
       setLogs([]);
-      setMessage("Logs cleared");
+      toast.success("Logs cleared");
     } catch (err) {
-      setMessage(`Error clearing logs: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error("Failed to clear logs");
     }
   };
 
@@ -50,7 +53,7 @@ export const App = () => {
       .map((log) => `[${log.timestamp}] [${log.level}] ${log.message}`)
       .join("\n");
     navigator.clipboard.writeText(logText).then(() => {
-      setMessage("Logs copied to clipboard!");
+      toast.success("Logs copied to clipboard!");
     });
   };
 
@@ -72,7 +75,7 @@ export const App = () => {
     setMessage(getDefaultMessage(tab));
   };
 
-  const hideLogo = activeTab === "order" || activeTab === "promotion" || (activeTab === "debug" && debugSubTab === "print");
+  const hideLogo = activeTab === "order" || activeTab === "promotion" || (activeTab === "debug" && (debugSubTab === "print" || debugSubTab === "compress"));
 
   return (
     <div className={`app-container ${logsPanelOpen ? "logs-open" : ""}`}>
@@ -115,6 +118,8 @@ export const App = () => {
         onClear={handleClearLogs}
         onCopy={handleCopyLogs}
       />
+
+      <ToastContainer position="top-right" />
     </div>
   );
 };

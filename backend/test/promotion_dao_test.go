@@ -3,12 +3,22 @@ package test
 import (
 	"BinaryCRUD/backend/dao"
 	"os"
+	"strings"
 	"testing"
 )
 
+// cleanupPromotionTest removes both .bin file and index file
+func cleanupPromotionTest(testFile string) {
+	os.Remove(testFile)
+	// Extract base name and remove from data/indexes/
+	baseName := strings.TrimPrefix(testFile, "/tmp/")
+	baseName = strings.TrimSuffix(baseName, ".bin")
+	os.Remove("data/indexes/" + baseName + ".idx")
+}
+
 func TestPromotionDAOCreateSinglePromotion(t *testing.T) {
 	testFile := "/tmp/test_promotion_create_single.bin"
-	defer os.Remove(testFile)
+	defer cleanupPromotionTest(testFile)
 
 	// Create PromotionDAO
 	promotionDAO := dao.NewPromotionDAO(testFile)
@@ -58,7 +68,7 @@ func TestPromotionDAOCreateSinglePromotion(t *testing.T) {
 
 func TestPromotionDAOCreateMultiplePromotions(t *testing.T) {
 	testFile := "/tmp/test_promotion_create_multiple.bin"
-	defer os.Remove(testFile)
+	defer cleanupPromotionTest(testFile)
 
 	promotionDAO := dao.NewPromotionDAO(testFile)
 
@@ -115,7 +125,7 @@ func TestPromotionDAOCreateMultiplePromotions(t *testing.T) {
 
 func TestPromotionDAOCreateEmptyPromotion(t *testing.T) {
 	testFile := "/tmp/test_promotion_create_empty.bin"
-	defer os.Remove(testFile)
+	defer cleanupPromotionTest(testFile)
 
 	promotionDAO := dao.NewPromotionDAO(testFile)
 
@@ -147,7 +157,7 @@ func TestPromotionDAOCreateEmptyPromotion(t *testing.T) {
 
 func TestPromotionDAOCreateLargePromotion(t *testing.T) {
 	testFile := "/tmp/test_promotion_create_large.bin"
-	defer os.Remove(testFile)
+	defer cleanupPromotionTest(testFile)
 
 	promotionDAO := dao.NewPromotionDAO(testFile)
 
@@ -193,7 +203,7 @@ func TestPromotionDAOCreateLargePromotion(t *testing.T) {
 
 func TestPromotionDAOCreateWithSpecialCharacters(t *testing.T) {
 	testFile := "/tmp/test_promotion_create_special.bin"
-	defer os.Remove(testFile)
+	defer cleanupPromotionTest(testFile)
 
 	promotionDAO := dao.NewPromotionDAO(testFile)
 
@@ -228,7 +238,7 @@ func TestPromotionDAOCreateWithSpecialCharacters(t *testing.T) {
 
 func TestPromotionDAOCreateAndGetAll(t *testing.T) {
 	testFile := "/tmp/test_promotion_create_getall.bin"
-	defer os.Remove(testFile)
+	defer cleanupPromotionTest(testFile)
 
 	promotionDAO := dao.NewPromotionDAO(testFile)
 
@@ -272,7 +282,7 @@ func TestPromotionDAOCreateAndGetAll(t *testing.T) {
 
 func TestPromotionDAOCreateSequentialIDs(t *testing.T) {
 	testFile := "/tmp/test_promotion_create_sequential.bin"
-	defer os.Remove(testFile)
+	defer cleanupPromotionTest(testFile)
 
 	promotionDAO := dao.NewPromotionDAO(testFile)
 
@@ -298,7 +308,7 @@ func TestPromotionDAOCreateSequentialIDs(t *testing.T) {
 
 func TestPromotionDAOCreateWithZeroPrice(t *testing.T) {
 	testFile := "/tmp/test_promotion_create_zero.bin"
-	defer os.Remove(testFile)
+	defer cleanupPromotionTest(testFile)
 
 	promotionDAO := dao.NewPromotionDAO(testFile)
 
@@ -324,7 +334,7 @@ func TestPromotionDAOCreateWithZeroPrice(t *testing.T) {
 
 func TestPromotionDAOCreateWithHighPrice(t *testing.T) {
 	testFile := "/tmp/test_promotion_create_high.bin"
-	defer os.Remove(testFile)
+	defer cleanupPromotionTest(testFile)
 
 	promotionDAO := dao.NewPromotionDAO(testFile)
 

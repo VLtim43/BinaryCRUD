@@ -14,6 +14,10 @@ export function ClearLogs() {
   return window['go']['main']['App']['ClearLogs']();
 }
 
+export function CompressFile(arg1, arg2) {
+  return window['go']['main']['App']['CompressFile'](arg1, arg2);
+}
+
 export function CreateOrder(arg1, arg2) {
   return window['go']['main']['App']['CreateOrder'](arg1, arg2);
 }
@@ -22,8 +26,16 @@ export function CreatePromotion(arg1, arg2) {
   return window['go']['main']['App']['CreatePromotion'](arg1, arg2);
 }
 
+export function DecompressFile(arg1) {
+  return window['go']['main']['App']['DecompressFile'](arg1);
+}
+
 export function DeleteAllFiles() {
   return window['go']['main']['App']['DeleteAllFiles']();
+}
+
+export function DeleteCompressedFile(arg1) {
+  return window['go']['main']['App']['DeleteCompressedFile'](arg1);
 }
 
 export function DeleteItem(arg1) {
@@ -48,6 +60,14 @@ export function GetAllOrders() {
 
 export function GetAllPromotions() {
   return window['go']['main']['App']['GetAllPromotions']();
+}
+
+export function GetBinFiles() {
+  return window['go']['main']['App']['GetBinFiles']();
+}
+
+export function GetCompressedFiles() {
+  return window['go']['main']['App']['GetCompressedFiles']();
 }
 
 export function GetIndexContents() {
