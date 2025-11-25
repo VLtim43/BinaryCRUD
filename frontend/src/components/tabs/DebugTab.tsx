@@ -26,6 +26,7 @@ import {
   PROMO_CARD_STYLE,
   DEBUG_TABS,
 } from "../../utils/formatters";
+import { toast } from "../../utils/toast";
 
 type DebugSubTab = "tools" | "print" | "compress";
 
@@ -86,7 +87,7 @@ export const DebugTab = ({
       const files = await compressionService.getCompressedFiles();
       setCompressedFiles(files);
     } catch (err) {
-      onMessage(`Error loading compressed files: ${formatError(err)}`);
+      toast.error("Failed to load compressed files");
     }
   };
 
@@ -98,25 +99,22 @@ export const DebugTab = ({
         setSelectedFile(files[0].name);
       }
     } catch (err) {
-      onMessage(`Error loading bin files: ${formatError(err)}`);
+      toast.error("Failed to load bin files");
     }
   };
 
   const handleCompress = async () => {
     setIsCompressing(true);
     try {
-      onMessage(`Compressing ${selectedFile} with ${selectedAlgorithm}...`);
       const result = await compressionService.compress(
         selectedFile,
         selectedAlgorithm
       );
-      onMessage(
-        `Compressed ${selectedFile} -> ${result.outputFile} (${result.spaceSaved} saved)`
-      );
+      toast.success(`Compressed: ${result.spaceSaved} saved`);
       await loadCompressedFiles();
       onRefreshLogs();
     } catch (err) {
-      onMessage(`Error compressing: ${formatError(err)}`);
+      toast.error("Compression failed");
     } finally {
       setIsCompressing(false);
     }
@@ -125,12 +123,11 @@ export const DebugTab = ({
   const handleDecompress = async (filename: string) => {
     setIsDecompressing(filename);
     try {
-      onMessage(`Decompressing ${filename}...`);
       const result = await compressionService.decompress(filename);
-      onMessage(`Decompressed ${filename} -> ${result.outputFile}`);
+      toast.success(`Decompressed to ${result.outputFile}`);
       onRefreshLogs();
     } catch (err) {
-      onMessage(`Error decompressing: ${formatError(err)}`);
+      toast.error("Decompression failed");
     } finally {
       setIsDecompressing(null);
     }
@@ -139,21 +136,20 @@ export const DebugTab = ({
   const handleDeleteCompressed = async (filename: string) => {
     try {
       await compressionService.deleteCompressedFile(filename);
-      onMessage(`Deleted ${filename}`);
+      toast.success(`Deleted ${filename}`);
       await loadCompressedFiles();
     } catch (err) {
-      onMessage(`Error deleting: ${formatError(err)}`);
+      toast.error("Failed to delete file");
     }
   };
 
   const handlePopulateClick = async () => {
     try {
-      onMessage("Populating inventory...");
       await systemService.populateInventory();
-      onMessage("Inventory populated successfully! Check logs for details.");
+      toast.success("Inventory populated successfully!");
       onRefreshLogs();
     } catch (err) {
-      onMessage(`Error: ${formatError(err)}`);
+      toast.error(formatError(err));
       onRefreshLogs();
     }
   };
@@ -162,10 +158,10 @@ export const DebugTab = ({
     try {
       await systemService.deleteAllFiles();
       setIndexData({});
-      onMessage("All generated files deleted successfully!");
+      // Individual toasts are emitted from the backend for each folder
       onRefreshLogs();
     } catch (err) {
-      onMessage(`Error: ${formatError(err)}`);
+      toast.error(formatError(err));
     }
   };
 
@@ -178,7 +174,6 @@ export const DebugTab = ({
     };
     const indexName = indexNames[type];
 
-    onMessage(`Loading ${indexName} index contents...`);
     try {
       let data;
       switch (type) {
@@ -194,13 +189,11 @@ export const DebugTab = ({
       }
       setPrintData({});
       setIndexData({ [type]: data });
-      onMessage(
-        `${indexName.charAt(0).toUpperCase() + indexName.slice(1)} index loaded: ${data.count} entries.`
-      );
+      toast.success(`${indexName.charAt(0).toUpperCase() + indexName.slice(1)} index: ${data.count} entries`);
       onRefreshLogs();
     } catch (err) {
       setIndexData({});
-      onMessage(`Error loading ${indexName} index: ${formatError(err)}`);
+      toast.error(`Failed to load ${indexName} index`);
     }
   };
 
@@ -214,7 +207,6 @@ export const DebugTab = ({
     const typeName = typeNames[type];
 
     try {
-      onMessage(`Loading all ${typeName}...`);
       let data;
       switch (type) {
         case "items":
@@ -229,9 +221,9 @@ export const DebugTab = ({
       }
       setIndexData({});
       setPrintData({ [type]: data });
-      onMessage(`Loaded ${data.length} ${typeName}`);
+      toast.success(`Loaded ${data.length} ${typeName}`);
     } catch (err) {
-      onMessage(`Error loading ${typeName}: ${formatError(err)}`);
+      toast.error(`Failed to load ${typeName}`);
     }
   };
 
@@ -241,7 +233,7 @@ export const DebugTab = ({
       setSelectedOrderForView(order);
 
       if (!order.itemIDs || order.itemIDs.length === 0) {
-        onMessage("No items in this order");
+        toast.warning("No items in this order");
         return;
       }
 
@@ -252,7 +244,7 @@ export const DebugTab = ({
       setIsItemModalOpen(true);
       onRefreshLogs();
     } catch (err) {
-      onMessage(`Error fetching order items: ${formatError(err)}`);
+      toast.error("Failed to fetch order items");
     }
   };
 
@@ -263,7 +255,7 @@ export const DebugTab = ({
     try {
       const promotion = await promotionService.getById(promotionId);
       if (!promotion.itemIDs || promotion.itemIDs.length === 0) {
-        onMessage("No items in this promotion");
+        toast.warning("No items in this promotion");
         return;
       }
 
@@ -275,7 +267,7 @@ export const DebugTab = ({
       setIsPromoModalOpen(true);
       onRefreshLogs();
     } catch (err) {
-      onMessage(`Error fetching promotion items: ${formatError(err)}`);
+      toast.error("Failed to fetch promotion items");
     }
   };
 

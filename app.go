@@ -3,6 +3,7 @@ package main
 import (
 	"BinaryCRUD/backend/compression"
 	"BinaryCRUD/backend/dao"
+	"BinaryCRUD/backend/utils"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -118,43 +119,33 @@ func (a *App) DeleteItem(id uint64) error {
 
 // DeleteAllFiles deletes all generated data (bin, indexes, compressed) but keeps seed folder
 func (a *App) DeleteAllFiles() error {
-	// Folders to delete contents from (but not seed)
-	foldersToClean := []string{
-		filepath.Join("data", "bin"),
-		filepath.Join("data", "indexes"),
-		filepath.Join("data", "compressed"),
+	// Use the shared cleanup utility
+	results, err := utils.CleanupDataFiles()
+	if err != nil {
+		a.logger.Warn(fmt.Sprintf("Error during cleanup: %v", err))
+	}
+
+	// Emit toast for each folder with deleted files
+	folderNames := map[string]string{
+		"data/bin":        "bin files",
+		"data/indexes":    "indexes",
+		"data/compressed": "compressed files",
 	}
 
 	totalDeleted := 0
-
-	for _, folder := range foldersToClean {
-		// Check if folder exists
-		if _, err := os.Stat(folder); os.IsNotExist(err) {
-			continue
-		}
-
-		// Read all entries in the folder
-		entries, err := os.ReadDir(folder)
-		if err != nil {
-			a.logger.Warn(fmt.Sprintf("Failed to read directory %s: %v", folder, err))
-			continue
-		}
-
-		// Delete each file in the folder
-		for _, entry := range entries {
-			if entry.IsDir() {
-				continue
+	for _, result := range results {
+		totalDeleted += result.Count
+		if result.Count > 0 {
+			name := folderNames[result.Folder]
+			if name == "" {
+				name = result.Folder
 			}
-
-			filePath := filepath.Join(folder, entry.Name())
-			err := os.Remove(filePath)
-			if err != nil {
-				a.logger.Warn(fmt.Sprintf("Failed to delete %s: %v", filePath, err))
-			} else {
-				a.logger.Info(fmt.Sprintf("Deleted file: %s", filePath))
-				totalDeleted++
-			}
+			a.toast.Success(fmt.Sprintf("Deleted all %s (%d)", name, result.Count))
 		}
+	}
+
+	if totalDeleted == 0 {
+		a.toast.Info("No files to delete")
 	}
 
 	a.logger.Info(fmt.Sprintf("Deleted %d file(s) from bin, indexes, and compressed folders", totalDeleted))

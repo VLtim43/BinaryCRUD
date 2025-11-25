@@ -14,6 +14,7 @@ import {
   formatError,
   CRUD_TABS,
 } from "../../utils/formatters";
+import { toast } from "../../utils/toast";
 
 interface ItemTabProps {
   onMessage: (msg: string) => void;
@@ -30,30 +31,30 @@ export const ItemTab = ({ onMessage, onRefreshLogs }: ItemTabProps) => {
 
   const handleCreate = async () => {
     if (!itemName || itemName.trim().length === 0) {
-      onMessage("Error: Cannot add empty item");
+      toast.warning("Cannot add empty item");
       return;
     }
 
     if (!isValidPrice(itemPrice)) {
-      onMessage("Error: Please enter a valid price");
+      toast.warning("Please enter a valid price");
       return;
     }
 
     try {
       const priceInCents = parsePrice(itemPrice);
       await itemService.create(itemName, priceInCents);
-      onMessage(`Item saved: ${itemName} ($${itemPrice})`);
+      toast.success(`Item saved: ${itemName} ($${itemPrice})`);
       setItemName("");
       setItemPrice("");
       onRefreshLogs();
     } catch (err) {
-      onMessage(`Error: ${formatError(err)}`);
+      toast.error(formatError(err));
     }
   };
 
   const handleRead = async () => {
     if (!isValidId(recordId)) {
-      onMessage("Error: Please enter a valid record ID");
+      toast.warning("Please enter a valid record ID");
       setFoundItem(null);
       return;
     }
@@ -61,31 +62,26 @@ export const ItemTab = ({ onMessage, onRefreshLogs }: ItemTabProps) => {
     try {
       const item = await itemService.getById(parseInt(recordId, 10));
       setFoundItem(item);
-      onMessage(
-        `Found Item #${item.id}: ${item.name} - $${formatPrice(
-          item.priceInCents
-        )}`
-      );
       onRefreshLogs();
     } catch (err) {
       setFoundItem(null);
-      onMessage(`Error: ${formatError(err)}`);
+      toast.error(formatError(err));
     }
   };
 
   const handleDelete = async () => {
     if (!isValidId(deleteId)) {
-      onMessage("Error: Please enter a valid record ID");
+      toast.warning("Please enter a valid record ID");
       return;
     }
 
     try {
       await itemService.delete(parseInt(deleteId, 10));
-      onMessage(`Successfully deleted item with ID ${deleteId}`);
+      toast.success(`Item ${deleteId} deleted`);
       setDeleteId("");
       onRefreshLogs();
     } catch (err) {
-      onMessage(`Error: ${formatError(err)}`);
+      toast.error(formatError(err));
     }
   };
 

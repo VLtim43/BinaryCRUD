@@ -10,7 +10,7 @@ import (
 
 func TestInitializeDAOIndexCreatesCorrectPath(t *testing.T) {
 	filePath := "/tmp/test_dao_helper_path.bin"
-	expectedIndexPath := "/tmp/test_dao_helper_path.idx"
+	expectedIndexPath := "data/indexes/test_dao_helper_path.idx"
 
 	indexPath, _ := utils.InitializeDAOIndex(filePath)
 
@@ -21,11 +21,12 @@ func TestInitializeDAOIndexCreatesCorrectPath(t *testing.T) {
 
 func TestInitializeDAOIndexCreatesNewTreeWhenNoIndex(t *testing.T) {
 	testFile := fmt.Sprintf("/tmp/test_dao_helper_new_%d.bin", os.Getpid())
-	indexPath := "/tmp/test_dao_helper_new_" + fmt.Sprintf("%d", os.Getpid()) + ".idx"
+	indexPath := fmt.Sprintf("data/indexes/test_dao_helper_new_%d.idx", os.Getpid())
 	defer os.Remove(testFile)
 	defer os.Remove(indexPath)
 
-	// Ensure no index exists
+	// Ensure directory exists and no index exists
+	os.MkdirAll("data/indexes", 0755)
 	os.Remove(indexPath)
 
 	_, tree := utils.InitializeDAOIndex(testFile)
@@ -43,9 +44,12 @@ func TestInitializeDAOIndexCreatesNewTreeWhenNoIndex(t *testing.T) {
 
 func TestInitializeDAOIndexLoadsExistingIndex(t *testing.T) {
 	testFile := fmt.Sprintf("/tmp/test_dao_helper_load_%d.bin", os.Getpid())
-	indexPath := "/tmp/test_dao_helper_load_" + fmt.Sprintf("%d", os.Getpid()) + ".idx"
+	indexPath := fmt.Sprintf("data/indexes/test_dao_helper_load_%d.idx", os.Getpid())
 	defer os.Remove(testFile)
 	defer os.Remove(indexPath)
+
+	// Ensure directory exists
+	os.MkdirAll("data/indexes", 0755)
 
 	// Create and save an index with some data
 	tree := index.NewBTree(utils.DefaultBTreeOrder)
@@ -77,7 +81,7 @@ func TestInitializeDAOIndexLoadsExistingIndex(t *testing.T) {
 
 func TestInitializeDAOIndexHandlesNonBinExtension(t *testing.T) {
 	filePath := "/tmp/test_dao_helper_noext"
-	expectedIndexPath := "/tmp/test_dao_helper_noext.idx"
+	expectedIndexPath := "data/indexes/test_dao_helper_noext.idx"
 
 	indexPath, _ := utils.InitializeDAOIndex(filePath)
 
@@ -88,11 +92,12 @@ func TestInitializeDAOIndexHandlesNonBinExtension(t *testing.T) {
 
 func TestInitializeDAOIndexTreeHasCorrectOrder(t *testing.T) {
 	testFile := fmt.Sprintf("/tmp/test_dao_helper_order_%d.bin", os.Getpid())
-	indexPath := "/tmp/test_dao_helper_order_" + fmt.Sprintf("%d", os.Getpid()) + ".idx"
+	indexPath := fmt.Sprintf("data/indexes/test_dao_helper_order_%d.idx", os.Getpid())
 	defer os.Remove(testFile)
 	defer os.Remove(indexPath)
 
-	// Ensure no index exists
+	// Ensure directory exists and no index exists
+	os.MkdirAll("data/indexes", 0755)
 	os.Remove(indexPath)
 
 	_, tree := utils.InitializeDAOIndex(testFile)
@@ -116,9 +121,12 @@ func TestInitializeDAOIndexTreeHasCorrectOrder(t *testing.T) {
 
 func TestInitializeDAOIndexMultipleCalls(t *testing.T) {
 	testFile := fmt.Sprintf("/tmp/test_dao_helper_multiple_%d.bin", os.Getpid())
-	indexPath := "/tmp/test_dao_helper_multiple_" + fmt.Sprintf("%d", os.Getpid()) + ".idx"
+	indexPath := fmt.Sprintf("data/indexes/test_dao_helper_multiple_%d.idx", os.Getpid())
 	defer os.Remove(testFile)
 	defer os.Remove(indexPath)
+
+	// Ensure directory exists
+	os.MkdirAll("data/indexes", 0755)
 
 	// First call - creates new tree
 	_, tree1 := utils.InitializeDAOIndex(testFile)
@@ -142,9 +150,13 @@ func TestInitializeDAOIndexMultipleCalls(t *testing.T) {
 
 func TestInitializeDAOIndexCorruptedIndex(t *testing.T) {
 	testFile := fmt.Sprintf("/tmp/test_dao_helper_corrupt_%d.bin", os.Getpid())
-	indexPath := "/tmp/test_dao_helper_corrupt_" + fmt.Sprintf("%d", os.Getpid()) + ".idx"
+	// Index path must be in data/indexes/ where InitializeDAOIndex looks for it
+	indexPath := fmt.Sprintf("data/indexes/test_dao_helper_corrupt_%d.idx", os.Getpid())
 	defer os.Remove(testFile)
 	defer os.Remove(indexPath)
+
+	// Ensure directory exists
+	os.MkdirAll("data/indexes", 0755)
 
 	// Create a corrupted index file (invalid data)
 	err := os.WriteFile(indexPath, []byte("corrupted data"), 0644)
@@ -159,7 +171,7 @@ func TestInitializeDAOIndexCorruptedIndex(t *testing.T) {
 		t.Fatal("Expected tree to be created despite corrupted index")
 	}
 
-	// Should be an empty tree
+	// Should be an empty tree (or rebuilt from .bin file if it exists)
 	_, found := tree.Search(0)
 	if found {
 		t.Error("Expected empty tree after failed load, but found data")
@@ -168,13 +180,13 @@ func TestInitializeDAOIndexCorruptedIndex(t *testing.T) {
 
 func TestInitializeDAOIndexPreservesIndexPath(t *testing.T) {
 	testCases := []struct {
-		filePath  string
-		expected  string
+		filePath string
+		expected string
 	}{
-		{"/tmp/test.bin", "/tmp/test.idx"},
-		{"/tmp/test.bin.bin", "/tmp/test.bin.idx"},
-		{"/tmp/test", "/tmp/test.idx"},
-		{"/home/user/data/items.bin", "/home/user/data/items.idx"},
+		{"/tmp/test.bin", "data/indexes/test.idx"},
+		{"/tmp/test.bin.bin", "data/indexes/test.bin.idx"},
+		{"/tmp/test", "data/indexes/test.idx"},
+		{"/home/user/data/items.bin", "data/indexes/items.idx"},
 	}
 
 	for _, tc := range testCases {

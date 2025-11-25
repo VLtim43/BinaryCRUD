@@ -19,6 +19,7 @@ import {
   formatError,
   CRUD_TABS,
 } from "../../utils/formatters";
+import { toast } from "../../utils/toast";
 import { useCart } from "../../hooks/useCart";
 import { useItems } from "../../hooks/useItems";
 
@@ -60,7 +61,7 @@ export const PromotionTab = ({
 
   const handleRead = async () => {
     if (!isValidId(recordId)) {
-      onMessage("Error: Please enter a valid record ID");
+      toast.warning("Please enter a valid record ID");
       setFoundPromotion(null);
       return;
     }
@@ -68,31 +69,26 @@ export const PromotionTab = ({
     try {
       const promotion = await promotionService.getById(parseInt(recordId, 10));
       setFoundPromotion(promotion);
-      onMessage(
-        `Found Promotion #${promotion.id}: ${promotion.name} - $${formatPrice(
-          promotion.totalPrice
-        )} (${promotion.itemCount} items)`
-      );
       onRefreshLogs();
     } catch (err) {
       setFoundPromotion(null);
-      onMessage(`Error: ${formatError(err)}`);
+      toast.error(formatError(err));
     }
   };
 
   const handleDelete = async () => {
     if (!isValidId(deleteId)) {
-      onMessage("Error: Please enter a valid record ID");
+      toast.warning("Please enter a valid record ID");
       return;
     }
 
     try {
       await promotionService.delete(parseInt(deleteId, 10));
-      onMessage(`Successfully deleted promotion with ID ${deleteId}`);
+      toast.success(`Promotion ${deleteId} deleted`);
       setDeleteId("");
       onRefreshLogs();
     } catch (err) {
-      onMessage(`Error: ${formatError(err)}`);
+      toast.error(formatError(err));
     }
   };
 
@@ -102,7 +98,7 @@ export const PromotionTab = ({
       !foundPromotion.itemIDs ||
       foundPromotion.itemIDs.length === 0
     ) {
-      onMessage("No items to display");
+      toast.warning("No items to display");
       return;
     }
 
@@ -114,18 +110,18 @@ export const PromotionTab = ({
       setIsModalOpen(true);
       onRefreshLogs();
     } catch (err) {
-      onMessage(`Error fetching items: ${formatError(err)}`);
+      toast.error("Failed to fetch items");
     }
   };
 
   const handleCreatePromotion = async () => {
     if (!promotionName || promotionName.trim().length === 0) {
-      onMessage("Error: Please enter a promotion name");
+      toast.warning("Please enter a promotion name");
       return;
     }
 
     if (cart.length === 0) {
-      onMessage("Error: Please add at least one item to the promotion");
+      toast.warning("Please add at least one item to the promotion");
       return;
     }
 
@@ -135,16 +131,12 @@ export const PromotionTab = ({
         promotionName,
         itemIDs
       );
-      onMessage(
-        `Promotion #${promotionId} created successfully: ${promotionName} ($${formatPrice(
-          calculateTotal()
-        )})`
-      );
+      toast.success(`Promotion #${promotionId} created: ${promotionName}`);
       setPromotionName("");
       clearCart();
       onRefreshLogs();
     } catch (err) {
-      onMessage(`Error: ${formatError(err)}`);
+      toast.error(formatError(err));
     }
   };
 

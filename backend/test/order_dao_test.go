@@ -3,12 +3,22 @@ package test
 import (
 	"BinaryCRUD/backend/dao"
 	"os"
+	"strings"
 	"testing"
 )
 
+// cleanupOrderTest removes both .bin file and index file
+func cleanupOrderTest(testFile string) {
+	os.Remove(testFile)
+	// Extract base name and remove from data/indexes/
+	baseName := strings.TrimPrefix(testFile, "/tmp/")
+	baseName = strings.TrimSuffix(baseName, ".bin")
+	os.Remove("data/indexes/" + baseName + ".idx")
+}
+
 func TestOrderDAOCreateSingleOrder(t *testing.T) {
 	testFile := "/tmp/test_order_create_single.bin"
-	defer os.Remove(testFile)
+	defer cleanupOrderTest(testFile)
 
 	// Create OrderDAO
 	orderDAO := dao.NewOrderDAO(testFile)
@@ -58,7 +68,7 @@ func TestOrderDAOCreateSingleOrder(t *testing.T) {
 
 func TestOrderDAOCreateMultipleOrders(t *testing.T) {
 	testFile := "/tmp/test_order_create_multiple.bin"
-	defer os.Remove(testFile)
+	defer cleanupOrderTest(testFile)
 
 	orderDAO := dao.NewOrderDAO(testFile)
 
@@ -115,7 +125,7 @@ func TestOrderDAOCreateMultipleOrders(t *testing.T) {
 
 func TestOrderDAOCreateEmptyOrder(t *testing.T) {
 	testFile := "/tmp/test_order_create_empty.bin"
-	defer os.Remove(testFile)
+	defer cleanupOrderTest(testFile)
 
 	orderDAO := dao.NewOrderDAO(testFile)
 
@@ -147,7 +157,7 @@ func TestOrderDAOCreateEmptyOrder(t *testing.T) {
 
 func TestOrderDAOCreateLargeOrder(t *testing.T) {
 	testFile := "/tmp/test_order_create_large.bin"
-	defer os.Remove(testFile)
+	defer cleanupOrderTest(testFile)
 
 	orderDAO := dao.NewOrderDAO(testFile)
 
@@ -193,7 +203,7 @@ func TestOrderDAOCreateLargeOrder(t *testing.T) {
 
 func TestOrderDAOCreateWithSpecialCharacters(t *testing.T) {
 	testFile := "/tmp/test_order_create_special.bin"
-	defer os.Remove(testFile)
+	defer cleanupOrderTest(testFile)
 
 	orderDAO := dao.NewOrderDAO(testFile)
 
@@ -228,7 +238,7 @@ func TestOrderDAOCreateWithSpecialCharacters(t *testing.T) {
 
 func TestOrderDAOCreateAndGetAll(t *testing.T) {
 	testFile := "/tmp/test_order_create_getall.bin"
-	defer os.Remove(testFile)
+	defer cleanupOrderTest(testFile)
 
 	orderDAO := dao.NewOrderDAO(testFile)
 
@@ -263,7 +273,7 @@ func TestOrderDAOCreateAndGetAll(t *testing.T) {
 
 func TestOrderDAOCreateSequentialIDs(t *testing.T) {
 	testFile := "/tmp/test_order_create_sequential.bin"
-	defer os.Remove(testFile)
+	defer cleanupOrderTest(testFile)
 
 	orderDAO := dao.NewOrderDAO(testFile)
 

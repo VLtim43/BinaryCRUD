@@ -14,7 +14,8 @@ var opTestCounter uint64
 func createOPTestFile(prefix string) (string, func()) {
 	opTestCounter++
 	testFile := fmt.Sprintf("/tmp/%s_%d_%d.bin", prefix, os.Getpid(), opTestCounter)
-	indexFile := testFile[:len(testFile)-4] + ".hidx"
+	// Index is created in data/indexes/ by InitializeOrderPromotionIndex
+	indexFile := fmt.Sprintf("data/indexes/%s_%d_%d.idx", prefix, os.Getpid(), opTestCounter)
 	cleanup := func() {
 		os.Remove(testFile)
 		os.Remove(indexFile)

@@ -30,14 +30,16 @@ func createTestApp() (*TestApp, func()) {
 	opFile := fmt.Sprintf("/tmp/test_app_op_%s.bin", uniqueID)
 
 	cleanup := func() {
+		// Remove data files from /tmp
 		os.Remove(itemFile)
 		os.Remove(orderFile)
 		os.Remove(promoFile)
 		os.Remove(opFile)
-		os.Remove(itemFile[:len(itemFile)-4] + ".idx")
-		os.Remove(orderFile[:len(orderFile)-4] + ".idx")
-		os.Remove(promoFile[:len(promoFile)-4] + ".idx")
-		os.Remove(opFile[:len(opFile)-4] + ".hidx") // Hash index for order_promotion
+		// Remove index files from data/indexes/ (where InitializeDAOIndex creates them)
+		os.Remove(fmt.Sprintf("data/indexes/test_app_items_%s.idx", uniqueID))
+		os.Remove(fmt.Sprintf("data/indexes/test_app_orders_%s.idx", uniqueID))
+		os.Remove(fmt.Sprintf("data/indexes/test_app_promos_%s.idx", uniqueID))
+		os.Remove(fmt.Sprintf("data/indexes/test_app_op_%s.idx", uniqueID))
 	}
 
 	app := &TestApp{

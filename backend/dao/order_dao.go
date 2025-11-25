@@ -12,7 +12,7 @@ type OrderDAO struct {
 
 // NewOrderDAO creates a DAO for orders.bin with B+ Tree index
 func NewOrderDAO(filePath string) *OrderDAO {
-	indexPath, tree := utils.InitializeDAOIndex(filePath)
+	indexPath, tree := utils.InitializeCollectionDAOIndex(filePath)
 
 	return &OrderDAO{
 		CollectionDAO: &CollectionDAO{

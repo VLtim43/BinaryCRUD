@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
 import { Item } from "../services/itemService";
 import { CartItem } from "../types/cart";
+import { toast } from "../utils/toast";
 
 interface UseCartOptions {
   onMessage: (msg: string) => void;
@@ -12,13 +13,13 @@ export const useCart = ({ onMessage }: UseCartOptions) => {
 
   const addItemToCart = (allItems: Item[]) => {
     if (!selectedItemId) {
-      onMessage("Please select an item");
+      toast.warning("Please select an item");
       return;
     }
 
     const item = allItems.find((i) => i.id === parseInt(selectedItemId, 10));
     if (!item) {
-      onMessage("Item not found");
+      toast.warning("Item not found");
       return;
     }
 

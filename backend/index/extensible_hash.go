@@ -294,7 +294,7 @@ func (h *ExtensibleHash) GetDirectorySize() int {
 	return len(h.directory)
 }
 
-// Save persists the hash index to a file
+// Save persists the hash index to a file atomically using temp file + rename
 func (h *ExtensibleHash) Save(filePath string) error {
 	// Ensure parent directory exists
 	dir := filepath.Dir(filePath)
@@ -302,17 +302,25 @@ func (h *ExtensibleHash) Save(filePath string) error {
 		return fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
-	file, err := os.Create(filePath)
+	// Write to temp file first
+	tempPath := filePath + ".tmp"
+	file, err := os.Create(tempPath)
 	if err != nil {
-		return fmt.Errorf("failed to create index file: %w", err)
+		return fmt.Errorf("failed to create temp index file: %w", err)
 	}
-	defer file.Close()
+
+	// Helper to cleanup on error
+	cleanup := func() {
+		file.Close()
+		os.Remove(tempPath)
+	}
 
 	// Write header: globalDepth (4 bytes) + bucketSize (4 bytes)
 	header := make([]byte, 8)
 	binary.LittleEndian.PutUint32(header[0:4], uint32(h.globalDepth))
 	binary.LittleEndian.PutUint32(header[4:8], uint32(h.bucketSize))
 	if _, err := file.Write(header); err != nil {
+		cleanup()
 		return fmt.Errorf("failed to write header: %w", err)
 	}
 
@@ -330,6 +338,7 @@ func (h *ExtensibleHash) Save(filePath string) error {
 	numBuckets := make([]byte, 4)
 	binary.LittleEndian.PutUint32(numBuckets, uint32(len(uniqueBuckets)))
 	if _, err := file.Write(numBuckets); err != nil {
+		cleanup()
 		return fmt.Errorf("failed to write bucket count: %w", err)
 	}
 
@@ -340,6 +349,7 @@ func (h *ExtensibleHash) Save(filePath string) error {
 		binary.LittleEndian.PutUint32(bucketHeader[0:4], uint32(bucket.localDepth))
 		binary.LittleEndian.PutUint32(bucketHeader[4:8], uint32(len(bucket.entries)))
 		if _, err := file.Write(bucketHeader); err != nil {
+			cleanup()
 			return fmt.Errorf("failed to write bucket header: %w", err)
 		}
 
@@ -350,6 +360,7 @@ func (h *ExtensibleHash) Save(filePath string) error {
 			binary.LittleEndian.PutUint64(entryData[8:16], entry.PromotionID)
 			binary.LittleEndian.PutUint64(entryData[16:24], uint64(entry.Offset))
 			if _, err := file.Write(entryData); err != nil {
+				cleanup()
 				return fmt.Errorf("failed to write entry: %w", err)
 			}
 		}
@@ -360,8 +371,27 @@ func (h *ExtensibleHash) Save(filePath string) error {
 		dirEntry := make([]byte, 4)
 		binary.LittleEndian.PutUint32(dirEntry, bucketIDs[bucket])
 		if _, err := file.Write(dirEntry); err != nil {
+			cleanup()
 			return fmt.Errorf("failed to write directory entry: %w", err)
 		}
+	}
+
+	// Sync to disk
+	if err := file.Sync(); err != nil {
+		cleanup()
+		return fmt.Errorf("failed to sync: %w", err)
+	}
+
+	// Close before rename
+	if err := file.Close(); err != nil {
+		os.Remove(tempPath)
+		return fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	// Atomic rename
+	if err := os.Rename(tempPath, filePath); err != nil {
+		os.Remove(tempPath)
+		return fmt.Errorf("failed to rename temp file: %w", err)
 	}
 
 	return nil
@@ -371,6 +401,10 @@ func (h *ExtensibleHash) Save(filePath string) error {
 func LoadExtensibleHash(filePath string) (*ExtensibleHash, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			// File doesn't exist, return empty hash index
+			return NewExtensibleHash(4), nil
+		}
 		return nil, fmt.Errorf("failed to open index file: %w", err)
 	}
 	defer file.Close()

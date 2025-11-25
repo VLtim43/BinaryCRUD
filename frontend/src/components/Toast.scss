@@ -42,6 +42,7 @@
   cursor: pointer;
   animation: toast-slide-in 0.3s ease-out;
   transition: opacity 0.2s, transform 0.2s;
+  width: 280px;
 }
 
 .toast:hover {

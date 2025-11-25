@@ -5,8 +5,6 @@ import (
 	"BinaryCRUD/backend/utils"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 	"sync"
 )
 
@@ -25,19 +23,8 @@ type OrderPromotionDAO struct {
 
 // NewOrderPromotionDAO creates a DAO for order_promotions.bin
 func NewOrderPromotionDAO(filePath string) *OrderPromotionDAO {
-	// Extract just the filename without extension
-	baseName := filepath.Base(filePath)
-	baseName = strings.TrimSuffix(baseName, ".bin")
-
-	// Put index in data/indexes/ directory with .idx extension
-	indexPath := filepath.Join("data", "indexes", baseName+".idx")
-
-	// Try to load existing index or create new one
-	hashIndex, err := index.LoadExtensibleHash(indexPath)
-	if err != nil {
-		// Create new hash index with bucket size 4
-		hashIndex = index.NewExtensibleHash(4)
-	}
+	// Use the utility function that handles rebuild on corruption
+	indexPath, hashIndex := utils.InitializeOrderPromotionIndex(filePath, 4)
 
 	return &OrderPromotionDAO{
 		filePath:  filePath,

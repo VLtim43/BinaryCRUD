@@ -1,5 +1,6 @@
 import { useState } from "preact/hooks";
 import { itemService, Item } from "../services/itemService";
+import { toast } from "../utils/toast";
 
 export const useItems = () => {
   const [allItems, setAllItems] = useState<Item[]>([]);
@@ -11,7 +12,7 @@ export const useItems = () => {
       const items = await itemService.getAll();
       setAllItems(items);
     } catch (err) {
-      console.error("Error loading items:", err);
+      toast.error("Failed to load items");
     } finally {
       setIsLoading(false);
     }

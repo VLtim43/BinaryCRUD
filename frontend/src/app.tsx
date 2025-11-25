@@ -12,6 +12,7 @@ import { DebugTab } from "./components/tabs/DebugTab";
 import { LogsPanel } from "./components/LogsPanel";
 import { ToastContainer } from "./components/Toast";
 import { logService, LogEntry } from "./services/logService";
+import { toast } from "./utils/toast";
 
 type TabType = "item" | "order" | "promotion" | "debug";
 
@@ -33,7 +34,7 @@ export const App = () => {
       const newLogs = await logService.getAll();
       setLogs(newLogs);
     } catch (err) {
-      console.error("Error loading logs:", err);
+      toast.error("Failed to load logs");
     }
   };
 
@@ -41,9 +42,9 @@ export const App = () => {
     try {
       await logService.clear();
       setLogs([]);
-      setMessage("Logs cleared");
+      toast.success("Logs cleared");
     } catch (err) {
-      setMessage(`Error clearing logs: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error("Failed to clear logs");
     }
   };
 
@@ -52,7 +53,7 @@ export const App = () => {
       .map((log) => `[${log.timestamp}] [${log.level}] ${log.message}`)
       .join("\n");
     navigator.clipboard.writeText(logText).then(() => {
-      setMessage("Logs copied to clipboard!");
+      toast.success("Logs copied to clipboard!");
     });
   };
 
@@ -118,7 +119,7 @@ export const App = () => {
         onCopy={handleCopyLogs}
       />
 
-      <ToastContainer position="bottom-right" />
+      <ToastContainer position="top-right" />
     </div>
   );
 };

@@ -24,6 +24,7 @@ import {
   PROMO_CARD_STYLE,
   CRUD_TABS,
 } from "../../utils/formatters";
+import { toast } from "../../utils/toast";
 import { useCart } from "../../hooks/useCart";
 import { useItems } from "../../hooks/useItems";
 
@@ -75,13 +76,13 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       const promotions = await promotionService.getAll();
       setAllPromotions(promotions);
     } catch (err) {
-      console.error("Error loading promotions:", err);
+      toast.error("Failed to load promotions");
     }
   };
 
   const handleRead = async () => {
     if (!isValidId(recordId)) {
-      onMessage("Error: Please enter a valid record ID");
+      toast.warning("Please enter a valid record ID");
       setFoundOrder(null);
       return;
     }
@@ -91,40 +92,32 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
         parseInt(recordId, 10)
       );
       setFoundOrder(order);
-      const promoCount = order.promotions?.length || 0;
-      onMessage(
-        `Found Order #${order.id}: ${order.customerName} - $${formatPrice(
-          order.totalPrice
-        )} (${order.itemCount} items${
-          promoCount > 0 ? `, ${promoCount} promotions` : ""
-        })`
-      );
       onRefreshLogs();
     } catch (err) {
       setFoundOrder(null);
-      onMessage(`Error: ${formatError(err)}`);
+      toast.error(formatError(err));
     }
   };
 
   const handleDelete = async () => {
     if (!isValidId(deleteId)) {
-      onMessage("Error: Please enter a valid record ID");
+      toast.warning("Please enter a valid record ID");
       return;
     }
 
     try {
       await orderService.delete(parseInt(deleteId, 10));
-      onMessage(`Successfully deleted order with ID ${deleteId}`);
+      toast.success(`Order ${deleteId} deleted`);
       setDeleteId("");
       onRefreshLogs();
     } catch (err) {
-      onMessage(`Error: ${formatError(err)}`);
+      toast.error(formatError(err));
     }
   };
 
   const handleShowItems = async () => {
     if (!foundOrder || !foundOrder.itemIDs || foundOrder.itemIDs.length === 0) {
-      onMessage("No items to display");
+      toast.warning("No items to display");
       return;
     }
 
@@ -136,7 +129,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       setIsItemModalOpen(true);
       onRefreshLogs();
     } catch (err) {
-      onMessage(`Error fetching items: ${formatError(err)}`);
+      toast.error("Failed to fetch items");
     }
   };
 
@@ -147,7 +140,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
     try {
       const promotion = await promotionService.getById(promotionId);
       if (!promotion.itemIDs || promotion.itemIDs.length === 0) {
-        onMessage("No items in this promotion");
+        toast.warning("No items in this promotion");
         return;
       }
 
@@ -159,18 +152,18 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       setIsPromoModalOpen(true);
       onRefreshLogs();
     } catch (err) {
-      onMessage(`Error fetching promotion items: ${formatError(err)}`);
+      toast.error("Failed to fetch promotion items");
     }
   };
 
   const handleAddPromotion = () => {
     if (!selectedPromotionId) {
-      onMessage("Please select a promotion");
+      toast.warning("Please select a promotion");
       return;
     }
 
     if (selectedPromotions.length >= 1) {
-      onMessage("Only one promotion can be added per order");
+      toast.warning("Max 1 promotion per order");
       return;
     }
 
@@ -178,7 +171,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       (p) => p.id === parseInt(selectedPromotionId, 10)
     );
     if (!promotion) {
-      onMessage("Promotion not found");
+      toast.warning("Promotion not found");
       return;
     }
 
@@ -203,12 +196,12 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
 
   const handleCreateOrder = async () => {
     if (!customerName || customerName.trim().length === 0) {
-      onMessage("Error: Please enter a customer name");
+      toast.warning("Please enter a customer name");
       return;
     }
 
     if (cart.length === 0) {
-      onMessage("Error: Please add at least one item to the order");
+      toast.warning("Please add at least one item to the order");
       return;
     }
 
@@ -226,18 +219,13 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
         );
       }
 
-      const promoCount = selectedPromotions.length;
-      onMessage(
-        `Order #${orderId} created successfully for ${customerName} ($${formatPrice(
-          calculateOrderTotal()
-        )})${promoCount > 0 ? ` with ${promoCount} promotion(s)` : ""}`
-      );
+      toast.success(`Order #${orderId} created for ${customerName}`);
       setCustomerName("");
       clearCart();
       setSelectedPromotions([]);
       onRefreshLogs();
     } catch (err) {
-      onMessage(`Error: ${formatError(err)}`);
+      toast.error(formatError(err));
     }
   };
 
