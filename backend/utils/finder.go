@@ -42,8 +42,14 @@ func ReadEntryAtOffset(file *os.File, offset int64) ([]byte, error) {
 // Returns nil and an error if not found or on file read errors
 // Format: [recordLength(2)][ID(2)][tombstone(1)][data...]
 func FindByIDSequential(file *os.File, targetID uint64) ([]byte, error) {
+	// Get actual header size (variable due to filename)
+	headerSize, err := GetHeaderSizeFromFile(file)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get header size: %w", err)
+	}
+
 	// Seek to the start of the first entry (after header)
-	_, err := file.Seek(int64(HeaderSize), 0)
+	_, err = file.Seek(int64(headerSize), 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to seek past header: %w", err)
 	}

@@ -96,7 +96,7 @@ func (dao *CollectionDAO) Write(ownerOrName string, totalPrice uint64, itemIDs [
 	}
 
 	// Read header to get the next ID
-	_, _, nextId, err := utils.ReadHeader(file)
+	_, _, _, nextId, err := utils.ReadHeader(file)
 	if err != nil {
 		return 0, fmt.Errorf("failed to read header: %w", err)
 	}

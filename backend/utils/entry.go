@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 // EntryInfo represents an entry found in the binary file
@@ -21,13 +22,21 @@ func SplitFileIntoEntries(filePath string) ([]EntryInfo, error) {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
-	// Check if file is large enough to contain a header
-	if len(fileData) < HeaderSize {
+	// Check minimum size for header
+	if len(fileData) < MagicSize+FilenameLengthSize {
+		return []EntryInfo{}, nil
+	}
+
+	// Get actual header size by reading filename length
+	filenameLen := int(fileData[MagicSize])
+	headerSize := CalculateHeaderSize(string(fileData[MagicSize+FilenameLengthSize : MagicSize+FilenameLengthSize+filenameLen]))
+
+	if len(fileData) < headerSize {
 		return []EntryInfo{}, nil
 	}
 
 	entries := make([]EntryInfo, 0)
-	offset := HeaderSize
+	offset := headerSize
 
 	// Read records using length-prefixed format
 	for offset < len(fileData) {
@@ -64,13 +73,16 @@ func SplitFileIntoEntries(filePath string) ([]EntryInfo, error) {
 }
 
 // EnsureFileExists creates a binary file with an empty header if it doesn't exist
-// This is a common pattern used by all DAOs
+// The filename is extracted from the filePath and stored in the header
 func EnsureFileExists(filePath string) error {
 	// Check if file already exists
 	if _, err := os.Stat(filePath); err == nil {
 		// File exists, nothing to do
 		return nil
 	}
+
+	// Extract just the filename from the path
+	filename := filepath.Base(filePath)
 
 	// Create the file
 	file, err := CreateFile(filePath)
@@ -79,8 +91,8 @@ func EnsureFileExists(filePath string) error {
 	}
 	defer file.Close()
 
-	// Write empty header (0 entities, 0 tombstones, nextId=0)
-	header, err := WriteHeader(0, 0, 0)
+	// Write empty header with filename
+	header, err := WriteHeader(filename, 0, 0, 0)
 	if err != nil {
 		return fmt.Errorf("failed to create header: %w", err)
 	}
@@ -91,4 +103,61 @@ func EnsureFileExists(filePath string) error {
 	}
 
 	return nil
+}
+
+// GetHeaderSize reads a file and returns its header size
+func GetHeaderSize(filePath string) (int, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+
+	// Read magic + filename length
+	header := make([]byte, MagicSize+FilenameLengthSize)
+	n, err := file.Read(header)
+	if err != nil || n < MagicSize+FilenameLengthSize {
+		return 0, fmt.Errorf("failed to read header")
+	}
+
+	filenameLen := int(header[MagicSize])
+	return CalculateHeaderSize(string(make([]byte, filenameLen))), nil
+}
+
+// GetHeaderSizeFromFile reads header size from an open file (resets position)
+func GetHeaderSizeFromFile(file *os.File) (int, error) {
+	// Save current position
+	currentPos, err := file.Seek(0, 1)
+	if err != nil {
+		return 0, err
+	}
+
+	// Seek to beginning
+	_, err = file.Seek(0, 0)
+	if err != nil {
+		return 0, err
+	}
+
+	// Read magic + filename length
+	header := make([]byte, MagicSize+FilenameLengthSize)
+	n, err := file.Read(header)
+	if err != nil || n < MagicSize+FilenameLengthSize {
+		file.Seek(currentPos, 0) // Restore position
+		return 0, fmt.Errorf("failed to read header")
+	}
+
+	filenameLen := int(header[MagicSize])
+
+	// Read filename to get actual size
+	filenameBytes := make([]byte, filenameLen)
+	n, err = file.Read(filenameBytes)
+	if err != nil || n < filenameLen {
+		file.Seek(currentPos, 0)
+		return 0, fmt.Errorf("failed to read filename")
+	}
+
+	// Restore original position
+	file.Seek(currentPos, 0)
+
+	return CalculateHeaderSize(string(filenameBytes)), nil
 }

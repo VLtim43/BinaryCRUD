@@ -20,6 +20,12 @@ func iterateEntries(binFilePath string, callback func(entry EntryWithOffset) err
 		return nil // No data file, nothing to iterate
 	}
 
+	// Get header size for this file
+	headerSize, err := GetHeaderSize(binFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to get header size: %w", err)
+	}
+
 	entries, err := SplitFileIntoEntries(binFilePath)
 	if err != nil {
 		return fmt.Errorf("failed to read entries: %w", err)
@@ -27,7 +33,7 @@ func iterateEntries(binFilePath string, callback func(entry EntryWithOffset) err
 
 	// Calculate file offsets (SplitFileIntoEntries returns position after length prefix,
 	// but we need position at the length prefix for indexing)
-	fileOffset := int64(HeaderSize)
+	fileOffset := int64(headerSize)
 	for _, entry := range entries {
 		if err := callback(EntryWithOffset{
 			Data:   entry.Data,
