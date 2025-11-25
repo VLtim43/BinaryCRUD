@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // EntryInfo represents an entry found in the binary file
@@ -80,8 +81,8 @@ func EnsureFileExists(filePath string) error {
 	}
 	defer file.Close()
 
-	// Extract base filename from path for the header
-	fileName := filepath.Base(filePath)
+	// Extract base filename from path for the header (without extension)
+	fileName := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
 
 	// Write empty header with fileName (0 entities, 0 tombstones, nextId=0)
 	header, err := WriteHeader(fileName, 0, 0, 0)

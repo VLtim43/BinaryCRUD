@@ -1,3 +1,4 @@
+// promotion_dao_test
 package test
 
 import (
