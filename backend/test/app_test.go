@@ -73,8 +73,8 @@ func (a *TestApp) AddItem(text string, priceInCents uint64) (uint64, error) {
 }
 
 // GetItem retrieves an item by ID from the binary file
-func (a *TestApp) GetItem(id uint64, useIndex bool) (map[string]any, error) {
-	itemID, name, priceInCents, err := a.itemDAO.ReadWithIndex(id, useIndex)
+func (a *TestApp) GetItem(id uint64) (map[string]any, error) {
+	itemID, name, priceInCents, err := a.itemDAO.Read(id)
 	if err != nil {
 		return nil, err
 	}
@@ -364,7 +364,7 @@ func (a *TestApp) GetOrderWithPromotions(orderID uint64) (map[string]any, error)
 func (a *TestApp) calculateTotalPrice(itemIDs []uint64) (uint64, error) {
 	var totalPrice uint64
 	for _, itemID := range itemIDs {
-		_, _, priceInCents, err := a.itemDAO.ReadWithIndex(itemID, true)
+		_, _, priceInCents, err := a.itemDAO.Read(itemID)
 		if err != nil {
 			return 0, fmt.Errorf("failed to read item %d: %w", itemID, err)
 		}
@@ -616,7 +616,7 @@ func TestGetItem(t *testing.T) {
 
 	_, _ = app.AddItem("Burger", 899)
 
-	item, err := app.GetItem(0, true)
+	item, err := app.GetItem(0)
 	if err != nil {
 		t.Fatalf("Failed to get item: %v", err)
 	}
@@ -629,27 +629,11 @@ func TestGetItem(t *testing.T) {
 	}
 }
 
-func TestGetItemWithoutIndex(t *testing.T) {
-	app, cleanup := createTestApp()
-	defer cleanup()
-
-	_, _ = app.AddItem("Pizza", 1299)
-
-	item, err := app.GetItem(0, false)
-	if err != nil {
-		t.Fatalf("Failed to get item without index: %v", err)
-	}
-
-	if item["name"] != "Pizza" {
-		t.Errorf("Expected name 'Pizza', got '%v'", item["name"])
-	}
-}
-
 func TestGetItemNotFound(t *testing.T) {
 	app, cleanup := createTestApp()
 	defer cleanup()
 
-	_, err := app.GetItem(999, true)
+	_, err := app.GetItem(999)
 	if err == nil {
 		t.Error("Expected error for non-existent item")
 	}
@@ -667,7 +651,7 @@ func TestDeleteItem(t *testing.T) {
 	}
 
 	// Item should not be readable after deletion
-	_, err = app.GetItem(0, true)
+	_, err = app.GetItem(0)
 	if err == nil {
 		t.Error("Expected error reading deleted item")
 	}

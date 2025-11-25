@@ -3,86 +3,61 @@ package utils
 import (
 	"BinaryCRUD/backend/index"
 	"fmt"
-	"io"
 	"os"
 )
 
-// RebuildBTreeIndex scans a .bin file and rebuilds the B+ tree index
-// This is used for crash recovery when the index file is missing or corrupted
+// EntryWithOffset contains entry data and its file offset
+type EntryWithOffset struct {
+	Data   []byte
+	Offset int64
+}
+
+// iterateEntries reads all entries from a binary file and calls the callback for each
+// Returns early if the callback returns an error
+func iterateEntries(binFilePath string, callback func(entry EntryWithOffset) error) error {
+	// Check if bin file exists
+	if _, err := os.Stat(binFilePath); os.IsNotExist(err) {
+		return nil // No data file, nothing to iterate
+	}
+
+	entries, err := SplitFileIntoEntries(binFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to read entries: %w", err)
+	}
+
+	// Calculate file offsets (SplitFileIntoEntries returns position after length prefix,
+	// but we need position at the length prefix for indexing)
+	fileOffset := int64(HeaderSize)
+	for _, entry := range entries {
+		if err := callback(EntryWithOffset{
+			Data:   entry.Data,
+			Offset: fileOffset,
+		}); err != nil {
+			return err
+		}
+		// Move to next record: length prefix + data length
+		fileOffset += int64(RecordLengthSize + len(entry.Data))
+	}
+
+	return nil
+}
+
+// RebuildBTreeIndex scans a .bin file and rebuilds the B+ tree index for items
 func RebuildBTreeIndex(binFilePath string, indexPath string) (*index.BTree, error) {
 	tree := index.NewBTree(DefaultBTreeOrder)
 
-	// Check if bin file exists
-	if _, err := os.Stat(binFilePath); os.IsNotExist(err) {
-		// No data file, return empty tree
-		return tree, nil
-	}
-
-	// Open the bin file
-	file, err := os.Open(binFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open bin file: %w", err)
-	}
-	defer file.Close()
-
-	// Read header to verify file is valid
-	_, _, _, err = ReadHeader(file)
-	if err != nil {
-		// Corrupted or empty file, return empty tree
-		return tree, nil
-	}
-
-	// Seek past header
-	_, err = file.Seek(int64(HeaderSize), 0)
-	if err != nil {
-		return nil, fmt.Errorf("failed to seek past header: %w", err)
-	}
-
-	// Read all file data
-	fileData, err := io.ReadAll(file)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
-	}
-
-	// Track current file offset (relative to after header)
-	fileOffset := int64(HeaderSize)
-	dataOffset := 0
-
-	// Parse all records and rebuild index
-	for dataOffset < len(fileData) {
-		// Check if we have enough bytes for the length field
-		if dataOffset+RecordLengthSize > len(fileData) {
-			break
-		}
-
-		// Read the record length
-		recordLength, lengthEnd, err := ReadFixedNumber(RecordLengthSize, fileData, dataOffset)
-		if err != nil {
-			break
-		}
-
-		// Check if we have enough bytes for the complete record
-		if lengthEnd+int(recordLength) > len(fileData) {
-			break
-		}
-
-		// Extract the record data (without length prefix)
-		entryData := fileData[lengthEnd : lengthEnd+int(recordLength)]
-
-		// Parse to get ID and tombstone
-		item, err := ParseItemEntry(entryData)
+	err := iterateEntries(binFilePath, func(entry EntryWithOffset) error {
+		item, err := ParseItemEntry(entry.Data)
 		if err == nil && item.Tombstone == 0x00 {
-			// Only index non-deleted entries
-			tree.Insert(item.ID, fileOffset)
+			tree.Insert(item.ID, entry.Offset)
 		}
+		return nil
+	})
 
-		// Move to next record
-		recordTotalSize := RecordLengthSize + int(recordLength)
-		fileOffset += int64(recordTotalSize)
-		dataOffset = lengthEnd + int(recordLength)
+	if err != nil {
+		return nil, err
 	}
 
-	// Save the rebuilt index
 	if err := tree.Save(indexPath); err != nil {
 		return nil, fmt.Errorf("failed to save rebuilt index: %w", err)
 	}
@@ -95,77 +70,18 @@ func RebuildBTreeIndex(binFilePath string, indexPath string) (*index.BTree, erro
 func RebuildCollectionBTreeIndex(binFilePath string, indexPath string) (*index.BTree, error) {
 	tree := index.NewBTree(DefaultBTreeOrder)
 
-	// Check if bin file exists
-	if _, err := os.Stat(binFilePath); os.IsNotExist(err) {
-		// No data file, return empty tree
-		return tree, nil
-	}
-
-	// Open the bin file
-	file, err := os.Open(binFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open bin file: %w", err)
-	}
-	defer file.Close()
-
-	// Read header to verify file is valid
-	_, _, _, err = ReadHeader(file)
-	if err != nil {
-		// Corrupted or empty file, return empty tree
-		return tree, nil
-	}
-
-	// Seek past header
-	_, err = file.Seek(int64(HeaderSize), 0)
-	if err != nil {
-		return nil, fmt.Errorf("failed to seek past header: %w", err)
-	}
-
-	// Read all file data
-	fileData, err := io.ReadAll(file)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
-	}
-
-	// Track current file offset (relative to after header)
-	fileOffset := int64(HeaderSize)
-	dataOffset := 0
-
-	// Parse all records and rebuild index
-	for dataOffset < len(fileData) {
-		// Check if we have enough bytes for the length field
-		if dataOffset+RecordLengthSize > len(fileData) {
-			break
-		}
-
-		// Read the record length
-		recordLength, lengthEnd, err := ReadFixedNumber(RecordLengthSize, fileData, dataOffset)
-		if err != nil {
-			break
-		}
-
-		// Check if we have enough bytes for the complete record
-		if lengthEnd+int(recordLength) > len(fileData) {
-			break
-		}
-
-		// Extract the record data (without length prefix)
-		entryData := fileData[lengthEnd : lengthEnd+int(recordLength)]
-
-		// Parse to get ID and tombstone
-		collection, err := ParseCollectionEntry(entryData)
+	err := iterateEntries(binFilePath, func(entry EntryWithOffset) error {
+		collection, err := ParseCollectionEntry(entry.Data)
 		if err == nil && collection.Tombstone == 0x00 {
-			// Only index non-deleted entries
-			tree.Insert(collection.ID, fileOffset)
+			tree.Insert(collection.ID, entry.Offset)
 		}
+		return nil
+	})
 
-		// Move to next record
-		recordTotalSize := RecordLengthSize + int(recordLength)
-		fileOffset += int64(recordTotalSize)
-		dataOffset = lengthEnd + int(recordLength)
+	if err != nil {
+		return nil, err
 	}
 
-	// Save the rebuilt index
 	if err := tree.Save(indexPath); err != nil {
 		return nil, fmt.Errorf("failed to save rebuilt index: %w", err)
 	}
@@ -177,77 +93,18 @@ func RebuildCollectionBTreeIndex(binFilePath string, indexPath string) (*index.B
 func RebuildExtensibleHashIndex(binFilePath string, indexPath string, bucketSize int) (*index.ExtensibleHash, error) {
 	hashIndex := index.NewExtensibleHash(bucketSize)
 
-	// Check if bin file exists
-	if _, err := os.Stat(binFilePath); os.IsNotExist(err) {
-		// No data file, return empty hash
-		return hashIndex, nil
-	}
-
-	// Open the bin file
-	file, err := os.Open(binFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open bin file: %w", err)
-	}
-	defer file.Close()
-
-	// Read header to verify file is valid
-	_, _, _, err = ReadHeader(file)
-	if err != nil {
-		// Corrupted or empty file, return empty hash
-		return hashIndex, nil
-	}
-
-	// Seek past header
-	_, err = file.Seek(int64(HeaderSize), 0)
-	if err != nil {
-		return nil, fmt.Errorf("failed to seek past header: %w", err)
-	}
-
-	// Read all file data
-	fileData, err := io.ReadAll(file)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
-	}
-
-	// Track current file offset (relative to after header)
-	fileOffset := int64(HeaderSize)
-	dataOffset := 0
-
-	// Parse all records and rebuild index
-	for dataOffset < len(fileData) {
-		// Check if we have enough bytes for the length field
-		if dataOffset+RecordLengthSize > len(fileData) {
-			break
-		}
-
-		// Read the record length
-		recordLength, lengthEnd, err := ReadFixedNumber(RecordLengthSize, fileData, dataOffset)
-		if err != nil {
-			break
-		}
-
-		// Check if we have enough bytes for the complete record
-		if lengthEnd+int(recordLength) > len(fileData) {
-			break
-		}
-
-		// Extract the record data (without length prefix)
-		entryData := fileData[lengthEnd : lengthEnd+int(recordLength)]
-
-		// Parse to get IDs and tombstone
-		op, err := ParseOrderPromotionEntry(entryData)
+	err := iterateEntries(binFilePath, func(entry EntryWithOffset) error {
+		op, err := ParseOrderPromotionEntry(entry.Data)
 		if err == nil && op.Tombstone == 0x00 {
-			// Only index non-deleted entries
-			hashIndex.Insert(op.OrderID, op.PromotionID, fileOffset)
+			hashIndex.Insert(op.OrderID, op.PromotionID, entry.Offset)
 		}
+		return nil
+	})
 
-		// Move to next record
-		recordTotalSize := RecordLengthSize + int(recordLength)
-		fileOffset += int64(recordTotalSize)
-		dataOffset = lengthEnd + int(recordLength)
+	if err != nil {
+		return nil, err
 	}
 
-	// Save the rebuilt index
 	if err := hashIndex.Save(indexPath); err != nil {
 		return nil, fmt.Errorf("failed to save rebuilt index: %w", err)
 	}

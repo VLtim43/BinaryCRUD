@@ -13,7 +13,7 @@ export const itemService = {
   },
 
   getById: async (id: number): Promise<Item> => {
-    const result = await GetItem(id, true);
+    const result = await GetItem(id);
     return {
       id: result.id,
       name: result.name,

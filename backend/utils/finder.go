@@ -6,6 +6,37 @@ import (
 	"os"
 )
 
+// ReadEntryAtOffset reads a record from a file at the given offset
+// The offset should point to the start of the record (at the length prefix)
+// Returns the entry data (without length prefix) or nil if read fails
+func ReadEntryAtOffset(file *os.File, offset int64) ([]byte, error) {
+	_, err := file.Seek(offset, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to seek to offset: %w", err)
+	}
+
+	// Read record length (2 bytes)
+	lengthBytes := make([]byte, RecordLengthSize)
+	n, err := file.Read(lengthBytes)
+	if err != nil || n != RecordLengthSize {
+		return nil, fmt.Errorf("failed to read record length")
+	}
+
+	recordLength, _, err := ReadFixedNumber(RecordLengthSize, lengthBytes, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse record length: %w", err)
+	}
+
+	// Read the record data
+	entryData := make([]byte, recordLength)
+	n, err = file.Read(entryData)
+	if err != nil || n != int(recordLength) {
+		return nil, fmt.Errorf("failed to read record data")
+	}
+
+	return entryData, nil
+}
+
 // FindByIDSequential performs a sequential scan of a binary file to find an entry by ID
 // Returns the complete entry data (including ID) and nil error if found
 // Returns nil and an error if not found or on file read errors

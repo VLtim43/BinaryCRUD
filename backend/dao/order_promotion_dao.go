@@ -177,11 +177,6 @@ func (dao *OrderPromotionDAO) Delete(orderID, promotionID uint64) error {
 	dao.mu.Lock()
 	defer dao.mu.Unlock()
 
-	// Ensure file exists
-	if err := dao.ensureFileExists(); err != nil {
-		return err
-	}
-
 	// Remove from hash index first
 	err := dao.hashIndex.Delete(orderID, promotionID)
 	if err != nil {

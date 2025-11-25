@@ -50,7 +50,7 @@ func (a *App) startup(ctx context.Context) {
 func (a *App) calculateTotalPrice(itemIDs []uint64) (uint64, error) {
 	var totalPrice uint64
 	for _, itemID := range itemIDs {
-		_, _, priceInCents, err := a.itemDAO.ReadWithIndex(itemID, true)
+		_, _, priceInCents, err := a.itemDAO.Read(itemID)
 		if err != nil {
 			return 0, fmt.Errorf("failed to read item %d: %w", itemID, err)
 		}
@@ -91,8 +91,8 @@ func (a *App) AddItem(text string, priceInCents uint64) (uint64, error) {
 }
 
 // GetItem retrieves an item by ID from the binary file (uses index with automatic fallback)
-func (a *App) GetItem(id uint64, useIndex bool) (map[string]any, error) {
-	itemID, name, priceInCents, err := a.itemDAO.ReadWithIndex(id, useIndex)
+func (a *App) GetItem(id uint64) (map[string]any, error) {
+	itemID, name, priceInCents, err := a.itemDAO.Read(id)
 	if err != nil {
 		return nil, err
 	}
