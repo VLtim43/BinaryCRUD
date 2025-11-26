@@ -127,9 +127,12 @@ export const DebugTab = ({
       setBinFiles(files);
       if (files.length === 0) {
         setSelectedFile("");
-      } else if (!selectedFile || !files.some((f) => f.name === selectedFile)) {
-        // Set to first file if no selection or current selection no longer exists
-        setSelectedFile(files[0].name);
+      } else if (selectedFile && selectedFile !== "__all__" && !files.some((f) => f.name === selectedFile)) {
+        // Current selection no longer exists, reset to "All Files"
+        setSelectedFile("__all__");
+      } else if (!selectedFile) {
+        // No selection, default to "All Files"
+        setSelectedFile("__all__");
       }
     } catch (err) {
       toast.error("Failed to load bin files");
