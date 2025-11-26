@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -30,10 +29,10 @@ func NewApp() *App {
 	logger := NewLogger(1000) // Store up to 1000 log entries
 
 	return &App{
-		itemDAO:           dao.NewItemDAO("data/bin/items.bin"),
-		orderDAO:          dao.NewOrderDAO("data/bin/orders.bin"),
-		promotionDAO:      dao.NewPromotionDAO("data/bin/promotions.bin"),
-		orderPromotionDAO: dao.NewOrderPromotionDAO("data/bin/order_promotions.bin"),
+		itemDAO:           dao.NewItemDAO(utils.BinPath("items.bin")),
+		orderDAO:          dao.NewOrderDAO(utils.BinPath("orders.bin")),
+		promotionDAO:      dao.NewPromotionDAO(utils.BinPath("promotions.bin")),
+		orderPromotionDAO: dao.NewOrderPromotionDAO(utils.BinPath("order_promotions.bin")),
 		logger:            logger,
 	}
 }
@@ -46,36 +45,36 @@ func (a *App) startup(ctx context.Context) {
 	a.logger.Info("Application started")
 }
 
+// PriceCalculationResult holds the result of a price calculation
+type PriceCalculationResult struct {
+	ValidItems []uint64
+	TotalPrice uint64
+	Errors     []error
+}
+
 // calculateTotalPrice calculates the total price of items by reading each item's price
-func (a *App) calculateTotalPrice(itemIDs []uint64) (uint64, error) {
-	var totalPrice uint64
+// If strict is true, returns an error on the first missing item
+// If strict is false, skips missing items and logs warnings
+func (a *App) calculateTotalPrice(itemIDs []uint64, strict bool, entityName string) (*PriceCalculationResult, error) {
+	result := &PriceCalculationResult{
+		ValidItems: make([]uint64, 0, len(itemIDs)),
+	}
+
 	for _, itemID := range itemIDs {
 		_, _, priceInCents, err := a.itemDAO.ReadWithIndex(itemID, true)
 		if err != nil {
-			return 0, fmt.Errorf("failed to read item %d: %w", itemID, err)
-		}
-		totalPrice += priceInCents
-	}
-	return totalPrice, nil
-}
-
-// calculateTotalPriceWithValidation calculates total price and returns only valid items
-// Returns (validItems, totalPrice) - items that exist and their total price
-func (a *App) calculateTotalPriceWithValidation(itemIDs []uint64, entityName string) ([]uint64, uint64) {
-	var totalPrice uint64
-	var validItems []uint64
-
-	for _, itemID := range itemIDs {
-		_, _, priceInCents, err := a.itemDAO.Read(itemID)
-		if err != nil {
+			if strict {
+				return nil, fmt.Errorf("failed to read item %d: %w", itemID, err)
+			}
 			a.logger.Warn(fmt.Sprintf("Item ID %d in %s not found, skipping", itemID, entityName))
+			result.Errors = append(result.Errors, err)
 			continue
 		}
-		totalPrice += priceInCents
-		validItems = append(validItems, itemID)
+		result.TotalPrice += priceInCents
+		result.ValidItems = append(result.ValidItems, itemID)
 	}
 
-	return validItems, totalPrice
+	return result, nil
 }
 
 // AddItem writes an item to the binary file with a price in cents and returns the assigned ID
@@ -119,17 +118,15 @@ func (a *App) DeleteItem(id uint64) error {
 
 // DeleteAllFiles deletes all generated data (bin, indexes, compressed) but keeps seed folder
 func (a *App) DeleteAllFiles() error {
-	// Use the shared cleanup utility
 	results, err := utils.CleanupDataFiles(a.logger.Info)
 	if err != nil {
 		a.logger.Warn(fmt.Sprintf("Error during cleanup: %v", err))
 	}
 
-	// Emit toast for each folder with deleted files
 	folderNames := map[string]string{
-		"data/bin":        "bin files",
-		"data/indexes":    "indexes",
-		"data/compressed": "compressed files",
+		utils.BinDir:        "bin files",
+		utils.IndexDir:      "indexes",
+		utils.CompressedDir: "compressed files",
 	}
 
 	totalDeleted := 0
@@ -151,10 +148,10 @@ func (a *App) DeleteAllFiles() error {
 	a.logger.Info(fmt.Sprintf("Deleted %d file(s) from bin, indexes, and compressed folders", totalDeleted))
 
 	// Reload all DAOs to clear in-memory indexes
-	a.itemDAO = dao.NewItemDAO("data/bin/items.bin")
-	a.orderDAO = dao.NewOrderDAO("data/bin/orders.bin")
-	a.promotionDAO = dao.NewPromotionDAO("data/bin/promotions.bin")
-	a.orderPromotionDAO = dao.NewOrderPromotionDAO("data/bin/order_promotions.bin")
+	a.itemDAO = dao.NewItemDAO(utils.BinPath("items.bin"))
+	a.orderDAO = dao.NewOrderDAO(utils.BinPath("orders.bin"))
+	a.promotionDAO = dao.NewPromotionDAO(utils.BinPath("promotions.bin"))
+	a.orderPromotionDAO = dao.NewOrderPromotionDAO(utils.BinPath("order_promotions.bin"))
 	a.logger.Info("Cleared all in-memory indexes")
 
 	return nil
@@ -242,206 +239,214 @@ func (a *App) GetPromotionIndexContents() (map[string]any, error) {
 	return a.getIndexContentsFromTree(tree.GetAll(), "Promotion"), nil
 }
 
-// PopulateInventory reads items and promotions from JSON files and adds them to the database
-// with delays to ensure safe sequential writes
-func (a *App) PopulateInventory() error {
-	jsonPath := "data/seed/items.json"
-	data, err := os.ReadFile(jsonPath)
+// populationResult tracks success/fail counts for a population operation
+type populationResult struct {
+	success int
+	fail    int
+}
+
+// embeddedPromotion tracks order-promotion relationships from orders.json
+type embeddedPromotion struct {
+	orderID      uint64
+	promotionIDs []uint64
+}
+
+// populateItems reads and populates items from seed file
+func (a *App) populateItems() (*populationResult, error) {
+	data, err := os.ReadFile(utils.SeedPath("items.json"))
 	if err != nil {
-		return fmt.Errorf("failed to read items.json: %w", err)
+		return nil, fmt.Errorf("failed to read items.json: %w", err)
 	}
 
-	// Parse JSON into slice of items
 	var items []ItemEntry
-	err = json.Unmarshal(data, &items)
-	if err != nil {
-		return fmt.Errorf("failed to parse items.json: %w", err)
+	if err := json.Unmarshal(data, &items); err != nil {
+		return nil, fmt.Errorf("failed to parse items.json: %w", err)
 	}
 
 	a.logger.Info(fmt.Sprintf("Starting data population with %d items", len(items)))
-
-	// Add each item sequentially with a delay to prevent race conditions
-	itemSuccessCount := 0
-	itemFailCount := 0
+	result := &populationResult{}
 
 	for i, item := range items {
-		// Add item using the Write method (protected by mutex)
 		_, err := a.itemDAO.Write(item.Name, item.PriceInCents)
 		if err != nil {
 			a.logger.Error(fmt.Sprintf("Failed to add item %d (%s): %v", i+1, item.Name, err))
-			itemFailCount++
+			result.fail++
 			continue
 		}
-
-		itemSuccessCount++
+		result.success++
 		a.logger.Info(fmt.Sprintf("Added item %d/%d: %s ($%.2f)", i+1, len(items), item.Name, float64(item.PriceInCents)/100))
 	}
 
-	a.logger.Info(fmt.Sprintf("Items population complete: %d succeeded, %d failed", itemSuccessCount, itemFailCount))
+	a.logger.Info(fmt.Sprintf("Items population complete: %d succeeded, %d failed", result.success, result.fail))
+	return result, nil
+}
 
-	promoSuccessCount := 0
-	promoFailCount := 0
+// populatePromotions reads and populates promotions from seed file
+func (a *App) populatePromotions() *populationResult {
+	result := &populationResult{}
 
-	promoJsonPath := "data/seed/promotions.json"
-	promoData, err := os.ReadFile(promoJsonPath)
+	data, err := os.ReadFile(utils.SeedPath("promotions.json"))
 	if err != nil {
 		a.logger.Warn(fmt.Sprintf("No promotions.json found, skipping promotions: %v", err))
-	} else {
-		// Parse JSON into slice of promotions
-		var promotions []PromotionEntry
-		err = json.Unmarshal(promoData, &promotions)
+		return result
+	}
+
+	var promotions []PromotionEntry
+	if err := json.Unmarshal(data, &promotions); err != nil {
+		a.logger.Error(fmt.Sprintf("Failed to parse promotions.json: %v", err))
+		return result
+	}
+
+	a.logger.Info(fmt.Sprintf("Starting promotion population with %d promotions", len(promotions)))
+
+	for i, promo := range promotions {
+		priceResult, err := a.calculateTotalPrice(promo.ItemIDs, false, fmt.Sprintf("promotion '%s'", promo.Name))
+		totalPrice := uint64(0)
+		if err == nil && priceResult != nil {
+			totalPrice = priceResult.TotalPrice
+		}
+
+		_, err = a.promotionDAO.Write(promo.Name, totalPrice, promo.ItemIDs)
 		if err != nil {
-			return fmt.Errorf("failed to parse promotions.json: %w", err)
+			a.logger.Error(fmt.Sprintf("Failed to add promotion %d (%s): %v", i+1, promo.Name, err))
+			result.fail++
+			continue
 		}
-
-		a.logger.Info(fmt.Sprintf("Starting promotion population with %d promotions", len(promotions)))
-
-		for i, promo := range promotions {
-			// Calculate total price for promotion
-			totalPrice, err := a.calculateTotalPrice(promo.ItemIDs)
-			if err != nil {
-				a.logger.Warn(fmt.Sprintf("Failed to calculate price for promotion '%s': %v", promo.Name, err))
-				// Use 0 if calculation fails
-				totalPrice = 0
-			}
-
-			// Create promotion using CollectionDAO
-			_, err = a.promotionDAO.Write(promo.Name, totalPrice, promo.ItemIDs)
-			if err != nil {
-				a.logger.Error(fmt.Sprintf("Failed to add promotion %d (%s): %v", i+1, promo.Name, err))
-				promoFailCount++
-				continue
-			}
-
-			promoSuccessCount++
-			a.logger.Info(fmt.Sprintf("Added promotion %d/%d: %s with %d items ($%.2f)",
-				i+1, len(promotions), promo.Name, len(promo.ItemIDs), float64(totalPrice)/100))
-		}
-
-		a.logger.Info(fmt.Sprintf("Promotions population complete: %d succeeded, %d failed", promoSuccessCount, promoFailCount))
+		result.success++
+		a.logger.Info(fmt.Sprintf("Added promotion %d/%d: %s with %d items ($%.2f)",
+			i+1, len(promotions), promo.Name, len(promo.ItemIDs), float64(totalPrice)/100))
 	}
 
-	orderJsonPath := "data/seed/orders.json"
-	orderData, err := os.ReadFile(orderJsonPath)
+	a.logger.Info(fmt.Sprintf("Promotions population complete: %d succeeded, %d failed", result.success, result.fail))
+	return result
+}
+
+// populateOrders reads and populates orders from seed file, returns embedded promotions
+func (a *App) populateOrders() (*populationResult, []embeddedPromotion, error) {
+	data, err := os.ReadFile(utils.SeedPath("orders.json"))
 	if err != nil {
-		return fmt.Errorf("failed to read orders.json: %w", err)
+		return nil, nil, fmt.Errorf("failed to read orders.json: %w", err)
 	}
 
-	// Parse JSON into slice of orders
 	var orders []OrderEntry
-	err = json.Unmarshal(orderData, &orders)
-	if err != nil {
-		return fmt.Errorf("failed to parse orders.json: %w", err)
+	if err := json.Unmarshal(data, &orders); err != nil {
+		return nil, nil, fmt.Errorf("failed to parse orders.json: %w", err)
 	}
 
 	a.logger.Info(fmt.Sprintf("Starting orders population with %d orders", len(orders)))
-
-	// Add each order sequentially
-	orderSuccessCount := 0
-	orderFailCount := 0
-
-	// Track embedded promotions to apply after all orders are created
-	type embeddedPromotion struct {
-		orderID      uint64
-		promotionIDs []uint64
-	}
-	var embeddedPromotions []embeddedPromotion
+	result := &populationResult{}
+	var embedded []embeddedPromotion
 
 	for i, order := range orders {
-		validItems, totalPrice := a.calculateTotalPriceWithValidation(order.ItemIDs, fmt.Sprintf("order '%s'", order.Owner))
+		priceResult, _ := a.calculateTotalPrice(order.ItemIDs, false, fmt.Sprintf("order '%s'", order.Owner))
 
-		if len(validItems) == 0 {
+		if len(priceResult.ValidItems) == 0 {
 			a.logger.Warn(fmt.Sprintf("Order %d (%s) has no valid items, skipping", i+1, order.Owner))
-			orderFailCount++
+			result.fail++
 			continue
 		}
 
-		orderID, err := a.orderDAO.Write(order.Owner, totalPrice, validItems)
+		orderID, err := a.orderDAO.Write(order.Owner, priceResult.TotalPrice, priceResult.ValidItems)
 		if err != nil {
 			a.logger.Error(fmt.Sprintf("Failed to add order %d (%s): %v", i+1, order.Owner, err))
-			orderFailCount++
+			result.fail++
 			continue
 		}
 
-		// Track embedded promotions for this order
 		if len(order.PromotionIDs) > 0 {
-			embeddedPromotions = append(embeddedPromotions, embeddedPromotion{
-				orderID:      orderID,
-				promotionIDs: order.PromotionIDs,
-			})
+			embedded = append(embedded, embeddedPromotion{orderID: orderID, promotionIDs: order.PromotionIDs})
 		}
 
-		orderSuccessCount++
+		result.success++
 		a.logger.Info(fmt.Sprintf("Added order %d/%d: %s with %d items ($%.2f)",
-			i+1, len(orders), order.Owner, len(validItems), float64(totalPrice)/100))
+			i+1, len(orders), order.Owner, len(priceResult.ValidItems), float64(priceResult.TotalPrice)/100))
 	}
 
-	a.logger.Info(fmt.Sprintf("Orders population complete: %d succeeded, %d failed", orderSuccessCount, orderFailCount))
+	a.logger.Info(fmt.Sprintf("Orders population complete: %d succeeded, %d failed", result.success, result.fail))
+	return result, embedded, nil
+}
 
-	// Populate order-promotion relationships
-	orderPromoJsonPath := "data/seed/order_promotions.json"
-	orderPromoData, err := os.ReadFile(orderPromoJsonPath)
+// populateOrderPromotions reads and applies order-promotion relationships from seed file
+func (a *App) populateOrderPromotions() *populationResult {
+	result := &populationResult{}
+
+	data, err := os.ReadFile(utils.SeedPath("order_promotions.json"))
 	if err != nil {
 		a.logger.Warn(fmt.Sprintf("No order_promotions.json found, skipping order-promotion relationships: %v", err))
-	} else {
-		var orderPromotions []OrderPromotionEntry
-		err = json.Unmarshal(orderPromoData, &orderPromotions)
-		if err != nil {
-			return fmt.Errorf("failed to parse order_promotions.json: %w", err)
+		return result
+	}
+
+	var orderPromotions []OrderPromotionEntry
+	if err := json.Unmarshal(data, &orderPromotions); err != nil {
+		a.logger.Error(fmt.Sprintf("Failed to parse order_promotions.json: %v", err))
+		return result
+	}
+
+	a.logger.Info(fmt.Sprintf("Starting order-promotion relationships with %d entries", len(orderPromotions)))
+
+	for i, op := range orderPromotions {
+		if err := a.ApplyPromotionToOrder(op.OrderID, op.PromotionID); err != nil {
+			a.logger.Error(fmt.Sprintf("Failed to apply promotion %d to order %d: %v", op.PromotionID, op.OrderID, err))
+			result.fail++
+			continue
 		}
+		result.success++
+		a.logger.Info(fmt.Sprintf("Applied promotion #%d to order #%d (%d/%d)",
+			op.PromotionID, op.OrderID, i+1, len(orderPromotions)))
+	}
 
-		a.logger.Info(fmt.Sprintf("Starting order-promotion relationships with %d entries", len(orderPromotions)))
+	a.logger.Info(fmt.Sprintf("Order-promotion relationships complete: %d succeeded, %d failed", result.success, result.fail))
+	return result
+}
 
-		orderPromoSuccessCount := 0
-		orderPromoFailCount := 0
+// applyEmbeddedPromotions applies promotions embedded in orders.json
+func (a *App) applyEmbeddedPromotions(embedded []embeddedPromotion) *populationResult {
+	result := &populationResult{}
+	if len(embedded) == 0 {
+		return result
+	}
 
-		for i, op := range orderPromotions {
-			err := a.ApplyPromotionToOrder(op.OrderID, op.PromotionID)
-			if err != nil {
-				a.logger.Error(fmt.Sprintf("Failed to apply promotion %d to order %d: %v", op.PromotionID, op.OrderID, err))
-				orderPromoFailCount++
+	a.logger.Info(fmt.Sprintf("Applying %d embedded order-promotion relationships", len(embedded)))
+
+	for _, ep := range embedded {
+		for _, promoID := range ep.promotionIDs {
+			if err := a.ApplyPromotionToOrder(ep.orderID, promoID); err != nil {
+				a.logger.Error(fmt.Sprintf("Failed to apply embedded promotion %d to order %d: %v", promoID, ep.orderID, err))
+				result.fail++
 				continue
 			}
-
-			orderPromoSuccessCount++
-			a.logger.Info(fmt.Sprintf("Applied promotion #%d to order #%d (%d/%d)",
-				op.PromotionID, op.OrderID, i+1, len(orderPromotions)))
+			result.success++
+			a.logger.Info(fmt.Sprintf("Applied embedded promotion #%d to order #%d", promoID, ep.orderID))
 		}
-
-		a.logger.Info(fmt.Sprintf("Order-promotion relationships complete: %d succeeded, %d failed",
-			orderPromoSuccessCount, orderPromoFailCount))
 	}
 
-	// Apply embedded promotions from orders.json
-	if len(embeddedPromotions) > 0 {
-		a.logger.Info(fmt.Sprintf("Applying %d embedded order-promotion relationships", len(embeddedPromotions)))
+	a.logger.Info(fmt.Sprintf("Embedded order-promotion relationships complete: %d succeeded, %d failed", result.success, result.fail))
+	return result
+}
 
-		embeddedSuccessCount := 0
-		embeddedFailCount := 0
-
-		for _, ep := range embeddedPromotions {
-			for _, promoID := range ep.promotionIDs {
-				err := a.ApplyPromotionToOrder(ep.orderID, promoID)
-				if err != nil {
-					a.logger.Error(fmt.Sprintf("Failed to apply embedded promotion %d to order %d: %v", promoID, ep.orderID, err))
-					embeddedFailCount++
-					continue
-				}
-				embeddedSuccessCount++
-				a.logger.Info(fmt.Sprintf("Applied embedded promotion #%d to order #%d", promoID, ep.orderID))
-			}
-		}
-
-		a.logger.Info(fmt.Sprintf("Embedded order-promotion relationships complete: %d succeeded, %d failed",
-			embeddedSuccessCount, embeddedFailCount))
+// PopulateInventory reads items and promotions from JSON files and adds them to the database
+func (a *App) PopulateInventory() error {
+	itemResult, err := a.populateItems()
+	if err != nil {
+		return err
 	}
+
+	promoResult := a.populatePromotions()
+
+	orderResult, embedded, err := a.populateOrders()
+	if err != nil {
+		return err
+	}
+
+	a.populateOrderPromotions()
+	a.applyEmbeddedPromotions(embedded)
 
 	// Final summary
-	totalSuccess := itemSuccessCount + promoSuccessCount + orderSuccessCount
-	totalFail := itemFailCount + promoFailCount + orderFailCount
+	totalSuccess := itemResult.success + promoResult.success + orderResult.success
+	totalFail := itemResult.fail + promoResult.fail + orderResult.fail
 
 	a.logger.Info(fmt.Sprintf("Total population complete: %d items + %d promotions + %d orders = %d total (%d failed)",
-		itemSuccessCount, promoSuccessCount, orderSuccessCount, totalSuccess, totalFail))
+		itemResult.success, promoResult.success, orderResult.success, totalSuccess, totalFail))
 
 	if totalFail > 0 {
 		return fmt.Errorf("some entries failed to add: %d succeeded, %d failed", totalSuccess, totalFail)
@@ -534,18 +539,18 @@ func (a *App) CreateOrder(customerName string, itemIDs []uint64) (uint64, error)
 		return 0, err
 	}
 
-	totalPrice, err := a.calculateTotalPrice(itemIDs)
+	priceResult, err := a.calculateTotalPrice(itemIDs, true, "order")
 	if err != nil {
 		return 0, err
 	}
 
-	assignedID, err := a.orderDAO.Write(customerName, totalPrice, itemIDs)
+	assignedID, err := a.orderDAO.Write(customerName, priceResult.TotalPrice, itemIDs)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create order: %w", err)
 	}
 
 	a.logger.Info(fmt.Sprintf("Created order #%d for %s with %d items (total: $%.2f)",
-		assignedID, customerName, len(itemIDs), float64(totalPrice)/100))
+		assignedID, customerName, len(itemIDs), float64(priceResult.TotalPrice)/100))
 
 	return assignedID, nil
 }
@@ -585,18 +590,18 @@ func (a *App) CreatePromotion(promotionName string, itemIDs []uint64) (uint64, e
 		return 0, err
 	}
 
-	totalPrice, err := a.calculateTotalPrice(itemIDs)
+	priceResult, err := a.calculateTotalPrice(itemIDs, true, "promotion")
 	if err != nil {
 		return 0, err
 	}
 
-	assignedID, err := a.promotionDAO.Write(promotionName, totalPrice, itemIDs)
+	assignedID, err := a.promotionDAO.Write(promotionName, priceResult.TotalPrice, itemIDs)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create promotion: %w", err)
 	}
 
 	a.logger.Info(fmt.Sprintf("Created promotion #%d: %s with %d items (total: $%.2f)",
-		assignedID, promotionName, len(itemIDs), float64(totalPrice)/100))
+		assignedID, promotionName, len(itemIDs), float64(priceResult.TotalPrice)/100))
 
 	return assignedID, nil
 }
@@ -766,29 +771,22 @@ func (a *App) GetOrderWithPromotions(orderID uint64) (map[string]any, error) {
 
 // CompressFile compresses a binary file using the specified algorithm
 func (a *App) CompressFile(filename string, algorithm string) (map[string]any, error) {
-	// Map filename to actual path (bin files are in data/bin/)
-	inputPath := filepath.Join("data", "bin", filename)
+	inputPath := utils.BinPath(filename)
 
-	// Check if file exists
 	fileInfo, err := os.Stat(inputPath)
 	if err != nil {
 		return nil, fmt.Errorf("file not found: %s", filename)
 	}
 	originalSize := fileInfo.Size()
 
-	// Generate output filename based on algorithm
-	var outputFilename string
-	var outputPath string
+	outputFilename := utils.CompressedFilename(filename, algorithm)
+	outputPath := utils.CompressedPath(outputFilename)
 
 	switch algorithm {
-	case "huffman":
-		outputFilename = filename + ".huffman.compressed"
-		outputPath = filepath.Join("data", "compressed", outputFilename)
+	case utils.AlgorithmHuffman:
 		hc := compression.NewHuffmanCompressor()
 		err = hc.CompressFile(inputPath, outputPath)
-	case "lzw":
-		outputFilename = filename + ".lzw.compressed"
-		outputPath = filepath.Join("data", "compressed", outputFilename)
+	case utils.AlgorithmLZW:
 		lzw := compression.NewLZWCompressor()
 		err = lzw.CompressFile(inputPath, outputPath)
 	default:
@@ -799,18 +797,15 @@ func (a *App) CompressFile(filename string, algorithm string) (map[string]any, e
 		return nil, fmt.Errorf("compression failed: %w", err)
 	}
 
-	// Get compressed file size
 	compressedInfo, err := os.Stat(outputPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to stat compressed file: %w", err)
 	}
 	compressedSize := compressedInfo.Size()
 
-	// Delete original file and its index after successful compression
 	utils.RemoveBinFile(filename, a.logger.Info)
 	utils.RemoveIndexForBin(filename, a.logger.Info)
 
-	// Calculate ratio
 	ratio := float64(compressedSize) / float64(originalSize) * 100
 	spaceSaved := float64(originalSize-compressedSize) / float64(originalSize) * 100
 
@@ -828,15 +823,11 @@ func (a *App) CompressFile(filename string, algorithm string) (map[string]any, e
 
 // CompressAllFiles compresses all .bin files into a single archive
 func (a *App) CompressAllFiles(algorithm string) (map[string]any, error) {
-	binDir := filepath.Join("data", "bin")
-
-	// Get all bin files
-	entries, err := os.ReadDir(binDir)
+	entries, err := os.ReadDir(utils.BinDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read bin directory: %w", err)
 	}
 
-	// Collect bin files
 	var binFiles []string
 	for _, entry := range entries {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".bin") {
@@ -852,7 +843,6 @@ func (a *App) CompressAllFiles(algorithm string) (map[string]any, error) {
 	// Format: [fileCount(4)][file1NameLen(2)][file1Name][file1Size(4)][file1Data]...
 	var combined []byte
 
-	// Write file count
 	fileCountBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(fileCountBytes, uint32(len(binFiles)))
 	combined = append(combined, fileCountBytes...)
@@ -860,45 +850,35 @@ func (a *App) CompressAllFiles(algorithm string) (map[string]any, error) {
 	var totalOriginalSize int64
 
 	for _, filename := range binFiles {
-		filePath := filepath.Join(binDir, filename)
-		data, err := os.ReadFile(filePath)
+		data, err := os.ReadFile(utils.BinPath(filename))
 		if err != nil {
 			return nil, fmt.Errorf("failed to read %s: %w", filename, err)
 		}
 
 		totalOriginalSize += int64(len(data))
 
-		// Write filename length (2 bytes)
 		nameBytes := []byte(filename)
 		nameLenBytes := make([]byte, 2)
 		binary.BigEndian.PutUint16(nameLenBytes, uint16(len(nameBytes)))
 		combined = append(combined, nameLenBytes...)
-
-		// Write filename
 		combined = append(combined, nameBytes...)
 
-		// Write file size (4 bytes)
 		sizeBytes := make([]byte, 4)
 		binary.BigEndian.PutUint32(sizeBytes, uint32(len(data)))
 		combined = append(combined, sizeBytes...)
-
-		// Write file data
 		combined = append(combined, data...)
 	}
 
-	// Compress combined data based on algorithm
 	var compressedData []byte
-	var outputFilename string
+	outputFilename := utils.CompressedFilename("all_files", algorithm)
 
 	switch algorithm {
-	case "huffman":
+	case utils.AlgorithmHuffman:
 		hc := compression.NewHuffmanCompressor()
 		compressedData, err = hc.Compress(combined)
-		outputFilename = "all_files.huffman.compressed"
-	case "lzw":
+	case utils.AlgorithmLZW:
 		lzw := compression.NewLZWCompressor()
 		compressedData, err = lzw.Compress(combined)
-		outputFilename = "all_files.lzw.compressed"
 	default:
 		return nil, fmt.Errorf("unknown algorithm: %s", algorithm)
 	}
@@ -907,10 +887,9 @@ func (a *App) CompressAllFiles(algorithm string) (map[string]any, error) {
 		return nil, fmt.Errorf("compression failed: %w", err)
 	}
 
-	outputPath := filepath.Join("data", "compressed", outputFilename)
+	outputPath := utils.CompressedPath(outputFilename)
 
-	// Ensure output directory exists
-	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+	if err := os.MkdirAll(utils.CompressedDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create output directory: %w", err)
 	}
 
@@ -920,13 +899,11 @@ func (a *App) CompressAllFiles(algorithm string) (map[string]any, error) {
 
 	compressedSize := int64(len(compressedData))
 
-	// Delete original bin files and their indexes after successful compression
 	for _, filename := range binFiles {
 		utils.RemoveBinFile(filename, a.logger.Info)
 		utils.RemoveIndexForBin(filename, a.logger.Info)
 	}
 
-	// Calculate ratio
 	ratio := float64(compressedSize) / float64(totalOriginalSize) * 100
 	spaceSaved := float64(totalOriginalSize-compressedSize) / float64(totalOriginalSize) * 100
 
@@ -944,42 +921,39 @@ func (a *App) CompressAllFiles(algorithm string) (map[string]any, error) {
 
 // DecompressFile decompresses a compressed file
 func (a *App) DecompressFile(filename string) (map[string]any, error) {
-	inputPath := filepath.Join("data", "compressed", filename)
+	inputPath := utils.CompressedPath(filename)
 
-	// Check if file exists
 	if _, err := os.Stat(inputPath); err != nil {
 		return nil, fmt.Errorf("compressed file not found: %s", filename)
 	}
 
 	// Check if this is an all_files archive
-	if filename == "all_files.huffman.compressed" || filename == "all_files.lzw.compressed" {
+	if strings.HasPrefix(filename, "all_files.") {
 		return a.decompressAllFiles(inputPath, filename)
 	}
 
-	// Determine algorithm from filename and decompress
-	var outputFilename string
-	var outputPath string
+	algorithm := utils.DetectCompressionAlgorithm(filename)
+	if algorithm == utils.AlgorithmUnknown {
+		return nil, fmt.Errorf("unknown compression format: %s", filename)
+	}
+
+	outputFilename := utils.DecompressedFilename(filename)
+	outputPath := utils.BinPath(outputFilename)
 	var err error
 
-	if strings.Contains(filename, ".huffman.") {
-		outputFilename = strings.TrimSuffix(filename, ".huffman.compressed")
-		outputPath = filepath.Join("data", "bin", outputFilename)
+	switch algorithm {
+	case utils.AlgorithmHuffman:
 		hc := compression.NewHuffmanCompressor()
 		err = hc.DecompressFile(inputPath, outputPath)
-	} else if strings.Contains(filename, ".lzw.") {
-		outputFilename = strings.TrimSuffix(filename, ".lzw.compressed")
-		outputPath = filepath.Join("data", "bin", outputFilename)
+	case utils.AlgorithmLZW:
 		lzw := compression.NewLZWCompressor()
 		err = lzw.DecompressFile(inputPath, outputPath)
-	} else {
-		return nil, fmt.Errorf("unknown compression format: %s", filename)
 	}
 
 	if err != nil {
 		return nil, fmt.Errorf("decompression failed: %w", err)
 	}
 
-	// Get file sizes
 	compressedInfo, err := os.Stat(inputPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to stat compressed file: %w", err)
@@ -992,10 +966,8 @@ func (a *App) DecompressFile(filename string) (map[string]any, error) {
 	}
 	originalSize := decompressedInfo.Size()
 
-	// Delete compressed file after successful decompression
 	utils.RemoveCompressedFile(filename, a.logger.Info)
 
-	// Calculate ratio
 	ratio := float64(compressedSize) / float64(originalSize) * 100
 	spaceSaved := float64(originalSize-compressedSize) / float64(originalSize) * 100
 
@@ -1012,22 +984,23 @@ func (a *App) DecompressFile(filename string) (map[string]any, error) {
 
 // decompressAllFiles handles decompression of the all_files archive
 func (a *App) decompressAllFiles(inputPath string, filename string) (map[string]any, error) {
-	// Read compressed file
 	compressedData, err := os.ReadFile(inputPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read compressed file: %w", err)
 	}
 	compressedSize := int64(len(compressedData))
 
-	// Decompress based on algorithm
+	algorithm := utils.DetectCompressionAlgorithm(filename)
 	var data []byte
-	if strings.Contains(filename, ".huffman.") {
+
+	switch algorithm {
+	case utils.AlgorithmHuffman:
 		hc := compression.NewHuffmanCompressor()
 		data, err = hc.Decompress(compressedData)
-	} else if strings.Contains(filename, ".lzw.") {
+	case utils.AlgorithmLZW:
 		lzw := compression.NewLZWCompressor()
 		data, err = lzw.Decompress(compressedData)
-	} else {
+	default:
 		return nil, fmt.Errorf("unknown compression format: %s", filename)
 	}
 
@@ -1042,13 +1015,10 @@ func (a *App) decompressAllFiles(inputPath string, filename string) (map[string]
 	}
 
 	offset := 0
-
-	// Read file count
 	fileCount := binary.BigEndian.Uint32(data[offset : offset+4])
 	offset += 4
 
-	binDir := filepath.Join("data", "bin")
-	if err := os.MkdirAll(binDir, 0755); err != nil {
+	if err := os.MkdirAll(utils.BinDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create bin directory: %w", err)
 	}
 
@@ -1056,49 +1026,41 @@ func (a *App) decompressAllFiles(inputPath string, filename string) (map[string]
 	var filesRestored int
 
 	for i := uint32(0); i < fileCount; i++ {
-		// Read filename length
 		if offset+2 > len(data) {
 			return nil, fmt.Errorf("invalid archive format: truncated at file %d name length", i)
 		}
 		nameLen := binary.BigEndian.Uint16(data[offset : offset+2])
 		offset += 2
 
-		// Read filename
 		if offset+int(nameLen) > len(data) {
 			return nil, fmt.Errorf("invalid archive format: truncated at file %d name", i)
 		}
-		filename := string(data[offset : offset+int(nameLen)])
+		restoredFilename := string(data[offset : offset+int(nameLen)])
 		offset += int(nameLen)
 
-		// Read file size
 		if offset+4 > len(data) {
 			return nil, fmt.Errorf("invalid archive format: truncated at file %d size", i)
 		}
 		fileSize := binary.BigEndian.Uint32(data[offset : offset+4])
 		offset += 4
 
-		// Read file data
 		if offset+int(fileSize) > len(data) {
 			return nil, fmt.Errorf("invalid archive format: truncated at file %d data", i)
 		}
 		fileData := data[offset : offset+int(fileSize)]
 		offset += int(fileSize)
 
-		// Write file
-		filePath := filepath.Join(binDir, filename)
-		if err := os.WriteFile(filePath, fileData, 0644); err != nil {
-			return nil, fmt.Errorf("failed to write %s: %w", filename, err)
+		if err := os.WriteFile(utils.BinPath(restoredFilename), fileData, 0644); err != nil {
+			return nil, fmt.Errorf("failed to write %s: %w", restoredFilename, err)
 		}
 
 		totalOriginalSize += int64(fileSize)
 		filesRestored++
-		a.logger.Info(fmt.Sprintf("Restored %s (%d bytes)", filename, fileSize))
+		a.logger.Info(fmt.Sprintf("Restored %s (%d bytes)", restoredFilename, fileSize))
 	}
 
-	// Delete compressed file after successful decompression
 	utils.RemoveCompressedFile(filename, a.logger.Info)
 
-	// Calculate ratio
 	ratio := float64(compressedSize) / float64(totalOriginalSize) * 100
 	spaceSaved := float64(totalOriginalSize-compressedSize) / float64(totalOriginalSize) * 100
 
@@ -1146,13 +1108,11 @@ func (a *App) listFilesInDir(dir string, filter func(string) bool, mapper func(s
 
 // GetCompressedFiles returns a list of compressed files with metadata
 func (a *App) GetCompressedFiles() ([]map[string]any, error) {
-	compressedDir := filepath.Join("data", "compressed")
-
-	if _, err := os.Stat(compressedDir); os.IsNotExist(err) {
+	if _, err := os.Stat(utils.CompressedDir); os.IsNotExist(err) {
 		return []map[string]any{}, nil
 	}
 
-	entries, err := os.ReadDir(compressedDir)
+	entries, err := os.ReadDir(utils.CompressedDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read compressed directory: %w", err)
 	}
@@ -1170,20 +1130,12 @@ func (a *App) GetCompressedFiles() ([]map[string]any, error) {
 
 		compressedSize := info.Size()
 		name := entry.Name()
-
-		// Determine algorithm
-		algorithm := "unknown"
-		if strings.Contains(name, ".huffman.") {
-			algorithm = "huffman"
-		} else if strings.Contains(name, ".lzw.") {
-			algorithm = "lzw"
-		}
+		algorithm := utils.DetectCompressionAlgorithm(name)
 
 		// Read original size from file header (format: 4 magic + uint32 originalSize)
 		var originalSize int64 = 0
-		filePath := filepath.Join(compressedDir, name)
-		if algorithm == "huffman" || algorithm == "lzw" {
-			file, err := os.Open(filePath)
+		if algorithm != utils.AlgorithmUnknown {
+			file, err := os.Open(utils.CompressedPath(name))
 			if err == nil {
 				header := make([]byte, 8) // 4 magic + 4 size
 				if n, err := file.Read(header); err == nil && n == 8 {
@@ -1193,7 +1145,6 @@ func (a *App) GetCompressedFiles() ([]map[string]any, error) {
 			}
 		}
 
-		// Calculate ratio and space saved
 		var ratio, spaceSaved float64
 		if originalSize > 0 {
 			ratio = float64(compressedSize) / float64(originalSize) * 100
@@ -1215,7 +1166,7 @@ func (a *App) GetCompressedFiles() ([]map[string]any, error) {
 
 // DeleteCompressedFile deletes a compressed file
 func (a *App) DeleteCompressedFile(filename string) error {
-	filePath := filepath.Join("data", "compressed", filename)
+	filePath := utils.CompressedPath(filename)
 
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return fmt.Errorf("file not found: %s", filename)
@@ -1232,7 +1183,7 @@ func (a *App) DeleteCompressedFile(filename string) error {
 // GetBinFiles returns a list of .bin files in the data/bin directory
 func (a *App) GetBinFiles() ([]map[string]any, error) {
 	return a.listFilesInDir(
-		filepath.Join("data", "bin"),
+		utils.BinDir,
 		func(name string) bool { return strings.HasSuffix(name, ".bin") },
 		func(name string, size int64) map[string]any {
 			return map[string]any{

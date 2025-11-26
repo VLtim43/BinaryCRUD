@@ -15,9 +15,9 @@ type FolderCleanupResult struct {
 // but preserves seed data. Returns per-folder results.
 func CleanupDataFiles(log LogFunc) ([]FolderCleanupResult, error) {
 	foldersToClean := []string{
-		filepath.Join("data", "bin"),
-		filepath.Join("data", "indexes"),
-		filepath.Join("data", "compressed"),
+		BinDir,
+		IndexDir,
+		CompressedDir,
 	}
 
 	results := make([]FolderCleanupResult, 0, len(foldersToClean))
@@ -49,7 +49,7 @@ func CleanupTestFiles(prefix string) error {
 	}
 
 	// Also clean up any index files in data/indexes that match test patterns
-	idxPattern := filepath.Join("data", "indexes", prefix+"*")
+	idxPattern := filepath.Join(IndexDir, prefix+"*")
 	idxMatches, _ := filepath.Glob(idxPattern)
 	for _, match := range idxMatches {
 		os.Remove(match)
@@ -87,13 +87,11 @@ func cleanFolder(folder string, log LogFunc) (int, error) {
 
 // CleanupTempFiles removes leftover temp files (.tmp) from index directory
 func CleanupTempFiles() error {
-	indexDir := filepath.Join("data", "indexes")
-
-	if _, err := os.Stat(indexDir); os.IsNotExist(err) {
+	if _, err := os.Stat(IndexDir); os.IsNotExist(err) {
 		return nil
 	}
 
-	entries, err := os.ReadDir(indexDir)
+	entries, err := os.ReadDir(IndexDir)
 	if err != nil {
 		return err
 	}
@@ -104,7 +102,7 @@ func CleanupTempFiles() error {
 		}
 
 		if filepath.Ext(entry.Name()) == ".tmp" {
-			os.Remove(filepath.Join(indexDir, entry.Name()))
+			os.Remove(filepath.Join(IndexDir, entry.Name()))
 		}
 	}
 

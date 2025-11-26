@@ -29,18 +29,18 @@ func RemoveFile(path string, log LogFunc) error {
 
 // RemoveBinFile deletes a .bin file from data/bin
 func RemoveBinFile(filename string, log LogFunc) error {
-	return RemoveFile(filepath.Join("data", "bin", filename), log)
+	return RemoveFile(BinPath(filename), log)
 }
 
 // RemoveIndexForBin deletes the index file corresponding to a .bin file
 func RemoveIndexForBin(binFilename string, log LogFunc) error {
 	indexName := strings.TrimSuffix(binFilename, ".bin") + ".idx"
-	return RemoveFile(filepath.Join("data", "indexes", indexName), log)
+	return RemoveFile(IndexPath(indexName), log)
 }
 
 // RemoveCompressedFile deletes a compressed file from data/compressed
 func RemoveCompressedFile(filename string, log LogFunc) error {
-	return RemoveFile(filepath.Join("data", "compressed", filename), log)
+	return RemoveFile(CompressedPath(filename), log)
 }
 
 // CreateFile creates a new file and returns it open for reading and writing.
