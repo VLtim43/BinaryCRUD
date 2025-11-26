@@ -44,8 +44,8 @@ export const compressionService = {
     };
   },
 
-  compressAll: async (): Promise<CompressionResult> => {
-    const result = await CompressAllFiles();
+  compressAll: async (algorithm: string): Promise<CompressionResult> => {
+    const result = await CompressAllFiles(algorithm);
     return {
       outputFile: result.outputFile as string,
       originalSize: result.originalSize as number,

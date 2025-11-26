@@ -69,6 +69,7 @@ export const DebugTab = ({
 
   // Compression state
   const [selectedFile, setSelectedFile] = useState<string>("");
+  const [selectedAlgorithm, setSelectedAlgorithm] = useState<string>("huffman");
   const [compressedFiles, setCompressedFiles] = useState<CompressedFile[]>([]);
   const [binFiles, setBinFiles] = useState<BinFile[]>([]);
   const [isCompressing, setIsCompressing] = useState(false);
@@ -94,7 +95,10 @@ export const DebugTab = ({
     try {
       const files = await compressionService.getBinFiles();
       setBinFiles(files);
-      if (files.length > 0 && !selectedFile) {
+      if (files.length === 0) {
+        setSelectedFile("");
+      } else if (!selectedFile || !files.some((f) => f.name === selectedFile)) {
+        // Set to first file if no selection or current selection no longer exists
         setSelectedFile(files[0].name);
       }
     } catch (err) {
@@ -106,10 +110,10 @@ export const DebugTab = ({
     setIsCompressing(true);
     try {
       if (selectedFile === "__all__") {
-        const result = await compressionService.compressAll();
+        const result = await compressionService.compressAll(selectedAlgorithm);
         toast.success(`Compressed all files: ${result.spaceSaved} saved`);
       } else {
-        const result = await compressionService.compress(selectedFile, "huffman");
+        const result = await compressionService.compress(selectedFile, selectedAlgorithm);
         toast.success(`Compressed: ${result.spaceSaved} saved`);
       }
       await loadCompressedFiles();
@@ -602,6 +606,15 @@ export const DebugTab = ({
                     })),
                   ]}
                   placeholder="Select file..."
+                  className="cart-select"
+                />
+                <Select
+                  value={selectedAlgorithm}
+                  onChange={createSelectHandler(setSelectedAlgorithm)}
+                  options={[
+                    { value: "huffman", label: "Huffman" },
+                    { value: "lzw", label: "LZW" },
+                  ]}
                   className="cart-select"
                 />
                 <Button

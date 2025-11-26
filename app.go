@@ -776,12 +776,25 @@ func (a *App) CompressFile(filename string, algorithm string) (map[string]any, e
 	}
 	originalSize := fileInfo.Size()
 
-	// Generate output filename (only huffman supported)
-	outputFilename := filename + ".huffman.compressed"
-	outputPath := filepath.Join("data", "compressed", outputFilename)
+	// Generate output filename based on algorithm
+	var outputFilename string
+	var outputPath string
 
-	hc := compression.NewHuffmanCompressor()
-	err = hc.CompressFile(inputPath, outputPath)
+	switch algorithm {
+	case "huffman":
+		outputFilename = filename + ".huffman.compressed"
+		outputPath = filepath.Join("data", "compressed", outputFilename)
+		hc := compression.NewHuffmanCompressor()
+		err = hc.CompressFile(inputPath, outputPath)
+	case "lzw":
+		outputFilename = filename + ".lzw.compressed"
+		outputPath = filepath.Join("data", "compressed", outputFilename)
+		lzw := compression.NewLZWCompressor()
+		err = lzw.CompressFile(inputPath, outputPath)
+	default:
+		return nil, fmt.Errorf("unknown algorithm: %s", algorithm)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("compression failed: %w", err)
 	}
@@ -814,7 +827,7 @@ func (a *App) CompressFile(filename string, algorithm string) (map[string]any, e
 }
 
 // CompressAllFiles compresses all .bin files into a single archive
-func (a *App) CompressAllFiles() (map[string]any, error) {
+func (a *App) CompressAllFiles(algorithm string) (map[string]any, error) {
 	binDir := filepath.Join("data", "bin")
 
 	// Get all bin files
@@ -873,15 +886,27 @@ func (a *App) CompressAllFiles() (map[string]any, error) {
 		combined = append(combined, data...)
 	}
 
-	// Compress combined data
-	hc := compression.NewHuffmanCompressor()
-	compressedData, err := hc.Compress(combined)
+	// Compress combined data based on algorithm
+	var compressedData []byte
+	var outputFilename string
+
+	switch algorithm {
+	case "huffman":
+		hc := compression.NewHuffmanCompressor()
+		compressedData, err = hc.Compress(combined)
+		outputFilename = "all_files.huffman.compressed"
+	case "lzw":
+		lzw := compression.NewLZWCompressor()
+		compressedData, err = lzw.Compress(combined)
+		outputFilename = "all_files.lzw.compressed"
+	default:
+		return nil, fmt.Errorf("unknown algorithm: %s", algorithm)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("compression failed: %w", err)
 	}
 
-	// Write to output file
-	outputFilename := "all_files.huffman.compressed"
 	outputPath := filepath.Join("data", "compressed", outputFilename)
 
 	// Ensure output directory exists
@@ -927,20 +952,29 @@ func (a *App) DecompressFile(filename string) (map[string]any, error) {
 	}
 
 	// Check if this is an all_files archive
-	if filename == "all_files.huffman.compressed" {
-		return a.decompressAllFiles(inputPath)
+	if filename == "all_files.huffman.compressed" || filename == "all_files.lzw.compressed" {
+		return a.decompressAllFiles(inputPath, filename)
 	}
 
-	// Determine algorithm from filename
-	if !strings.Contains(filename, ".huffman.") {
+	// Determine algorithm from filename and decompress
+	var outputFilename string
+	var outputPath string
+	var err error
+
+	if strings.Contains(filename, ".huffman.") {
+		outputFilename = strings.TrimSuffix(filename, ".huffman.compressed")
+		outputPath = filepath.Join("data", "bin", outputFilename)
+		hc := compression.NewHuffmanCompressor()
+		err = hc.DecompressFile(inputPath, outputPath)
+	} else if strings.Contains(filename, ".lzw.") {
+		outputFilename = strings.TrimSuffix(filename, ".lzw.compressed")
+		outputPath = filepath.Join("data", "bin", outputFilename)
+		lzw := compression.NewLZWCompressor()
+		err = lzw.DecompressFile(inputPath, outputPath)
+	} else {
 		return nil, fmt.Errorf("unknown compression format: %s", filename)
 	}
 
-	outputFilename := strings.TrimSuffix(filename, ".huffman.compressed")
-	outputPath := filepath.Join("data", "bin", outputFilename)
-
-	hc := compression.NewHuffmanCompressor()
-	err := hc.DecompressFile(inputPath, outputPath)
 	if err != nil {
 		return nil, fmt.Errorf("decompression failed: %w", err)
 	}
@@ -977,7 +1011,7 @@ func (a *App) DecompressFile(filename string) (map[string]any, error) {
 }
 
 // decompressAllFiles handles decompression of the all_files archive
-func (a *App) decompressAllFiles(inputPath string) (map[string]any, error) {
+func (a *App) decompressAllFiles(inputPath string, filename string) (map[string]any, error) {
 	// Read compressed file
 	compressedData, err := os.ReadFile(inputPath)
 	if err != nil {
@@ -985,9 +1019,18 @@ func (a *App) decompressAllFiles(inputPath string) (map[string]any, error) {
 	}
 	compressedSize := int64(len(compressedData))
 
-	// Decompress
-	hc := compression.NewHuffmanCompressor()
-	data, err := hc.Decompress(compressedData)
+	// Decompress based on algorithm
+	var data []byte
+	if strings.Contains(filename, ".huffman.") {
+		hc := compression.NewHuffmanCompressor()
+		data, err = hc.Decompress(compressedData)
+	} else if strings.Contains(filename, ".lzw.") {
+		lzw := compression.NewLZWCompressor()
+		data, err = lzw.Decompress(compressedData)
+	} else {
+		return nil, fmt.Errorf("unknown compression format: %s", filename)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("decompression failed: %w", err)
 	}
@@ -1053,7 +1096,7 @@ func (a *App) decompressAllFiles(inputPath string) (map[string]any, error) {
 	}
 
 	// Delete compressed file after successful decompression
-	utils.RemoveCompressedFile("all_files.huffman.compressed", a.logger.Info)
+	utils.RemoveCompressedFile(filename, a.logger.Info)
 
 	// Calculate ratio
 	ratio := float64(compressedSize) / float64(totalOriginalSize) * 100
@@ -1136,10 +1179,10 @@ func (a *App) GetCompressedFiles() ([]map[string]any, error) {
 			algorithm = "lzw"
 		}
 
-		// Read original size from file header (Huffman format: HUFF + uint32 originalSize)
+		// Read original size from file header (format: 4 magic + uint32 originalSize)
 		var originalSize int64 = 0
 		filePath := filepath.Join(compressedDir, name)
-		if algorithm == "huffman" {
+		if algorithm == "huffman" || algorithm == "lzw" {
 			file, err := os.Open(filePath)
 			if err == nil {
 				header := make([]byte, 8) // 4 magic + 4 size

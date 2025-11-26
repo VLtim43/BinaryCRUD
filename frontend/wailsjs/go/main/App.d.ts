@@ -8,7 +8,7 @@ export function ApplyPromotionToOrder(arg1:number,arg2:number):Promise<void>;
 
 export function ClearLogs():Promise<void>;
 
-export function CompressAllFiles():Promise<Record<string, any>>;
+export function CompressAllFiles(arg1:string):Promise<Record<string, any>>;
 
 export function CompressFile(arg1:string,arg2:string):Promise<Record<string, any>>;
 

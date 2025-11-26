@@ -11,3 +11,5 @@ claude
 *.txt
 logs/
 /build
+.claude
+/claude
