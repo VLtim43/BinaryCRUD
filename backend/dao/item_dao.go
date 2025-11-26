@@ -77,10 +77,7 @@ func (dao *ItemDAO) Write(name string, priceInCents uint64) (uint64, error) {
 	}
 
 	// Combine all fields
-	entry := make([]byte, 0)
-	entry = append(entry, nameSizeBytes...)
-	entry = append(entry, nameBytes...)
-	entry = append(entry, priceBytes...)
+	entry := utils.CombineBytes(nameSizeBytes, nameBytes, priceBytes)
 
 	// Read header to get the next ID
 	_, _, _, nextId, err := utils.ReadHeader(file)
@@ -125,7 +122,7 @@ func (dao *ItemDAO) Read(id uint64) (uint64, string, uint64, error) {
 	file, err := os.OpenFile(dao.filePath, os.O_RDONLY, 0644)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return 0, "", 0, fmt.Errorf("item file does not exist")
+			return 0, "", 0, fmt.Errorf("failed to open item file: file does not exist")
 		}
 		return 0, "", 0, fmt.Errorf("failed to open item file: %w", err)
 	}
@@ -135,14 +132,19 @@ func (dao *ItemDAO) Read(id uint64) (uint64, string, uint64, error) {
 
 	// Try B+ tree index first
 	if offset, found := dao.tree.Search(id); found {
-		entryData, _ = utils.ReadEntryAtOffset(file, offset)
+		var readErr error
+		entryData, readErr = utils.ReadEntryAtOffset(file, offset)
+		if readErr != nil {
+			// Index may be stale, log and fall back to sequential scan
+			entryData = nil
+		}
 	}
 
-	// If index lookup failed, fall back to sequential scan
+	// If index lookup failed or returned no data, fall back to sequential scan
 	if entryData == nil {
 		entryData, err = utils.FindByIDSequential(file, id)
 		if err != nil {
-			return 0, "", 0, fmt.Errorf("failed to find item: %w", err)
+			return 0, "", 0, fmt.Errorf("item not found: %w", err)
 		}
 	}
 
@@ -166,20 +168,7 @@ func (dao *ItemDAO) Delete(id uint64) error {
 	dao.mu.Lock()
 	defer dao.mu.Unlock()
 
-	// Remove from index first
-	err := dao.tree.Delete(id)
-	if err != nil {
-		return fmt.Errorf("item not found in index: %w", err)
-	}
-
-	// Save updated index
-	err = dao.tree.Save(dao.indexPath)
-	if err != nil {
-		return fmt.Errorf("failed to save index: %w", err)
-	}
-
-	// Use the generic soft delete utility (nil mutex since we already hold the lock)
-	return utils.SoftDeleteByID(dao.filePath, id, nil, nil)
+	return utils.DeleteFromBTreeIndex(dao.tree, dao.indexPath, dao.filePath, id, "item")
 }
 
 // GetIndexTree returns the B+ tree for debugging purposes

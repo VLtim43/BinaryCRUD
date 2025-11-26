@@ -12,9 +12,9 @@ type EntryWithOffset struct {
 	Offset int64
 }
 
-// iterateEntries reads all entries from a binary file and calls the callback for each
-// Returns early if the callback returns an error
-func iterateEntries(binFilePath string, callback func(entry EntryWithOffset) error) error {
+// IterateEntries reads all entries from a binary file and calls the callback for each.
+// Returns early if the callback returns an error.
+func IterateEntries(binFilePath string, callback func(entry EntryWithOffset) error) error {
 	// Check if bin file exists
 	if _, err := os.Stat(binFilePath); os.IsNotExist(err) {
 		return nil // No data file, nothing to iterate
@@ -48,14 +48,18 @@ func iterateEntries(binFilePath string, callback func(entry EntryWithOffset) err
 	return nil
 }
 
-// RebuildBTreeIndex scans a .bin file and rebuilds the B+ tree index for items
-func RebuildBTreeIndex(binFilePath string, indexPath string) (*index.BTree, error) {
+// IDExtractor is a function that extracts an ID and tombstone from entry data.
+// Returns (id, tombstone, error).
+type IDExtractor func(data []byte) (uint64, byte, error)
+
+// rebuildBTreeIndexGeneric is the common implementation for B+ tree index rebuilding.
+func rebuildBTreeIndexGeneric(binFilePath, indexPath string, extractor IDExtractor) (*index.BTree, error) {
 	tree := index.NewBTree(DefaultBTreeOrder)
 
-	err := iterateEntries(binFilePath, func(entry EntryWithOffset) error {
-		item, err := ParseItemEntry(entry.Data)
-		if err == nil && item.Tombstone == 0x00 {
-			tree.Insert(item.ID, entry.Offset)
+	err := IterateEntries(binFilePath, func(entry EntryWithOffset) error {
+		id, tombstone, err := extractor(entry.Data)
+		if err == nil && tombstone == 0x00 {
+			tree.Insert(id, entry.Offset)
 		}
 		return nil
 	})
@@ -71,35 +75,34 @@ func RebuildBTreeIndex(binFilePath string, indexPath string) (*index.BTree, erro
 	return tree, nil
 }
 
+// RebuildBTreeIndex scans a .bin file and rebuilds the B+ tree index for items
+func RebuildBTreeIndex(binFilePath string, indexPath string) (*index.BTree, error) {
+	return rebuildBTreeIndexGeneric(binFilePath, indexPath, func(data []byte) (uint64, byte, error) {
+		item, err := ParseItemEntry(data)
+		if err != nil {
+			return 0, 0, err
+		}
+		return item.ID, item.Tombstone, nil
+	})
+}
+
 // RebuildCollectionBTreeIndex scans a collection .bin file and rebuilds the B+ tree index
 // Works for orders.bin and promotions.bin
 func RebuildCollectionBTreeIndex(binFilePath string, indexPath string) (*index.BTree, error) {
-	tree := index.NewBTree(DefaultBTreeOrder)
-
-	err := iterateEntries(binFilePath, func(entry EntryWithOffset) error {
-		collection, err := ParseCollectionEntry(entry.Data)
-		if err == nil && collection.Tombstone == 0x00 {
-			tree.Insert(collection.ID, entry.Offset)
+	return rebuildBTreeIndexGeneric(binFilePath, indexPath, func(data []byte) (uint64, byte, error) {
+		collection, err := ParseCollectionEntry(data)
+		if err != nil {
+			return 0, 0, err
 		}
-		return nil
+		return collection.ID, collection.Tombstone, nil
 	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	if err := tree.Save(indexPath); err != nil {
-		return nil, fmt.Errorf("failed to save rebuilt index: %w", err)
-	}
-
-	return tree, nil
 }
 
 // RebuildExtensibleHashIndex scans an order_promotions.bin file and rebuilds the hash index
 func RebuildExtensibleHashIndex(binFilePath string, indexPath string, bucketSize int) (*index.ExtensibleHash, error) {
 	hashIndex := index.NewExtensibleHash(bucketSize)
 
-	err := iterateEntries(binFilePath, func(entry EntryWithOffset) error {
+	err := IterateEntries(binFilePath, func(entry EntryWithOffset) error {
 		op, err := ParseOrderPromotionEntry(entry.Data)
 		if err == nil && op.Tombstone == 0x00 {
 			hashIndex.Insert(op.OrderID, op.PromotionID, entry.Offset)

@@ -25,12 +25,26 @@ type CollectionDAO struct {
 	filePath  string
 	indexPath string
 	mu        sync.Mutex
-	tree      *index.BTree // B+ tree index for fast lookups
+	tree      *index.BTree      // B+ tree index for fast lookups
+	crypto    *crypto.RSACrypto // Cached crypto instance
 }
 
 // ensureFileExists creates the file with empty header if it doesn't exist
 func (dao *CollectionDAO) ensureFileExists() error {
 	return utils.EnsureFileExists(dao.filePath)
+}
+
+// getCrypto returns the cached crypto instance, initializing it on first use
+func (dao *CollectionDAO) getCrypto() (*crypto.RSACrypto, error) {
+	if dao.crypto != nil {
+		return dao.crypto, nil
+	}
+	rsaCrypto, err := crypto.GetInstance()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get RSA crypto instance: %w", err)
+	}
+	dao.crypto = rsaCrypto
+	return rsaCrypto, nil
 }
 
 // Write creates a new collection entry and returns the assigned ID
@@ -53,9 +67,9 @@ func (dao *CollectionDAO) Write(ownerOrName string, totalPrice uint64, itemIDs [
 	defer file.Close()
 
 	// Encrypt the ownerOrName field using RSA
-	rsaCrypto, err := crypto.GetInstance()
+	rsaCrypto, err := dao.getCrypto()
 	if err != nil {
-		return 0, fmt.Errorf("failed to get RSA crypto instance: %w", err)
+		return 0, err
 	}
 
 	encryptedName, err := rsaCrypto.EncryptString(ownerOrName)
@@ -89,12 +103,8 @@ func (dao *CollectionDAO) Write(ownerOrName string, totalPrice uint64, itemIDs [
 		return 0, fmt.Errorf("failed to write item count: %w", err)
 	}
 
-	// Combine all fields
-	entry := make([]byte, 0)
-	entry = append(entry, nameSizeBytes...)
-	entry = append(entry, nameBytes...)
-	entry = append(entry, totalPriceBytes...)
-	entry = append(entry, itemCountBytes...)
+	// Combine base fields
+	entry := utils.CombineBytes(nameSizeBytes, nameBytes, totalPriceBytes, itemCountBytes)
 
 	// Add all item IDs (2 bytes each)
 	for _, itemID := range itemIDs {
@@ -155,7 +165,7 @@ func (dao *CollectionDAO) readUnlocked(id uint64) (*Collection, error) {
 	file, err := os.OpenFile(dao.filePath, os.O_RDONLY, 0644)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("collection file does not exist")
+			return nil, fmt.Errorf("failed to open collection file: file does not exist")
 		}
 		return nil, fmt.Errorf("failed to open collection file: %w", err)
 	}
@@ -165,14 +175,19 @@ func (dao *CollectionDAO) readUnlocked(id uint64) (*Collection, error) {
 
 	// Try B+ tree index first
 	if offset, found := dao.tree.Search(id); found {
-		entryData, _ = utils.ReadEntryAtOffset(file, offset)
+		var readErr error
+		entryData, readErr = utils.ReadEntryAtOffset(file, offset)
+		if readErr != nil {
+			// Index may be stale, fall back to sequential scan
+			entryData = nil
+		}
 	}
 
-	// If index lookup failed, fall back to sequential scan
+	// If index lookup failed or returned no data, fall back to sequential scan
 	if entryData == nil {
 		entryData, err = utils.FindByIDSequential(file, id)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("collection not found: %w", err)
 		}
 	}
 
@@ -188,9 +203,9 @@ func (dao *CollectionDAO) readUnlocked(id uint64) (*Collection, error) {
 	}
 
 	// Decrypt the ownerOrName field using RSA
-	rsaCrypto, err := crypto.GetInstance()
+	rsaCrypto, err := dao.getCrypto()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get RSA crypto instance: %w", err)
+		return nil, err
 	}
 
 	decryptedName, err := rsaCrypto.DecryptString([]byte(collection.OwnerOrName))
@@ -212,20 +227,7 @@ func (dao *CollectionDAO) Delete(id uint64) error {
 	dao.mu.Lock()
 	defer dao.mu.Unlock()
 
-	// Remove from index first
-	err := dao.tree.Delete(id)
-	if err != nil {
-		return fmt.Errorf("collection not found in index: %w", err)
-	}
-
-	// Save updated index
-	err = dao.tree.Save(dao.indexPath)
-	if err != nil {
-		return fmt.Errorf("failed to save index: %w", err)
-	}
-
-	// Use the generic soft delete utility (nil mutex since we already hold the lock)
-	return utils.SoftDeleteByID(dao.filePath, id, nil, nil)
+	return utils.DeleteFromBTreeIndex(dao.tree, dao.indexPath, dao.filePath, id, "collection")
 }
 
 // GetAll retrieves all collections from the database, including deleted ones
@@ -239,9 +241,9 @@ func (dao *CollectionDAO) GetAll() ([]*Collection, error) {
 	}
 
 	// Get RSA crypto instance for decryption
-	rsaCrypto, err := crypto.GetInstance()
+	rsaCrypto, err := dao.getCrypto()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get RSA crypto instance: %w", err)
+		return nil, err
 	}
 
 	// Use utility to split file into entries
