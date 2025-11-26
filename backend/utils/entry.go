@@ -73,7 +73,7 @@ func SplitFileIntoEntries(filePath string) ([]EntryInfo, error) {
 }
 
 // EnsureFileExists creates a binary file with an empty header if it doesn't exist
-// The filename is extracted from the filePath and stored in the header
+// The filename is extracted from the filePath (without .bin extension) and stored in the header
 func EnsureFileExists(filePath string) error {
 	// Check if file already exists
 	if _, err := os.Stat(filePath); err == nil {
@@ -81,8 +81,9 @@ func EnsureFileExists(filePath string) error {
 		return nil
 	}
 
-	// Extract just the filename from the path
-	filename := filepath.Base(filePath)
+	// Extract just the filename from the path, without the .bin extension
+	basename := filepath.Base(filePath)
+	filename := basename[:len(basename)-len(filepath.Ext(basename))]
 
 	// Create the file
 	file, err := CreateFile(filePath)

@@ -117,7 +117,7 @@ func (a *App) DeleteItem(id uint64) error {
 	return nil
 }
 
-// DeleteAllFiles deletes all generated data (bin, indexes, compressed) but keeps seed folder
+// DeleteAllFiles deletes all generated data (bin, indexes, compressed, keys) but keeps seed folder
 func (a *App) DeleteAllFiles() error {
 	results, err := utils.CleanupDataFiles(a.logger.Info)
 	if err != nil {
@@ -128,6 +128,7 @@ func (a *App) DeleteAllFiles() error {
 		utils.BinDir:        "bin files",
 		utils.IndexDir:      "indexes",
 		utils.CompressedDir: "compressed files",
+		utils.KeysDir:       "encryption keys",
 	}
 
 	totalDeleted := 0
@@ -146,14 +147,17 @@ func (a *App) DeleteAllFiles() error {
 		a.toast.Info("No files to delete")
 	}
 
-	a.logger.Info(fmt.Sprintf("Deleted %d file(s) from bin, indexes, and compressed folders", totalDeleted))
+	a.logger.Info(fmt.Sprintf("Deleted %d file(s) from bin, indexes, compressed, and keys folders", totalDeleted))
+
+	// Reset RSA crypto singleton so new keys are generated on next use
+	crypto.Reset()
 
 	// Reload all DAOs to clear in-memory indexes
 	a.itemDAO = dao.NewItemDAO(utils.BinPath("items.bin"))
 	a.orderDAO = dao.NewOrderDAO(utils.BinPath("orders.bin"))
 	a.promotionDAO = dao.NewPromotionDAO(utils.BinPath("promotions.bin"))
 	a.orderPromotionDAO = dao.NewOrderPromotionDAO(utils.BinPath("order_promotions.bin"))
-	a.logger.Info("Cleared all in-memory indexes")
+	a.logger.Info("Cleared all in-memory indexes and RSA keys")
 
 	return nil
 }

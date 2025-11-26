@@ -41,6 +41,7 @@ const (
 	IndexDir      = "data/indexes"
 	CompressedDir = "data/compressed"
 	SeedDir       = "data/seed"
+	KeysDir       = "data/keys"
 
 	// Compression algorithms
 	AlgorithmHuffman = "huffman"

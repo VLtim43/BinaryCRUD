@@ -14,10 +14,12 @@ import (
 
 const (
 	keySize        = 2048
-	keysDir        = "data/keys"
 	privateKeyFile = "private.pem"
 	publicKeyFile  = "public.pem"
 )
+
+// KeysDir is where RSA keys are stored
+const KeysDir = "data/keys"
 
 var (
 	instance *RSACrypto
@@ -47,12 +49,12 @@ func GetInstance() (*RSACrypto, error) {
 
 // loadOrGenerateKeys loads existing keys or generates new ones
 func (r *RSACrypto) loadOrGenerateKeys() error {
-	if err := os.MkdirAll(keysDir, 0755); err != nil {
+	if err := os.MkdirAll(KeysDir, 0755); err != nil {
 		return fmt.Errorf("failed to create keys directory: %w", err)
 	}
 
-	privatePath := filepath.Join(keysDir, privateKeyFile)
-	publicPath := filepath.Join(keysDir, publicKeyFile)
+	privatePath := filepath.Join(KeysDir, privateKeyFile)
+	publicPath := filepath.Join(KeysDir, publicKeyFile)
 
 	// Try to load existing keys
 	if _, err := os.Stat(privatePath); err == nil {
@@ -189,4 +191,12 @@ func SetEnabled(enable bool) {
 	mu.Lock()
 	defer mu.Unlock()
 	enabled = enable
+}
+
+// Reset clears the singleton instance so new keys will be generated on next GetInstance call
+func Reset() {
+	mu.Lock()
+	defer mu.Unlock()
+	instance = nil
+	once = sync.Once{}
 }
