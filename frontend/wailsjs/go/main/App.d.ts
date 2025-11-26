@@ -38,6 +38,8 @@ export function GetBinFiles():Promise<Array<Record<string, any>>>;
 
 export function GetCompressedFiles():Promise<Array<Record<string, any>>>;
 
+export function GetEncryptionEnabled():Promise<boolean>;
+
 export function GetIndexContents():Promise<Record<string, any>>;
 
 export function GetItem(arg1:number):Promise<Record<string, any>>;
@@ -61,3 +63,5 @@ export function GetPromotionOrders(arg1:number):Promise<Array<Record<string, any
 export function PopulateInventory():Promise<void>;
 
 export function RemovePromotionFromOrder(arg1:number,arg2:number):Promise<void>;
+
+export function SetEncryptionEnabled(arg1:boolean):Promise<void>;

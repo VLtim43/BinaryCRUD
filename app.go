@@ -2,6 +2,7 @@ package main
 
 import (
 	"BinaryCRUD/backend/compression"
+	"BinaryCRUD/backend/crypto"
 	"BinaryCRUD/backend/dao"
 	"BinaryCRUD/backend/utils"
 	"context"
@@ -1192,4 +1193,19 @@ func (a *App) GetBinFiles() ([]map[string]any, error) {
 			}
 		},
 	)
+}
+
+// GetEncryptionEnabled returns whether RSA encryption is enabled
+func (a *App) GetEncryptionEnabled() bool {
+	return crypto.IsEnabled()
+}
+
+// SetEncryptionEnabled enables or disables RSA encryption
+func (a *App) SetEncryptionEnabled(enabled bool) {
+	crypto.SetEnabled(enabled)
+	status := "disabled"
+	if enabled {
+		status = "enabled"
+	}
+	a.logger.Info(fmt.Sprintf("RSA encryption %s", status))
 }

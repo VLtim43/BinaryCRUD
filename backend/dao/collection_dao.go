@@ -1,6 +1,7 @@
 package dao
 
 import (
+	"BinaryCRUD/backend/crypto"
 	"BinaryCRUD/backend/index"
 	"BinaryCRUD/backend/utils"
 	"fmt"
@@ -33,7 +34,8 @@ func (dao *CollectionDAO) ensureFileExists() error {
 }
 
 // Write creates a new collection entry and returns the assigned ID
-// Complete record format: [recordLength(2)][ID(2)][tombstone(1)][nameLength(2)][name...][totalPrice(4)][itemCount(4)][itemIDs...]
+// Complete record format: [recordLength(2)][ID(2)][tombstone(1)][nameLength(2)][name(encrypted)...][totalPrice(4)][itemCount(4)][itemIDs...]
+// Note: The ownerOrName field is RSA-encrypted before being stored
 func (dao *CollectionDAO) Write(ownerOrName string, totalPrice uint64, itemIDs []uint64) (uint64, error) {
 	dao.mu.Lock()
 	defer dao.mu.Unlock()
@@ -50,21 +52,29 @@ func (dao *CollectionDAO) Write(ownerOrName string, totalPrice uint64, itemIDs [
 	}
 	defer file.Close()
 
-	// Build entry without ID and tombstone: [nameLength(2)][name...][totalPrice(4)][itemCount(4)][itemIDs...]
+	// Encrypt the ownerOrName field using RSA
+	rsaCrypto, err := crypto.GetInstance()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get RSA crypto instance: %w", err)
+	}
+
+	encryptedName, err := rsaCrypto.EncryptString(ownerOrName)
+	if err != nil {
+		return 0, fmt.Errorf("failed to encrypt name: %w", err)
+	}
+
+	// Build entry without ID and tombstone: [nameLength(2)][name(encrypted)...][totalPrice(4)][itemCount(4)][itemIDs...]
 	// ID, tombstone, and record length will be added by AppendEntry
 
-	// Name size (2 bytes)
-	nameSize := len(ownerOrName)
+	// Encrypted name size (2 bytes)
+	nameSize := len(encryptedName)
 	nameSizeBytes, err := utils.WriteFixedNumber(2, uint64(nameSize))
 	if err != nil {
 		return 0, fmt.Errorf("failed to write name size: %w", err)
 	}
 
-	// Name (variable length)
-	nameBytes, err := utils.WriteVariable(ownerOrName)
-	if err != nil {
-		return 0, fmt.Errorf("failed to write name: %w", err)
-	}
+	// Encrypted name (variable length)
+	nameBytes := encryptedName
 
 	// Total price (4 bytes)
 	totalPriceBytes, err := utils.WriteFixedNumber(4, totalPrice)
@@ -166,7 +176,7 @@ func (dao *CollectionDAO) readUnlocked(id uint64) (*Collection, error) {
 		}
 	}
 
-	// Parse the entry
+	// Parse the entry (returns encrypted name)
 	collection, err := utils.ParseCollectionEntry(entryData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse collection entry: %w", err)
@@ -177,9 +187,20 @@ func (dao *CollectionDAO) readUnlocked(id uint64) (*Collection, error) {
 		return nil, fmt.Errorf("collection with ID %d is deleted", collection.ID)
 	}
 
+	// Decrypt the ownerOrName field using RSA
+	rsaCrypto, err := crypto.GetInstance()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get RSA crypto instance: %w", err)
+	}
+
+	decryptedName, err := rsaCrypto.DecryptString([]byte(collection.OwnerOrName))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt name: %w", err)
+	}
+
 	return &Collection{
 		ID:          collection.ID,
-		OwnerOrName: collection.OwnerOrName,
+		OwnerOrName: decryptedName,
 		TotalPrice:  collection.TotalPrice,
 		ItemCount:   collection.ItemCount,
 		ItemIDs:     collection.ItemIDs,
@@ -217,6 +238,12 @@ func (dao *CollectionDAO) GetAll() ([]*Collection, error) {
 		return []*Collection{}, nil
 	}
 
+	// Get RSA crypto instance for decryption
+	rsaCrypto, err := crypto.GetInstance()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get RSA crypto instance: %w", err)
+	}
+
 	// Use utility to split file into entries
 	entries, err := utils.SplitFileIntoEntries(dao.filePath)
 	if err != nil {
@@ -227,9 +254,16 @@ func (dao *CollectionDAO) GetAll() ([]*Collection, error) {
 	for _, entry := range entries {
 		collection, err := utils.ParseCollectionEntry(entry.Data)
 		if err == nil {
+			// Decrypt the ownerOrName field
+			decryptedName, err := rsaCrypto.DecryptString([]byte(collection.OwnerOrName))
+			if err != nil {
+				// If decryption fails, use the raw value (might be old unencrypted data)
+				decryptedName = collection.OwnerOrName
+			}
+
 			result = append(result, &Collection{
 				ID:          collection.ID,
-				OwnerOrName: collection.OwnerOrName,
+				OwnerOrName: decryptedName,
 				TotalPrice:  collection.TotalPrice,
 				ItemCount:   collection.ItemCount,
 				ItemIDs:     collection.ItemIDs,

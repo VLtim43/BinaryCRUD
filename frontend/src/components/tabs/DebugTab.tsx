@@ -6,6 +6,7 @@ import { Modal } from "../Modal";
 import { ItemList } from "../ItemList";
 import { DataTable } from "../DataTable";
 import { SubTabs } from "../SubTabs";
+import { Toggle } from "../Toggle";
 import { systemService } from "../../services/systemService";
 import { itemService, Item } from "../../services/itemService";
 import { orderService, Order } from "../../services/orderService";
@@ -75,12 +76,41 @@ export const DebugTab = ({
   const [isCompressing, setIsCompressing] = useState(false);
   const [isDecompressing, setIsDecompressing] = useState<string | null>(null);
 
+  // Encryption state
+  const [encryptionEnabled, setEncryptionEnabled] = useState(true);
+
   useEffect(() => {
     if (subTab === "compress") {
       loadCompressedFiles();
       loadBinFiles();
     }
   }, [subTab]);
+
+  useEffect(() => {
+    if (subTab === "tools") {
+      loadEncryptionStatus();
+    }
+  }, [subTab]);
+
+  const loadEncryptionStatus = async () => {
+    try {
+      const enabled = await systemService.getEncryptionEnabled();
+      setEncryptionEnabled(enabled);
+    } catch (err) {
+      console.error("Failed to load encryption status", err);
+    }
+  };
+
+  const handleEncryptionToggle = async (enabled: boolean) => {
+    try {
+      await systemService.setEncryptionEnabled(enabled);
+      setEncryptionEnabled(enabled);
+      toast.success(`RSA encryption ${enabled ? "enabled" : "disabled"}`);
+      onRefreshLogs();
+    } catch (err) {
+      toast.error("Failed to change encryption setting");
+    }
+  };
 
   const loadCompressedFiles = async () => {
     try {
@@ -294,6 +324,11 @@ export const DebugTab = ({
             <Button variant="danger" onClick={handleDeleteAll}>
               Delete All Files
             </Button>
+            <Toggle
+              checked={encryptionEnabled}
+              onChange={handleEncryptionToggle}
+              label="Encryption"
+            />
           </div>
         </>
       )}

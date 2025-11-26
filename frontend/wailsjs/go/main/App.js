@@ -74,6 +74,10 @@ export function GetCompressedFiles() {
   return window['go']['main']['App']['GetCompressedFiles']();
 }
 
+export function GetEncryptionEnabled() {
+  return window['go']['main']['App']['GetEncryptionEnabled']();
+}
+
 export function GetIndexContents() {
   return window['go']['main']['App']['GetIndexContents']();
 }
@@ -120,4 +124,8 @@ export function PopulateInventory() {
 
 export function RemovePromotionFromOrder(arg1, arg2) {
   return window['go']['main']['App']['RemovePromotionFromOrder'](arg1, arg2);
+}
+
+export function SetEncryptionEnabled(arg1) {
+  return window['go']['main']['App']['SetEncryptionEnabled'](arg1);
 }
