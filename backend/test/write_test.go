@@ -74,27 +74,37 @@ func TestWriteHeader(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	// Expected format: [fileName(32)][entitiesCount(4)][tombstoneCount(4)][nextId(4)] = 44 bytes
-	// fileName "test.bin" is 8 bytes, left-padded with 24 zeros
-	expected := make([]byte, 44)
-	copy(expected[24:32], []byte("test.bin")) // fileName at offset 24-32 (left-padded)
-	expected[32] = 0x00; expected[33] = 0x00; expected[34] = 0x00; expected[35] = 0x01 // entitiesCount
-	expected[36] = 0x00; expected[37] = 0x00; expected[38] = 0x00; expected[39] = 0x02 // tombstoneCount
-	expected[40] = 0x00; expected[41] = 0x00; expected[42] = 0x00; expected[43] = 0x03 // nextId
+	// Expected format: [magic(4)][filenameLen(1)][filename(N)][entitiesCount(4)][tombstoneCount(4)][nextId(4)]
+	// For "test.bin" (8 bytes): 4 + 1 + 8 + 4 + 4 + 4 = 25 bytes
+	expected := []byte{
+		'B', 'D', 'A', 'T', // magic
+		8,                            // filename length
+		't', 'e', 's', 't', '.', 'b', 'i', 'n', // filename
+		0x00, 0x00, 0x00, 0x01, // entitiesCount = 1
+		0x00, 0x00, 0x00, 0x02, // tombstoneCount = 2
+		0x00, 0x00, 0x00, 0x03, // nextId = 3
+	}
 	if !bytes.Equal(result, expected) {
 		t.Errorf("expected %v, got %v", expected, result)
 	}
 }
 
 func TestWriteHeaderWithZeros(t *testing.T) {
-	// Test with zero values
+	// Test with zero values (empty filename)
 	result, err := utils.WriteHeader("", 0, 0, 0)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	// Expected: 32 bytes of zeros for fileName + 12 bytes of zeros for counts = 44 bytes
-	expected := make([]byte, 44)
+	// Expected format: [magic(4)][filenameLen(1)][filename(0)][entitiesCount(4)][tombstoneCount(4)][nextId(4)]
+	// For empty filename: 4 + 1 + 0 + 4 + 4 + 4 = 17 bytes
+	expected := []byte{
+		'B', 'D', 'A', 'T', // magic
+		0,                  // filename length = 0
+		0x00, 0x00, 0x00, 0x00, // entitiesCount = 0
+		0x00, 0x00, 0x00, 0x00, // tombstoneCount = 0
+		0x00, 0x00, 0x00, 0x00, // nextId = 0
+	}
 	if !bytes.Equal(result, expected) {
 		t.Errorf("expected %v, got %v", expected, result)
 	}
@@ -107,13 +117,17 @@ func TestWriteHeaderWithLargeValues(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 
+	// Expected format: [magic(4)][filenameLen(1)][filename(N)][entitiesCount(4)][tombstoneCount(4)][nextId(4)]
 	// 100 = 0x64, 50 = 0x32, 200 = 0xC8
-	// fileName "data.bin" is 8 bytes, left-padded with 24 zeros
-	expected := make([]byte, 44)
-	copy(expected[24:32], []byte("data.bin"))
-	expected[32] = 0x00; expected[33] = 0x00; expected[34] = 0x00; expected[35] = 0x64 // 100
-	expected[36] = 0x00; expected[37] = 0x00; expected[38] = 0x00; expected[39] = 0x32 // 50
-	expected[40] = 0x00; expected[41] = 0x00; expected[42] = 0x00; expected[43] = 0xc8 // 200
+	// For "data.bin" (8 bytes): 4 + 1 + 8 + 4 + 4 + 4 = 25 bytes
+	expected := []byte{
+		'B', 'D', 'A', 'T', // magic
+		8,                            // filename length
+		'd', 'a', 't', 'a', '.', 'b', 'i', 'n', // filename
+		0x00, 0x00, 0x00, 0x64, // entitiesCount = 100
+		0x00, 0x00, 0x00, 0x32, // tombstoneCount = 50
+		0x00, 0x00, 0x00, 0xc8, // nextId = 200
+	}
 	if !bytes.Equal(result, expected) {
 		t.Errorf("expected %v, got %v", expected, result)
 	}

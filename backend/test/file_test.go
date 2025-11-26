@@ -101,14 +101,22 @@ func TestWriteHeaderToFile(t *testing.T) {
 		t.Fatalf("failed to read file: %v", err)
 	}
 
-	// Header format: [fileName(32)][entitiesCount(4)][tombstoneCount(4)][nextId(4)] = 44 bytes
-	if len(data) != utils.HeaderSize {
-		t.Errorf("expected header size %d, got %d", utils.HeaderSize, len(data))
+	// Header format: [magic(4)][filenameLen(1)][filename(N)][entitiesCount(4)][tombstoneCount(4)][nextId(4)]
+	expectedSize := utils.CalculateHeaderSize("test.bin")
+	if len(data) != expectedSize {
+		t.Errorf("expected header size %d, got %d", expectedSize, len(data))
 	}
 
-	// Verify the numeric fields at the end (after 32-byte fileName)
+	// Verify magic bytes
+	if string(data[:4]) != string(utils.BDATMagic) {
+		t.Errorf("expected magic %v, got %v", utils.BDATMagic, data[:4])
+	}
+
+	// Verify the numeric fields at the end (after magic + filenameLen + filename)
+	// For "test.bin" (8 bytes): offset = 4 + 1 + 8 = 13
 	expectedSuffix := []byte{0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x03}
-	actualSuffix := data[32:]
+	suffixOffset := utils.MagicSize + utils.FilenameLengthSize + len("test.bin")
+	actualSuffix := data[suffixOffset:]
 	if string(actualSuffix) != string(expectedSuffix) {
 		t.Errorf("expected suffix %v, got %v", expectedSuffix, actualSuffix)
 	}
