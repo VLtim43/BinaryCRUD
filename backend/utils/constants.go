@@ -5,6 +5,9 @@ import (
 	"strings"
 )
 
+// BDATMagic is the magic bytes for binary data files
+var BDATMagic = []byte{'B', 'D', 'A', 'T'}
+
 const (
 	// IDSize is the size of the ID field in bytes
 	IDSize = 2
@@ -18,12 +21,16 @@ const (
 	// HeaderFieldSize is the size of each header field in bytes
 	HeaderFieldSize = 4
 
-	// FileNameSize is the size of the file name field in the header (fixed size)
-	FileNameSize = 32
+	// MagicSize is the size of the magic bytes
+	MagicSize = 4
 
-	// HeaderSize is the total size of the file header in bytes
-	// Format: [fileName(32)][entitiesCount(4)][tombstoneCount(4)][nextId(4)] = 44 bytes
-	HeaderSize = FileNameSize + (HeaderFieldSize * 3)
+	// FilenameLengthSize is the size of the filename length field
+	FilenameLengthSize = 1
+
+	// HeaderFixedSize is the fixed portion of the header (magic + counts)
+	// Format: [magic(4)][filenameLen(1)][filename(N)][entitiesCount(4)][tombstoneCount(4)][nextId(4)]
+	// The variable part is filename, fixed part = 4 + 1 + 4 + 4 + 4 = 17 bytes + filename
+	HeaderFixedSize = MagicSize + FilenameLengthSize + (HeaderFieldSize * 3)
 
 	// DefaultBTreeOrder is the default order for B+ tree indices
 	DefaultBTreeOrder = 4
@@ -40,6 +47,11 @@ const (
 	AlgorithmLZW     = "lzw"
 	AlgorithmUnknown = "unknown"
 )
+
+// CalculateHeaderSize returns the total header size for a given filename
+func CalculateHeaderSize(filename string) int {
+	return HeaderFixedSize + len(filename)
+}
 
 // BinPath returns the full path for a file in the bin directory
 func BinPath(filename string) string {

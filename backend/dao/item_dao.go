@@ -4,7 +4,6 @@ import (
 	"BinaryCRUD/backend/index"
 	"BinaryCRUD/backend/utils"
 	"fmt"
-	"io"
 	"os"
 	"sync"
 )
@@ -119,28 +118,15 @@ func (dao *ItemDAO) Write(name string, priceInCents uint64) (uint64, error) {
 	return uint64(nextId), nil
 }
 
-// Read retrieves an item by ID (uses index with automatic fallback)
+// Read retrieves an item by ID using the B+ tree index with automatic fallback to sequential scan
 // Returns (id, name, priceInCents, error)
 func (dao *ItemDAO) Read(id uint64) (uint64, string, uint64, error) {
-	return dao.readWithIndex(id)
-}
-
-// ReadWithIndex retrieves an item by ID using the B+ tree index with automatic fallback to sequential scan
-// Returns (id, name, priceInCents, error)
-func (dao *ItemDAO) ReadWithIndex(id uint64, useIndex bool) (uint64, string, uint64, error) {
-	return dao.readWithIndex(id)
-}
-
-// readWithIndex is the internal implementation that always tries index first, then falls back to sequential
-func (dao *ItemDAO) readWithIndex(id uint64) (uint64, string, uint64, error) {
-	// Ensure file exists
-	if err := dao.ensureFileExists(); err != nil {
-		return 0, "", 0, err
-	}
-
-	// Open file for reading
+	// Open file for reading (don't create if it doesn't exist)
 	file, err := os.OpenFile(dao.filePath, os.O_RDONLY, 0644)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, "", 0, fmt.Errorf("item file does not exist")
+		}
 		return 0, "", 0, fmt.Errorf("failed to open item file: %w", err)
 	}
 	defer file.Close()
@@ -148,39 +134,19 @@ func (dao *ItemDAO) readWithIndex(id uint64) (uint64, string, uint64, error) {
 	var entryData []byte
 
 	// Try B+ tree index first
-	offset, found := dao.tree.Search(id)
-	if found {
-		// Use index for fast lookup
-		// offset points to the start of the record (at the length prefix)
-		_, err = file.Seek(offset, 0)
-		if err == nil {
-			// Read record length (2 bytes)
-			lengthBytes := make([]byte, utils.RecordLengthSize)
-			n, err := file.Read(lengthBytes)
-			if err == nil && n == utils.RecordLengthSize {
-				recordLength, _, err := utils.ReadFixedNumber(utils.RecordLengthSize, lengthBytes, 0)
-				if err == nil {
-					// Read the record data (after length prefix)
-					entryData = make([]byte, recordLength)
-					n, err := file.Read(entryData)
-					if err != nil || n != int(recordLength) {
-						entryData = nil
-					}
-				}
-			}
-		}
+	if offset, found := dao.tree.Search(id); found {
+		entryData, _ = utils.ReadEntryAtOffset(file, offset)
 	}
 
-	// If index lookup failed or didn't find data, fall back to sequential scan
+	// If index lookup failed, fall back to sequential scan
 	if entryData == nil {
-		// Use sequential finder to locate the entry
 		entryData, err = utils.FindByIDSequential(file, id)
 		if err != nil {
 			return 0, "", 0, fmt.Errorf("failed to find item: %w", err)
 		}
 	}
 
-	// Parse the entry using utility function
+	// Parse the entry
 	item, err := utils.ParseItemEntry(entryData)
 	if err != nil {
 		return 0, "", 0, fmt.Errorf("failed to parse item entry: %w", err)
@@ -188,7 +154,7 @@ func (dao *ItemDAO) readWithIndex(id uint64) (uint64, string, uint64, error) {
 
 	// Check if item is deleted
 	if item.Tombstone != 0x00 {
-		return 0, "", 0, fmt.Errorf("deleted file id %d", item.ID)
+		return 0, "", 0, fmt.Errorf("deleted item id %d", item.ID)
 	}
 
 	return item.ID, item.Name, item.Price, nil
@@ -197,25 +163,23 @@ func (dao *ItemDAO) readWithIndex(id uint64) (uint64, string, uint64, error) {
 // Delete marks an item as deleted by flipping its tombstone bit
 // This is a logical deletion - the data remains in the file but is marked as deleted
 func (dao *ItemDAO) Delete(id uint64) error {
-	// Ensure file exists
-	if err := dao.ensureFileExists(); err != nil {
-		return err
+	dao.mu.Lock()
+	defer dao.mu.Unlock()
+
+	// Remove from index first
+	err := dao.tree.Delete(id)
+	if err != nil {
+		return fmt.Errorf("item not found in index: %w", err)
 	}
 
-	// Create index delete function
-	indexDeleteFunc := func(id uint64) error {
-		// Remove from index
-		err := dao.tree.Delete(id)
-		if err != nil {
-			return err
-		}
-
-		// Save updated index
-		return dao.tree.Save(dao.indexPath)
+	// Save updated index
+	err = dao.tree.Save(dao.indexPath)
+	if err != nil {
+		return fmt.Errorf("failed to save index: %w", err)
 	}
 
-	// Use the generic soft delete utility
-	return utils.SoftDeleteByID(dao.filePath, id, &dao.mu, indexDeleteFunc)
+	// Use the generic soft delete utility (nil mutex since we already hold the lock)
+	return utils.SoftDeleteByID(dao.filePath, id, nil, nil)
 }
 
 // GetIndexTree returns the B+ tree for debugging purposes
@@ -236,56 +200,20 @@ func (dao *ItemDAO) GetAll() ([]Item, error) {
 	dao.mu.Lock()
 	defer dao.mu.Unlock()
 
-	// Check if file exists - return empty list if not
+	// Check if file exists
 	if _, err := os.Stat(dao.filePath); os.IsNotExist(err) {
 		return []Item{}, nil
 	}
 
-	// Open file for reading
-	file, err := os.OpenFile(dao.filePath, os.O_RDONLY, 0644)
+	// Use utility to split file into entries
+	entries, err := utils.SplitFileIntoEntries(dao.filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open item file: %w", err)
-	}
-	defer file.Close()
-
-	// Seek past header
-	_, err = file.Seek(int64(utils.HeaderSize), 0)
-	if err != nil {
-		return nil, fmt.Errorf("failed to seek past header: %w", err)
+		return nil, fmt.Errorf("failed to read items: %w", err)
 	}
 
-	// Read all file data
-	fileData, err := io.ReadAll(file)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
-	}
-
-	items := make([]Item, 0)
-
-	// Parse all records sequentially
-	offset := 0
-	for offset < len(fileData) {
-		// Check if we have enough bytes for the length field
-		if offset+utils.RecordLengthSize > len(fileData) {
-			break
-		}
-
-		// Read the record length
-		recordLength, lengthEnd, err := utils.ReadFixedNumber(utils.RecordLengthSize, fileData, offset)
-		if err != nil {
-			break
-		}
-
-		// Check if we have enough bytes for the complete record
-		if lengthEnd+int(recordLength) > len(fileData) {
-			break
-		}
-
-		// Extract the record data (without length prefix)
-		entryData := fileData[lengthEnd : lengthEnd+int(recordLength)]
-
-		// Parse the entry
-		item, err := utils.ParseItemEntry(entryData)
+	items := make([]Item, 0, len(entries))
+	for _, entry := range entries {
+		item, err := utils.ParseItemEntry(entry.Data)
 		if err == nil {
 			items = append(items, Item{
 				ID:           item.ID,
@@ -294,9 +222,6 @@ func (dao *ItemDAO) GetAll() ([]Item, error) {
 				IsDeleted:    item.Tombstone != 0x00,
 			})
 		}
-
-		// Move to next record
-		offset = lengthEnd + int(recordLength)
 	}
 
 	return items, nil

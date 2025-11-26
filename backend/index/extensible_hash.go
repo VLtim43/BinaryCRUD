@@ -209,8 +209,8 @@ func (h *ExtensibleHash) Delete(orderID, promotionID uint64) error {
 	return fmt.Errorf("key not found: orderID=%d, promotionID=%d", orderID, promotionID)
 }
 
-// GetByOrderID returns all entries with a given orderID
-func (h *ExtensibleHash) GetByOrderID(orderID uint64) []HashEntry {
+// filter iterates all unique buckets and returns entries matching the predicate
+func (h *ExtensibleHash) filter(predicate func(HashEntry) bool) []HashEntry {
 	result := make([]HashEntry, 0)
 	seen := make(map[*Bucket]bool)
 
@@ -221,51 +221,28 @@ func (h *ExtensibleHash) GetByOrderID(orderID uint64) []HashEntry {
 		seen[bucket] = true
 
 		for _, entry := range bucket.entries {
-			if entry.OrderID == orderID {
+			if predicate(entry) {
 				result = append(result, entry)
 			}
 		}
 	}
 
 	return result
+}
+
+// GetByOrderID returns all entries with a given orderID
+func (h *ExtensibleHash) GetByOrderID(orderID uint64) []HashEntry {
+	return h.filter(func(e HashEntry) bool { return e.OrderID == orderID })
 }
 
 // GetByPromotionID returns all entries with a given promotionID
 func (h *ExtensibleHash) GetByPromotionID(promotionID uint64) []HashEntry {
-	result := make([]HashEntry, 0)
-	seen := make(map[*Bucket]bool)
-
-	for _, bucket := range h.directory {
-		if seen[bucket] {
-			continue
-		}
-		seen[bucket] = true
-
-		for _, entry := range bucket.entries {
-			if entry.PromotionID == promotionID {
-				result = append(result, entry)
-			}
-		}
-	}
-
-	return result
+	return h.filter(func(e HashEntry) bool { return e.PromotionID == promotionID })
 }
 
 // GetAll returns all entries in the hash index
 func (h *ExtensibleHash) GetAll() []HashEntry {
-	result := make([]HashEntry, 0)
-	seen := make(map[*Bucket]bool)
-
-	for _, bucket := range h.directory {
-		if seen[bucket] {
-			continue
-		}
-		seen[bucket] = true
-
-		result = append(result, bucket.entries...)
-	}
-
-	return result
+	return h.filter(func(e HashEntry) bool { return true })
 }
 
 // Size returns the total number of entries

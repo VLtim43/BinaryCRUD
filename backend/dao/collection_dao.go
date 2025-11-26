@@ -4,7 +4,6 @@ import (
 	"BinaryCRUD/backend/index"
 	"BinaryCRUD/backend/utils"
 	"fmt"
-	"io"
 	"os"
 	"sync"
 )
@@ -142,14 +141,12 @@ func (dao *CollectionDAO) Read(id uint64) (*Collection, error) {
 
 // readUnlocked is the internal implementation (must be called with lock held)
 func (dao *CollectionDAO) readUnlocked(id uint64) (*Collection, error) {
-	// Ensure file exists
-	if err := dao.ensureFileExists(); err != nil {
-		return nil, err
-	}
-
-	// Open file for reading
+	// Open file for reading (don't create if it doesn't exist)
 	file, err := os.OpenFile(dao.filePath, os.O_RDONLY, 0644)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("collection file does not exist")
+		}
 		return nil, fmt.Errorf("failed to open collection file: %w", err)
 	}
 	defer file.Close()
@@ -157,30 +154,11 @@ func (dao *CollectionDAO) readUnlocked(id uint64) (*Collection, error) {
 	var entryData []byte
 
 	// Try B+ tree index first
-	offset, found := dao.tree.Search(id)
-	if found {
-		// Use index for fast lookup
-		// offset points to the start of the record (at the length prefix)
-		_, err = file.Seek(offset, 0)
-		if err == nil {
-			// Read record length (2 bytes)
-			lengthBytes := make([]byte, utils.RecordLengthSize)
-			n, err := file.Read(lengthBytes)
-			if err == nil && n == utils.RecordLengthSize {
-				recordLength, _, err := utils.ReadFixedNumber(utils.RecordLengthSize, lengthBytes, 0)
-				if err == nil {
-					// Read the record data (after length prefix)
-					entryData = make([]byte, recordLength)
-					n, err := file.Read(entryData)
-					if err != nil || n != int(recordLength) {
-						entryData = nil
-					}
-				}
-			}
-		}
+	if offset, found := dao.tree.Search(id); found {
+		entryData, _ = utils.ReadEntryAtOffset(file, offset)
 	}
 
-	// If index lookup failed or didn't find data, fall back to sequential scan
+	// If index lookup failed, fall back to sequential scan
 	if entryData == nil {
 		entryData, err = utils.FindByIDSequential(file, id)
 		if err != nil {
@@ -188,7 +166,7 @@ func (dao *CollectionDAO) readUnlocked(id uint64) (*Collection, error) {
 		}
 	}
 
-	// Parse the entry using utility function
+	// Parse the entry
 	collection, err := utils.ParseCollectionEntry(entryData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse collection entry: %w", err)
@@ -210,25 +188,23 @@ func (dao *CollectionDAO) readUnlocked(id uint64) (*Collection, error) {
 
 // Delete marks a collection as deleted by flipping the tombstone bit
 func (dao *CollectionDAO) Delete(id uint64) error {
-	// Ensure file exists
-	if err := dao.ensureFileExists(); err != nil {
-		return err
+	dao.mu.Lock()
+	defer dao.mu.Unlock()
+
+	// Remove from index first
+	err := dao.tree.Delete(id)
+	if err != nil {
+		return fmt.Errorf("collection not found in index: %w", err)
 	}
 
-	// Create index delete function
-	indexDeleteFunc := func(id uint64) error {
-		// Remove from B+ tree index
-		err := dao.tree.Delete(id)
-		if err != nil {
-			return err
-		}
-
-		// Save updated index to disk
-		return dao.tree.Save(dao.indexPath)
+	// Save updated index
+	err = dao.tree.Save(dao.indexPath)
+	if err != nil {
+		return fmt.Errorf("failed to save index: %w", err)
 	}
 
-	// Use the generic soft delete utility
-	return utils.SoftDeleteByID(dao.filePath, id, &dao.mu, indexDeleteFunc)
+	// Use the generic soft delete utility (nil mutex since we already hold the lock)
+	return utils.SoftDeleteByID(dao.filePath, id, nil, nil)
 }
 
 // GetAll retrieves all collections from the database, including deleted ones
@@ -236,56 +212,20 @@ func (dao *CollectionDAO) GetAll() ([]*Collection, error) {
 	dao.mu.Lock()
 	defer dao.mu.Unlock()
 
-	// Check if file exists - return empty list if not
+	// Check if file exists
 	if _, err := os.Stat(dao.filePath); os.IsNotExist(err) {
 		return []*Collection{}, nil
 	}
 
-	// Open file for reading
-	file, err := os.OpenFile(dao.filePath, os.O_RDONLY, 0644)
+	// Use utility to split file into entries
+	entries, err := utils.SplitFileIntoEntries(dao.filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open collection file: %w", err)
-	}
-	defer file.Close()
-
-	// Seek past header
-	_, err = file.Seek(int64(utils.HeaderSize), 0)
-	if err != nil {
-		return nil, fmt.Errorf("failed to seek past header: %w", err)
+		return nil, fmt.Errorf("failed to read collections: %w", err)
 	}
 
-	// Read all file data
-	fileData, err := io.ReadAll(file)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
-	}
-
-	result := make([]*Collection, 0)
-
-	// Parse all records sequentially
-	offset := 0
-	for offset < len(fileData) {
-		// Check if we have enough bytes for the length field
-		if offset+utils.RecordLengthSize > len(fileData) {
-			break
-		}
-
-		// Read the record length
-		recordLength, lengthEnd, err := utils.ReadFixedNumber(utils.RecordLengthSize, fileData, offset)
-		if err != nil {
-			break
-		}
-
-		// Check if we have enough bytes for the complete record
-		if lengthEnd+int(recordLength) > len(fileData) {
-			break
-		}
-
-		// Extract the record data (without length prefix)
-		entryData := fileData[lengthEnd : lengthEnd+int(recordLength)]
-
-		// Parse the entry
-		collection, err := utils.ParseCollectionEntry(entryData)
+	result := make([]*Collection, 0, len(entries))
+	for _, entry := range entries {
+		collection, err := utils.ParseCollectionEntry(entry.Data)
 		if err == nil {
 			result = append(result, &Collection{
 				ID:          collection.ID,
@@ -296,9 +236,6 @@ func (dao *CollectionDAO) GetAll() ([]*Collection, error) {
 				IsDeleted:   collection.Tombstone != 0x00,
 			})
 		}
-
-		// Move to next record
-		offset = lengthEnd + int(recordLength)
 	}
 
 	return result, nil

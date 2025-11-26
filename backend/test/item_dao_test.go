@@ -60,7 +60,7 @@ func TestItemDAOReadWithIndex(t *testing.T) {
 	_, _ = itemDAO.Write("Salad", 699)
 
 	// Test indexed read (IDs start at 0)
-	id, name, price, err := itemDAO.ReadWithIndex(1, true)
+	id, name, price, err := itemDAO.Read(1)
 	if err != nil {
 		t.Fatalf("Failed to read item with index: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestItemDAOReadWithIndex(t *testing.T) {
 	}
 
 	// Test sequential read
-	id, name, price, err = itemDAO.ReadWithIndex(0, false)
+	id, name, price, err = itemDAO.Read(0)
 	if err != nil {
 		t.Fatalf("Failed to read item sequentially: %v", err)
 	}
@@ -129,19 +129,19 @@ func TestItemDAODelete(t *testing.T) {
 	}
 
 	// Verify reading deleted item fails
-	_, _, _, err = itemDAO.ReadWithIndex(1, true)
+	_, _, _, err = itemDAO.Read(1)
 	if err == nil {
 		t.Error("Expected error when reading deleted item with index")
 	}
 
 	// Verify reading deleted item fails (sequential)
-	_, _, _, err = itemDAO.ReadWithIndex(1, false)
+	_, _, _, err = itemDAO.Read(1)
 	if err == nil {
 		t.Error("Expected error when reading deleted item sequentially")
 	}
 
 	// Verify other items still readable
-	id, name, price, err := itemDAO.ReadWithIndex(0, true)
+	id, name, price, err := itemDAO.Read(0)
 	if err != nil {
 		t.Fatalf("Failed to read non-deleted item: %v", err)
 	}
@@ -187,7 +187,7 @@ func TestItemDAOFullCRUDFlow(t *testing.T) {
 
 	// READ: Verify all items can be read with index (IDs start at 0)
 	for i := uint64(0); i < 5; i++ {
-		id, name, price, err := itemDAO.ReadWithIndex(i, true)
+		id, name, price, err := itemDAO.Read(i)
 		if err != nil {
 			t.Fatalf("Failed to read item %d with index: %v", i, err)
 		}
@@ -208,7 +208,7 @@ func TestItemDAOFullCRUDFlow(t *testing.T) {
 
 	// READ: Verify all items can be read sequentially
 	for i := uint64(0); i < 5; i++ {
-		_, _, _, err := itemDAO.ReadWithIndex(i, false)
+		_, _, _, err := itemDAO.Read(i)
 		if err != nil {
 			t.Fatalf("Failed to read item %d sequentially: %v", i, err)
 		}
@@ -231,12 +231,12 @@ func TestItemDAOFullCRUDFlow(t *testing.T) {
 	}
 
 	// Verify deleted items return error
-	_, _, _, err = itemDAO.ReadWithIndex(1, true)
+	_, _, _, err = itemDAO.Read(1)
 	if err == nil {
 		t.Error("Expected error reading deleted item 1")
 	}
 
-	_, _, _, err = itemDAO.ReadWithIndex(3, false)
+	_, _, _, err = itemDAO.Read(3)
 	if err == nil {
 		t.Error("Expected error reading deleted item 3")
 	}
@@ -244,7 +244,7 @@ func TestItemDAOFullCRUDFlow(t *testing.T) {
 	// Verify non-deleted items still work (IDs 0, 2, 4)
 	remainingIDs := []uint64{0, 2, 4}
 	for _, id := range remainingIDs {
-		_, _, _, err := itemDAO.ReadWithIndex(id, true)
+		_, _, _, err := itemDAO.Read(id)
 		if err != nil {
 			t.Errorf("Failed to read non-deleted item %d: %v", id, err)
 		}
@@ -286,7 +286,7 @@ func TestItemDAOIndexPersistence(t *testing.T) {
 	}
 
 	// Verify can read items with loaded index (IDs start at 0)
-	id, name, price, err := itemDAO2.ReadWithIndex(1, true)
+	id, name, price, err := itemDAO2.Read(1)
 	if err != nil {
 		t.Fatalf("Failed to read with loaded index: %v", err)
 	}
@@ -336,7 +336,7 @@ func TestItemDAOConcurrentWrites(t *testing.T) {
 
 	// Verify all items are readable (IDs start at 0)
 	for i := uint64(0); i < 5; i++ {
-		_, _, _, err := itemDAO.ReadWithIndex(i, true)
+		_, _, _, err := itemDAO.Read(i)
 		if err != nil {
 			t.Errorf("Failed to read item %d after concurrent writes: %v", i, err)
 		}
