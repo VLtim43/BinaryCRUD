@@ -79,9 +79,9 @@ export const App = () => {
 
   return (
     <div className={`app-container ${logsPanelOpen ? "logs-open" : ""}`}>
-      <button className="close-btn" onClick={() => Quit()}>
+      <Button className="close-btn" onClick={() => Quit()}>
         ×
-      </button>
+      </Button>
 
       <div className="tabs">
         <Button className={`tab ${activeTab === "item" ? "active" : ""}`} onClick={() => handleTabChange("item")}>

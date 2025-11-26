@@ -8,6 +8,7 @@ interface ToastMessage {
   id: number;
   message: string;
   type: ToastType;
+  fading: boolean;
 }
 
 interface ToastContainerProps {
@@ -22,12 +23,19 @@ export const ToastContainer = ({ position = "bottom-right" }: ToastContainerProp
   useEffect(() => {
     const handleToast = (message: string, type: ToastType = "info") => {
       const id = ++toastId;
-      setToasts((prev) => [...prev, { id, message, type }]);
+      setToasts((prev) => [...prev, { id, message, type, fading: false }]);
 
-      // Auto-remove after 4 seconds
+      // Start fade out after 1 second
+      setTimeout(() => {
+        setToasts((prev) =>
+          prev.map((t) => (t.id === id ? { ...t, fading: true } : t))
+        );
+      }, 1000);
+
+      // Remove after fade animation (1s + 0.3s)
       setTimeout(() => {
         setToasts((prev) => prev.filter((t) => t.id !== id));
-      }, 4000);
+      }, 1300);
     };
 
     // Listen for toast events from Go
@@ -58,7 +66,7 @@ export const ToastContainer = ({ position = "bottom-right" }: ToastContainerProp
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className={`toast toast-${toast.type}`}
+          className={`toast toast-${toast.type}${toast.fading ? " toast-fading" : ""}`}
           onClick={() => removeToast(toast.id)}
         >
           <span className="toast-icon">

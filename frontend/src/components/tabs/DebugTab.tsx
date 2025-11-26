@@ -69,7 +69,6 @@ export const DebugTab = ({
 
   // Compression state
   const [selectedFile, setSelectedFile] = useState<string>("");
-  const [selectedAlgorithm, setSelectedAlgorithm] = useState<string>("huffman");
   const [compressedFiles, setCompressedFiles] = useState<CompressedFile[]>([]);
   const [binFiles, setBinFiles] = useState<BinFile[]>([]);
   const [isCompressing, setIsCompressing] = useState(false);
@@ -106,12 +105,15 @@ export const DebugTab = ({
   const handleCompress = async () => {
     setIsCompressing(true);
     try {
-      const result = await compressionService.compress(
-        selectedFile,
-        selectedAlgorithm
-      );
-      toast.success(`Compressed: ${result.spaceSaved} saved`);
+      if (selectedFile === "__all__") {
+        const result = await compressionService.compressAll();
+        toast.success(`Compressed all files: ${result.spaceSaved} saved`);
+      } else {
+        const result = await compressionService.compress(selectedFile, "huffman");
+        toast.success(`Compressed: ${result.spaceSaved} saved`);
+      }
       await loadCompressedFiles();
+      await loadBinFiles();
       onRefreshLogs();
     } catch (err) {
       toast.error("Compression failed");
@@ -124,7 +126,9 @@ export const DebugTab = ({
     setIsDecompressing(filename);
     try {
       const result = await compressionService.decompress(filename);
-      toast.success(`Decompressed to ${result.outputFile}`);
+      toast.success(`Decompressed: ${result.outputFile}`);
+      await loadCompressedFiles();
+      await loadBinFiles();
       onRefreshLogs();
     } catch (err) {
       toast.error("Decompression failed");
@@ -582,44 +586,30 @@ export const DebugTab = ({
 
       {subTab === "compress" && (
         <>
-          <div className="details-card">
-            <h3>Compress Files</h3>
+          <div className="cart-container">
             {binFiles.length === 0 ? (
-              <p>No .bin files found in data/bin/. Populate inventory first.</p>
+              <p style={{ color: "#333" }}>No .bin files found in data/bin/. Populate inventory first.</p>
             ) : (
-              <div className="compress-controls">
-                <div className="compress-row">
-                  <label>File:</label>
-                  <Select
-                    value={selectedFile}
-                    onChange={createSelectHandler(setSelectedFile)}
-                    options={binFiles.map((f) => ({
+              <div className="cart-header" style={{ marginBottom: 0, paddingBottom: 0, borderBottom: "none" }}>
+                <Select
+                  value={selectedFile}
+                  onChange={createSelectHandler(setSelectedFile)}
+                  options={[
+                    { value: "__all__", label: "All Files" },
+                    ...binFiles.map((f) => ({
                       value: f.name,
                       label: f.name,
-                    }))}
-                    placeholder="Select file..."
-                  />
-                </div>
-                <div className="compress-row">
-                  <label>Algorithm:</label>
-                  <Select
-                    value={selectedAlgorithm}
-                    onChange={createSelectHandler(setSelectedAlgorithm)}
-                    options={[
-                      { value: "huffman", label: "Huffman" },
-                      { value: "lzw", label: "LZW" },
-                    ]}
-                    placeholder="Select algorithm..."
-                  />
-                </div>
-                <div className="compress-actions">
-                  <Button
-                    onClick={handleCompress}
-                    disabled={isCompressing || !selectedFile}
-                  >
-                    {isCompressing ? "Compressing..." : "Compress"}
-                  </Button>
-                </div>
+                    })),
+                  ]}
+                  placeholder="Select file..."
+                  className="cart-select"
+                />
+                <Button
+                  onClick={handleCompress}
+                  disabled={isCompressing || !selectedFile}
+                >
+                  {isCompressing ? "Compressing..." : "Compress"}
+                </Button>
               </div>
             )}
           </div>

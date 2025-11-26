@@ -236,9 +236,9 @@ func (dao *ItemDAO) GetAll() ([]Item, error) {
 	dao.mu.Lock()
 	defer dao.mu.Unlock()
 
-	// Ensure file exists
-	if err := dao.ensureFileExists(); err != nil {
-		return nil, err
+	// Check if file exists - return empty list if not
+	if _, err := os.Stat(dao.filePath); os.IsNotExist(err) {
+		return []Item{}, nil
 	}
 
 	// Open file for reading

@@ -393,6 +393,7 @@
 
 .cart-footer {
     display: flex;
+    flex-wrap: wrap;
     gap: 10px;
     padding-top: 1rem;
     border-top: 2px solid #ddd;
@@ -400,6 +401,7 @@
 
     .cart-select {
         flex: 1;
+        min-width: 120px;
         height: 35px;
         border: 1px solid #ddd;
         border-radius: 5px;
@@ -910,7 +912,7 @@
         border-radius: 5px;
         padding: 0 10px;
         background-color: rgba(255, 255, 255, 0.1);
-        color: #e0e0e0;
+        color: #fff;
         font-size: 14px;
         transition: all 0.2s ease;
 

@@ -4,7 +4,44 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
+
+// LogFunc is a function type for logging messages
+type LogFunc func(message string)
+
+// RemoveFile deletes a file and optionally logs the action
+func RemoveFile(path string, log LogFunc) error {
+	if err := os.Remove(path); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		if log != nil {
+			log(fmt.Sprintf("Failed to delete %s: %v", path, err))
+		}
+		return err
+	}
+	if log != nil {
+		log(fmt.Sprintf("Deleted %s", path))
+	}
+	return nil
+}
+
+// RemoveBinFile deletes a .bin file from data/bin
+func RemoveBinFile(filename string, log LogFunc) error {
+	return RemoveFile(filepath.Join("data", "bin", filename), log)
+}
+
+// RemoveIndexForBin deletes the index file corresponding to a .bin file
+func RemoveIndexForBin(binFilename string, log LogFunc) error {
+	indexName := strings.TrimSuffix(binFilename, ".bin") + ".idx"
+	return RemoveFile(filepath.Join("data", "indexes", indexName), log)
+}
+
+// RemoveCompressedFile deletes a compressed file from data/compressed
+func RemoveCompressedFile(filename string, log LogFunc) error {
+	return RemoveFile(filepath.Join("data", "compressed", filename), log)
+}
 
 // CreateFile creates a new file and returns it open for reading and writing.
 // Also creates parent directories if they don't exist.

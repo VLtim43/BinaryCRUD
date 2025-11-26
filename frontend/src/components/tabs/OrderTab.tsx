@@ -240,58 +240,46 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       {subTab === "create" && (
         <>
           <div className="cart-container">
-            <div
-              className="cart-header"
-              style={{ display: "flex", flexDirection: "column", gap: "10px" }}
-            >
-              <div
-                style={{ display: "flex", gap: "10px", alignItems: "center" }}
+            <div className="cart-header">
+              <Select
+                value={selectedItemId}
+                onChange={createSelectHandler(setSelectedItemId)}
+                options={getActiveItems().map((item) => ({
+                  value: item.id,
+                  label: `${item.name} - $${formatPrice(item.priceInCents)}`,
+                }))}
+                placeholder="Select an item..."
+                className="cart-select"
+              />
+              <Button onClick={() => addItemToCart(allItems)}>Add Item</Button>
+            </div>
+
+            <div className="cart-header">
+              <Select
+                value={selectedPromotionId}
+                onChange={createSelectHandler(setSelectedPromotionId)}
+                options={allPromotions.map((promo) => ({
+                  value: promo.id,
+                  label: `${promo.name} - $${formatPrice(promo.totalPrice)}`,
+                }))}
+                placeholder={
+                  selectedPromotions.length >= 1
+                    ? "Max 1 promotion"
+                    : "Select a promotion..."
+                }
+                className="cart-select"
+                style={
+                  selectedPromotions.length >= 1
+                    ? { opacity: 0.5, pointerEvents: "none" }
+                    : {}
+                }
+              />
+              <Button
+                onClick={handleAddPromotion}
+                disabled={selectedPromotions.length >= 1}
               >
-                <Select
-                  value={selectedItemId}
-                  onChange={createSelectHandler(setSelectedItemId)}
-                  options={getActiveItems().map((item) => ({
-                    value: item.id,
-                    label: `${item.name} - $${formatPrice(item.priceInCents)}`,
-                  }))}
-                  placeholder="Select an item..."
-                  className="cart-select"
-                />
-                <Button onClick={() => addItemToCart(allItems)}>Add Item</Button>
-              </div>
-              <div
-                style={{ display: "flex", gap: "10px", alignItems: "center" }}
-              >
-                <Select
-                  value={selectedPromotionId}
-                  onChange={createSelectHandler(setSelectedPromotionId)}
-                  options={allPromotions.map((promo) => ({
-                    value: promo.id,
-                    label: `${promo.name} - $${formatPrice(promo.totalPrice)}`,
-                  }))}
-                  placeholder={
-                    selectedPromotions.length >= 1
-                      ? "Max 1 promotion per order"
-                      : "Select a promotion..."
-                  }
-                  className="cart-select"
-                  style={
-                    selectedPromotions.length >= 1
-                      ? { opacity: 0.5, pointerEvents: "none" }
-                      : {}
-                  }
-                />
-                <Button
-                  onClick={handleAddPromotion}
-                  style={
-                    selectedPromotions.length >= 1
-                      ? { opacity: 0.5, pointerEvents: "none" }
-                      : {}
-                  }
-                >
-                  Add Promotion
-                </Button>
-              </div>
+                Add Promo
+              </Button>
             </div>
 
             <div className="cart-total">

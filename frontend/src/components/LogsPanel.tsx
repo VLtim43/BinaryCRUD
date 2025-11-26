@@ -1,6 +1,7 @@
 import { h } from "preact";
 import { useEffect, useRef } from "preact/hooks";
 import { LogEntry } from "../services/logService";
+import { Button } from "./Button";
 
 interface LogsPanelProps {
   logs: LogEntry[];
@@ -36,21 +37,21 @@ export const LogsPanel = ({ logs, isOpen, onToggle, onClear, onCopy }: LogsPanel
 
   return (
     <div className={`logs-panel ${isOpen ? "open" : "closed"}`}>
-      <button className="logs-toggle" onClick={onToggle}>
+      <Button className="logs-toggle" onClick={onToggle}>
         {isOpen ? "»" : "«"}
-      </button>
+      </Button>
 
       {isOpen && (
         <div className="logs-content">
           <div className="logs-header">
             <h3>Logs</h3>
             <div className="logs-controls">
-              <button className="btn-icon" onClick={onCopy} title="Copy Logs">
+              <Button className="btn-icon" onClick={onCopy} title="Copy Logs">
                 📋
-              </button>
-              <button className="btn-icon btn-danger" onClick={onClear} title="Clear Logs">
+              </Button>
+              <Button className="btn-icon" variant="danger" onClick={onClear} title="Clear Logs">
                 🗑
-              </button>
+              </Button>
             </div>
           </div>
           <div className="logs-container" ref={logsContainerRef}>

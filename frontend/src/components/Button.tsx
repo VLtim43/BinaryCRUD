@@ -7,6 +7,7 @@ interface ButtonProps {
   size?: "default" | "small";
   className?: string;
   style?: any;
+  title?: string;
   children: any;
 }
 
@@ -17,6 +18,7 @@ export const Button = ({
   size = "default",
   className = "",
   style,
+  title,
   children,
 }: ButtonProps) => {
   const variantClass = variant === "danger" ? "btn-danger" : variant === "primary" ? "btn-primary" : "";
@@ -24,7 +26,7 @@ export const Button = ({
   const classes = `btn ${variantClass} ${sizeClass} ${className}`.trim();
 
   return (
-    <button className={classes} onClick={onClick} disabled={disabled} style={style}>
+    <button className={classes} onClick={onClick} disabled={disabled} style={style} title={title}>
       {children}
     </button>
   );

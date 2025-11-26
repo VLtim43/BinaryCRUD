@@ -1,5 +1,6 @@
 import {
   CompressFile,
+  CompressAllFiles,
   DecompressFile,
   GetCompressedFiles,
   DeleteCompressedFile,
@@ -34,6 +35,17 @@ export const compressionService = {
     algorithm: string
   ): Promise<CompressionResult> => {
     const result = await CompressFile(filename, algorithm);
+    return {
+      outputFile: result.outputFile as string,
+      originalSize: result.originalSize as number,
+      compressedSize: result.compressedSize as number,
+      ratio: result.ratio as string,
+      spaceSaved: result.spaceSaved as string,
+    };
+  },
+
+  compressAll: async (): Promise<CompressionResult> => {
+    const result = await CompressAllFiles();
     return {
       outputFile: result.outputFile as string,
       originalSize: result.originalSize as number,

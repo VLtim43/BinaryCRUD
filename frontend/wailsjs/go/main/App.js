@@ -14,6 +14,10 @@ export function ClearLogs() {
   return window['go']['main']['App']['ClearLogs']();
 }
 
+export function CompressAllFiles() {
+  return window['go']['main']['App']['CompressAllFiles']();
+}
+
 export function CompressFile(arg1, arg2) {
   return window['go']['main']['App']['CompressFile'](arg1, arg2);
 }

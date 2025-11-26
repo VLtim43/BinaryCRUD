@@ -13,7 +13,7 @@ type FolderCleanupResult struct {
 
 // CleanupDataFiles deletes all generated data files (bin, indexes, compressed)
 // but preserves seed data. Returns per-folder results.
-func CleanupDataFiles() ([]FolderCleanupResult, error) {
+func CleanupDataFiles(log LogFunc) ([]FolderCleanupResult, error) {
 	foldersToClean := []string{
 		filepath.Join("data", "bin"),
 		filepath.Join("data", "indexes"),
@@ -23,7 +23,7 @@ func CleanupDataFiles() ([]FolderCleanupResult, error) {
 	results := make([]FolderCleanupResult, 0, len(foldersToClean))
 
 	for _, folder := range foldersToClean {
-		count, err := cleanFolder(folder)
+		count, err := cleanFolder(folder, log)
 		if err != nil {
 			return results, err
 		}
@@ -59,7 +59,7 @@ func CleanupTestFiles(prefix string) error {
 }
 
 // cleanFolder removes all files (not directories) from a folder
-func cleanFolder(folder string) (int, error) {
+func cleanFolder(folder string, log LogFunc) (int, error) {
 	// Check if folder exists
 	if _, err := os.Stat(folder); os.IsNotExist(err) {
 		return 0, nil
@@ -77,7 +77,7 @@ func cleanFolder(folder string) (int, error) {
 		}
 
 		filePath := filepath.Join(folder, entry.Name())
-		if err := os.Remove(filePath); err == nil {
+		if err := RemoveFile(filePath, log); err == nil {
 			count++
 		}
 	}

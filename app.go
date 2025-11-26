@@ -120,7 +120,7 @@ func (a *App) DeleteItem(id uint64) error {
 // DeleteAllFiles deletes all generated data (bin, indexes, compressed) but keeps seed folder
 func (a *App) DeleteAllFiles() error {
 	// Use the shared cleanup utility
-	results, err := utils.CleanupDataFiles()
+	results, err := utils.CleanupDataFiles(a.logger.Info)
 	if err != nil {
 		a.logger.Warn(fmt.Sprintf("Error during cleanup: %v", err))
 	}
@@ -776,26 +776,14 @@ func (a *App) CompressFile(filename string, algorithm string) (map[string]any, e
 	}
 	originalSize := fileInfo.Size()
 
-	// Generate output filename
-	var outputFilename string
-	var outputPath string
+	// Generate output filename (only huffman supported)
+	outputFilename := filename + ".huffman.compressed"
+	outputPath := filepath.Join("data", "compressed", outputFilename)
 
-	switch algorithm {
-	case "huffman":
-		outputFilename = filename + ".huffman.compressed"
-		outputPath = filepath.Join("data", "compressed", outputFilename)
-
-		hc := compression.NewHuffmanCompressor()
-		err = hc.CompressFile(inputPath, outputPath)
-		if err != nil {
-			return nil, fmt.Errorf("compression failed: %w", err)
-		}
-
-	case "lzw":
-		return nil, fmt.Errorf("LZW compression not yet implemented")
-
-	default:
-		return nil, fmt.Errorf("unknown algorithm: %s", algorithm)
+	hc := compression.NewHuffmanCompressor()
+	err = hc.CompressFile(inputPath, outputPath)
+	if err != nil {
+		return nil, fmt.Errorf("compression failed: %w", err)
 	}
 
 	// Get compressed file size
@@ -804,6 +792,10 @@ func (a *App) CompressFile(filename string, algorithm string) (map[string]any, e
 		return nil, fmt.Errorf("failed to stat compressed file: %w", err)
 	}
 	compressedSize := compressedInfo.Size()
+
+	// Delete original file and its index after successful compression
+	utils.RemoveBinFile(filename, a.logger.Info)
+	utils.RemoveIndexForBin(filename, a.logger.Info)
 
 	// Calculate ratio
 	ratio := float64(compressedSize) / float64(originalSize) * 100
@@ -821,6 +813,110 @@ func (a *App) CompressFile(filename string, algorithm string) (map[string]any, e
 	}, nil
 }
 
+// CompressAllFiles compresses all .bin files into a single archive
+func (a *App) CompressAllFiles() (map[string]any, error) {
+	binDir := filepath.Join("data", "bin")
+
+	// Get all bin files
+	entries, err := os.ReadDir(binDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read bin directory: %w", err)
+	}
+
+	// Collect bin files
+	var binFiles []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".bin") {
+			binFiles = append(binFiles, entry.Name())
+		}
+	}
+
+	if len(binFiles) == 0 {
+		return nil, fmt.Errorf("no .bin files found to compress")
+	}
+
+	// Build combined data with file markers
+	// Format: [fileCount(4)][file1NameLen(2)][file1Name][file1Size(4)][file1Data]...
+	var combined []byte
+
+	// Write file count
+	fileCountBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(fileCountBytes, uint32(len(binFiles)))
+	combined = append(combined, fileCountBytes...)
+
+	var totalOriginalSize int64
+
+	for _, filename := range binFiles {
+		filePath := filepath.Join(binDir, filename)
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read %s: %w", filename, err)
+		}
+
+		totalOriginalSize += int64(len(data))
+
+		// Write filename length (2 bytes)
+		nameBytes := []byte(filename)
+		nameLenBytes := make([]byte, 2)
+		binary.BigEndian.PutUint16(nameLenBytes, uint16(len(nameBytes)))
+		combined = append(combined, nameLenBytes...)
+
+		// Write filename
+		combined = append(combined, nameBytes...)
+
+		// Write file size (4 bytes)
+		sizeBytes := make([]byte, 4)
+		binary.BigEndian.PutUint32(sizeBytes, uint32(len(data)))
+		combined = append(combined, sizeBytes...)
+
+		// Write file data
+		combined = append(combined, data...)
+	}
+
+	// Compress combined data
+	hc := compression.NewHuffmanCompressor()
+	compressedData, err := hc.Compress(combined)
+	if err != nil {
+		return nil, fmt.Errorf("compression failed: %w", err)
+	}
+
+	// Write to output file
+	outputFilename := "all_files.huffman.compressed"
+	outputPath := filepath.Join("data", "compressed", outputFilename)
+
+	// Ensure output directory exists
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+		return nil, fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	if err := os.WriteFile(outputPath, compressedData, 0644); err != nil {
+		return nil, fmt.Errorf("failed to write compressed file: %w", err)
+	}
+
+	compressedSize := int64(len(compressedData))
+
+	// Delete original bin files and their indexes after successful compression
+	for _, filename := range binFiles {
+		utils.RemoveBinFile(filename, a.logger.Info)
+		utils.RemoveIndexForBin(filename, a.logger.Info)
+	}
+
+	// Calculate ratio
+	ratio := float64(compressedSize) / float64(totalOriginalSize) * 100
+	spaceSaved := float64(totalOriginalSize-compressedSize) / float64(totalOriginalSize) * 100
+
+	a.logger.Info(fmt.Sprintf("Compressed %d files -> %s (%.2f%% of original, saved %.2f%%)",
+		len(binFiles), outputFilename, ratio, spaceSaved))
+
+	return map[string]any{
+		"outputFile":     outputFilename,
+		"originalSize":   totalOriginalSize,
+		"compressedSize": compressedSize,
+		"ratio":          fmt.Sprintf("%.2f%%", ratio),
+		"spaceSaved":     fmt.Sprintf("%.2f%%", spaceSaved),
+	}, nil
+}
+
 // DecompressFile decompresses a compressed file
 func (a *App) DecompressFile(filename string) (map[string]any, error) {
 	inputPath := filepath.Join("data", "compressed", filename)
@@ -830,32 +926,23 @@ func (a *App) DecompressFile(filename string) (map[string]any, error) {
 		return nil, fmt.Errorf("compressed file not found: %s", filename)
 	}
 
-	// Determine algorithm from filename
-	var algorithm string
-	var outputFilename string
+	// Check if this is an all_files archive
+	if filename == "all_files.huffman.compressed" {
+		return a.decompressAllFiles(inputPath)
+	}
 
-	if strings.Contains(filename, ".huffman.") {
-		algorithm = "huffman"
-		outputFilename = strings.TrimSuffix(filename, ".huffman.compressed")
-	} else if strings.Contains(filename, ".lzw.") {
-		algorithm = "lzw"
-		outputFilename = strings.TrimSuffix(filename, ".lzw.compressed")
-	} else {
+	// Determine algorithm from filename
+	if !strings.Contains(filename, ".huffman.") {
 		return nil, fmt.Errorf("unknown compression format: %s", filename)
 	}
 
+	outputFilename := strings.TrimSuffix(filename, ".huffman.compressed")
 	outputPath := filepath.Join("data", "bin", outputFilename)
 
-	switch algorithm {
-	case "huffman":
-		hc := compression.NewHuffmanCompressor()
-		err := hc.DecompressFile(inputPath, outputPath)
-		if err != nil {
-			return nil, fmt.Errorf("decompression failed: %w", err)
-		}
-
-	case "lzw":
-		return nil, fmt.Errorf("LZW decompression not yet implemented")
+	hc := compression.NewHuffmanCompressor()
+	err := hc.DecompressFile(inputPath, outputPath)
+	if err != nil {
+		return nil, fmt.Errorf("decompression failed: %w", err)
 	}
 
 	// Get file sizes
@@ -871,6 +958,9 @@ func (a *App) DecompressFile(filename string) (map[string]any, error) {
 	}
 	originalSize := decompressedInfo.Size()
 
+	// Delete compressed file after successful decompression
+	utils.RemoveCompressedFile(filename, a.logger.Info)
+
 	// Calculate ratio
 	ratio := float64(compressedSize) / float64(originalSize) * 100
 	spaceSaved := float64(originalSize-compressedSize) / float64(originalSize) * 100
@@ -880,6 +970,100 @@ func (a *App) DecompressFile(filename string) (map[string]any, error) {
 	return map[string]any{
 		"outputFile":     outputFilename,
 		"originalSize":   originalSize,
+		"compressedSize": compressedSize,
+		"ratio":          fmt.Sprintf("%.2f%%", ratio),
+		"spaceSaved":     fmt.Sprintf("%.2f%%", spaceSaved),
+	}, nil
+}
+
+// decompressAllFiles handles decompression of the all_files archive
+func (a *App) decompressAllFiles(inputPath string) (map[string]any, error) {
+	// Read compressed file
+	compressedData, err := os.ReadFile(inputPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read compressed file: %w", err)
+	}
+	compressedSize := int64(len(compressedData))
+
+	// Decompress
+	hc := compression.NewHuffmanCompressor()
+	data, err := hc.Decompress(compressedData)
+	if err != nil {
+		return nil, fmt.Errorf("decompression failed: %w", err)
+	}
+
+	// Parse the combined format
+	// Format: [fileCount(4)][file1NameLen(2)][file1Name][file1Size(4)][file1Data]...
+	if len(data) < 4 {
+		return nil, fmt.Errorf("invalid archive format: too short")
+	}
+
+	offset := 0
+
+	// Read file count
+	fileCount := binary.BigEndian.Uint32(data[offset : offset+4])
+	offset += 4
+
+	binDir := filepath.Join("data", "bin")
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create bin directory: %w", err)
+	}
+
+	var totalOriginalSize int64
+	var filesRestored int
+
+	for i := uint32(0); i < fileCount; i++ {
+		// Read filename length
+		if offset+2 > len(data) {
+			return nil, fmt.Errorf("invalid archive format: truncated at file %d name length", i)
+		}
+		nameLen := binary.BigEndian.Uint16(data[offset : offset+2])
+		offset += 2
+
+		// Read filename
+		if offset+int(nameLen) > len(data) {
+			return nil, fmt.Errorf("invalid archive format: truncated at file %d name", i)
+		}
+		filename := string(data[offset : offset+int(nameLen)])
+		offset += int(nameLen)
+
+		// Read file size
+		if offset+4 > len(data) {
+			return nil, fmt.Errorf("invalid archive format: truncated at file %d size", i)
+		}
+		fileSize := binary.BigEndian.Uint32(data[offset : offset+4])
+		offset += 4
+
+		// Read file data
+		if offset+int(fileSize) > len(data) {
+			return nil, fmt.Errorf("invalid archive format: truncated at file %d data", i)
+		}
+		fileData := data[offset : offset+int(fileSize)]
+		offset += int(fileSize)
+
+		// Write file
+		filePath := filepath.Join(binDir, filename)
+		if err := os.WriteFile(filePath, fileData, 0644); err != nil {
+			return nil, fmt.Errorf("failed to write %s: %w", filename, err)
+		}
+
+		totalOriginalSize += int64(fileSize)
+		filesRestored++
+		a.logger.Info(fmt.Sprintf("Restored %s (%d bytes)", filename, fileSize))
+	}
+
+	// Delete compressed file after successful decompression
+	utils.RemoveCompressedFile("all_files.huffman.compressed", a.logger.Info)
+
+	// Calculate ratio
+	ratio := float64(compressedSize) / float64(totalOriginalSize) * 100
+	spaceSaved := float64(totalOriginalSize-compressedSize) / float64(totalOriginalSize) * 100
+
+	a.logger.Info(fmt.Sprintf("Decompressed all_files archive: %d files restored (%d bytes total)", filesRestored, totalOriginalSize))
+
+	return map[string]any{
+		"outputFile":     fmt.Sprintf("%d files restored", filesRestored),
+		"originalSize":   totalOriginalSize,
 		"compressedSize": compressedSize,
 		"ratio":          fmt.Sprintf("%.2f%%", ratio),
 		"spaceSaved":     fmt.Sprintf("%.2f%%", spaceSaved),
