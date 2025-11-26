@@ -435,16 +435,25 @@ func (a *App) PopulateInventory() error {
 	if err != nil {
 		return err
 	}
+	a.toast.Success(fmt.Sprintf("Created items.bin (%d items)", itemResult.success))
 
 	promoResult := a.populatePromotions()
+	if promoResult.success > 0 {
+		a.toast.Success(fmt.Sprintf("Created promotions.bin (%d promotions)", promoResult.success))
+	}
 
 	orderResult, embedded, err := a.populateOrders()
 	if err != nil {
 		return err
 	}
+	a.toast.Success(fmt.Sprintf("Created orders.bin (%d orders)", orderResult.success))
 
-	a.populateOrderPromotions()
-	a.applyEmbeddedPromotions(embedded)
+	opResult := a.populateOrderPromotions()
+	embeddedResult := a.applyEmbeddedPromotions(embedded)
+	totalOP := opResult.success + embeddedResult.success
+	if totalOP > 0 {
+		a.toast.Success(fmt.Sprintf("Created order_promotions.bin (%d relationships)", totalOP))
+	}
 
 	// Final summary
 	totalSuccess := itemResult.success + promoResult.success + orderResult.success
