@@ -17,7 +17,9 @@ interface ToastContainerProps {
 
 let toastId = 0;
 
-export const ToastContainer = ({ position = "bottom-right" }: ToastContainerProps) => {
+export const ToastContainer = ({
+  position = "bottom-right",
+}: ToastContainerProps) => {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   useEffect(() => {
@@ -30,7 +32,7 @@ export const ToastContainer = ({ position = "bottom-right" }: ToastContainerProp
         setToasts((prev) =>
           prev.map((t) => (t.id === id ? { ...t, fading: true } : t))
         );
-      }, 3000);
+      }, 1600);
 
       // Remove after fade animation (3s + 0.3s)
       setTimeout(() => {
@@ -46,7 +48,13 @@ export const ToastContainer = ({ position = "bottom-right" }: ToastContainerProp
     EventsOn("toast:info", (msg: string) => handleToast(msg, "info"));
 
     return () => {
-      EventsOff("toast", "toast:success", "toast:error", "toast:warning", "toast:info");
+      EventsOff(
+        "toast",
+        "toast:success",
+        "toast:error",
+        "toast:warning",
+        "toast:info"
+      );
     };
   }, []);
 
@@ -66,7 +74,9 @@ export const ToastContainer = ({ position = "bottom-right" }: ToastContainerProp
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className={`toast toast-${toast.type}${toast.fading ? " toast-fading" : ""}`}
+          className={`toast toast-${toast.type}${
+            toast.fading ? " toast-fading" : ""
+          }`}
           onClick={() => removeToast(toast.id)}
         >
           <span className="toast-icon">

@@ -431,19 +431,9 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
                     ${formatPrice(foundOrder.totalPrice)}
                   </span>
                 </div>
-                <div className="details-row">
-                  <span className="details-label">Item Count:</span>
-                  <span className="details-value">{foundOrder.itemCount}</span>
-                </div>
-                <div className="details-row">
-                  <span className="details-label">Item IDs:</span>
-                  <span
-                    className="details-value"
-                    onClick={handleShowItems}
-                    style={{ cursor: "pointer" }}
-                  >
-                    {foundOrder.itemIDs.join(", ")}
-                  </span>
+                <div className="details-row" onClick={handleShowItems} style={{ cursor: "pointer" }}>
+                  <span className="details-label">Items:</span>
+                  <span className="details-value">{foundOrder.itemCount} items (click to view)</span>
                 </div>
                 {foundOrder.promotions && foundOrder.promotions.length > 0 && (
                   <>
@@ -488,7 +478,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       <Modal
         isOpen={isItemModalOpen}
         onClose={() => setIsItemModalOpen(false)}
-        title={`Order Items - $${formatPrice(orderItemsPrice)}`}
+        title={foundOrder ? `${foundOrder.customerName} - $${formatPrice(orderItemsPrice)}` : "Order Items"}
       >
         <ItemList items={items} />
       </Modal>

@@ -259,21 +259,9 @@ export const PromotionTab = ({
                     ${formatPrice(foundPromotion.totalPrice)}
                   </span>
                 </div>
-                <div className="details-row">
-                  <span className="details-label">Item Count:</span>
-                  <span className="details-value">
-                    {foundPromotion.itemCount}
-                  </span>
-                </div>
-                <div className="details-row">
-                  <span className="details-label">Item IDs:</span>
-                  <span
-                    className="details-value"
-                    onClick={handleShowItems}
-                    style={{ cursor: "pointer" }}
-                  >
-                    {foundPromotion.itemIDs.join(", ")}
-                  </span>
+                <div className="details-row" onClick={handleShowItems} style={{ cursor: "pointer" }}>
+                  <span className="details-label">Items:</span>
+                  <span className="details-value">{foundPromotion.itemCount} items (click to view)</span>
                 </div>
               </div>
             </div>
@@ -293,7 +281,7 @@ export const PromotionTab = ({
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Promotion Items"
+        title={foundPromotion ? `${foundPromotion.name} - $${formatPrice(foundPromotion.totalPrice)}` : "Promotion Items"}
       >
         <ItemList items={items} />
       </Modal>
