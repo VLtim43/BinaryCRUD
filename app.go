@@ -1194,3 +1194,80 @@ func (a *App) SetEncryptionEnabled(enabled bool) {
 	}
 	a.logger.Info(fmt.Sprintf("RSA encryption %s", status))
 }
+
+// CompactResult represents the result of a compaction operation for frontend
+type CompactResult struct {
+	ItemsRemoved           int `json:"itemsRemoved"`
+	OrdersAffected         int `json:"ordersAffected"`
+	PromotionsAffected     int `json:"promotionsAffected"`
+	OrdersRemoved          int `json:"ordersRemoved"`
+	PromotionsRemoved      int `json:"promotionsRemoved"`
+	OrderPromotionsRemoved int `json:"orderPromotionsRemoved"`
+}
+
+// Compact performs database compaction:
+// - Removes all tombstoned (deleted) records from binary files
+// - Updates orders/promotions to remove references to deleted items
+// - Rebuilds all indexes
+func (a *App) Compact() (*CompactResult, error) {
+	a.logger.Info("Starting database compaction...")
+
+	result, err := utils.CompactAll(
+		utils.BinPath("items.bin"),
+		utils.BinPath("orders.bin"),
+		utils.BinPath("promotions.bin"),
+		utils.BinPath("order_promotions.bin"),
+	)
+	if err != nil {
+		a.logger.Error(fmt.Sprintf("Compaction failed: %v", err))
+		return nil, fmt.Errorf("compaction failed: %w", err)
+	}
+
+	// Reload all DAOs to rebuild indexes from the compacted files
+	a.itemDAO = dao.NewItemDAO(utils.BinPath("items.bin"))
+	a.orderDAO = dao.NewOrderDAO(utils.BinPath("orders.bin"))
+	a.promotionDAO = dao.NewPromotionDAO(utils.BinPath("promotions.bin"))
+	a.orderPromotionDAO = dao.NewOrderPromotionDAO(utils.BinPath("order_promotions.bin"))
+
+	a.logger.Info("Indexes rebuilt after compaction")
+
+	// Log summary
+	a.logger.Info(fmt.Sprintf("Compaction complete: %d items removed, %d orders affected, %d promotions affected",
+		result.ItemsRemoved, result.OrdersAffected, result.PromotionsAffected))
+
+	// Show toast notifications
+	if result.ItemsRemoved > 0 {
+		a.toast.Success(fmt.Sprintf("Removed %d deleted items", result.ItemsRemoved))
+	}
+	if result.OrdersAffected > 0 {
+		a.toast.Info(fmt.Sprintf("%d orders had item references cleaned", result.OrdersAffected))
+	}
+	if result.PromotionsAffected > 0 {
+		a.toast.Info(fmt.Sprintf("%d promotions had item references cleaned", result.PromotionsAffected))
+	}
+	if result.OrdersRemoved > 0 {
+		a.toast.Success(fmt.Sprintf("Removed %d deleted orders", result.OrdersRemoved))
+	}
+	if result.PromotionsRemoved > 0 {
+		a.toast.Success(fmt.Sprintf("Removed %d deleted promotions", result.PromotionsRemoved))
+	}
+	if result.OrderPromotionsRemoved > 0 {
+		a.toast.Success(fmt.Sprintf("Removed %d deleted order-promotion links", result.OrderPromotionsRemoved))
+	}
+
+	totalRemoved := result.ItemsRemoved + result.OrdersRemoved + result.PromotionsRemoved + result.OrderPromotionsRemoved
+	totalAffected := result.OrdersAffected + result.PromotionsAffected
+
+	if totalRemoved == 0 && totalAffected == 0 {
+		a.toast.Info("No tombstoned records to compact")
+	}
+
+	return &CompactResult{
+		ItemsRemoved:           result.ItemsRemoved,
+		OrdersAffected:         result.OrdersAffected,
+		PromotionsAffected:     result.PromotionsAffected,
+		OrdersRemoved:          result.OrdersRemoved,
+		PromotionsRemoved:      result.PromotionsRemoved,
+		OrderPromotionsRemoved: result.OrderPromotionsRemoved,
+	}, nil
+}

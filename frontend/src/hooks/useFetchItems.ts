@@ -22,7 +22,18 @@ export function useFetchItems(): UseFetchItemsResult {
     setLoading(true);
     try {
       const fetchedItems = await Promise.all(
-        itemIDs.map((id) => itemService.getById(id))
+        itemIDs.map(async (id) => {
+          try {
+            return await itemService.getById(id);
+          } catch {
+            return {
+              id,
+              name: "[Deleted Item]",
+              priceInCents: 0,
+              isDeleted: true,
+            };
+          }
+        })
       );
       setItems(fetchedItems);
       return fetchedItems;

@@ -5,8 +5,18 @@ import {
   GetOrderIndexContents,
   GetPromotionIndexContents,
   GetEncryptionEnabled,
-  SetEncryptionEnabled
+  SetEncryptionEnabled,
+  Compact
 } from "../../wailsjs/go/main/App";
+
+export interface CompactResult {
+  itemsRemoved: number;
+  ordersAffected: number;
+  promotionsAffected: number;
+  ordersRemoved: number;
+  promotionsRemoved: number;
+  orderPromotionsRemoved: number;
+}
 
 export const systemService = {
   deleteAllFiles: async (): Promise<void> => {
@@ -35,5 +45,9 @@ export const systemService = {
 
   setEncryptionEnabled: async (enabled: boolean): Promise<void> => {
     return SetEncryptionEnabled(enabled);
+  },
+
+  compact: async (): Promise<CompactResult> => {
+    return Compact();
   },
 };

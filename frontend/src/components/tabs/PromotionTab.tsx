@@ -105,7 +105,18 @@ export const PromotionTab = ({
 
     try {
       const fetchedItems = await Promise.all(
-        foundPromotion.itemIDs.map((id) => itemService.getById(id))
+        foundPromotion.itemIDs.map(async (id) => {
+          try {
+            return await itemService.getById(id);
+          } catch {
+            return {
+              id,
+              name: "[Deleted Item]",
+              priceInCents: 0,
+              isDeleted: true,
+            };
+          }
+        })
       );
       setItems(fetchedItems);
       setIsModalOpen(true);

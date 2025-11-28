@@ -77,6 +77,9 @@ export const DebugTab = ({
   // Encryption state
   const [encryptionEnabled, setEncryptionEnabled] = useState(true);
 
+  // Compact state
+  const [isCompacting, setIsCompacting] = useState(false);
+
   useEffect(() => {
     if (subTab === "compress") {
       loadCompressedFiles();
@@ -204,6 +207,19 @@ export const DebugTab = ({
     }
   };
 
+  const handleCompact = async () => {
+    setIsCompacting(true);
+    try {
+      await systemService.compact();
+      // Toast notifications are emitted from the backend
+      onRefreshLogs();
+    } catch (err) {
+      toast.error(formatError(err));
+    } finally {
+      setIsCompacting(false);
+    }
+  };
+
   // Consolidated index loading function
   const handlePrintIndex = async (type: IndexType) => {
     const indexNames: Record<IndexType, string> = {
@@ -277,7 +293,19 @@ export const DebugTab = ({
       }
 
       const fetchedItems = await Promise.all(
-        order.itemIDs.map((id) => itemService.getById(id))
+        order.itemIDs.map(async (id) => {
+          try {
+            return await itemService.getById(id);
+          } catch {
+            // Item was deleted, return placeholder
+            return {
+              id,
+              name: "[Deleted Item]",
+              priceInCents: 0,
+              isDeleted: true,
+            };
+          }
+        })
       );
       setItems(fetchedItems);
       setIsItemModalOpen(true);
@@ -299,7 +327,19 @@ export const DebugTab = ({
       }
 
       const fetchedItems = await Promise.all(
-        promotion.itemIDs.map((id) => itemService.getById(id))
+        promotion.itemIDs.map(async (id) => {
+          try {
+            return await itemService.getById(id);
+          } catch {
+            // Item was deleted, return placeholder
+            return {
+              id,
+              name: "[Deleted Item]",
+              priceInCents: 0,
+              isDeleted: true,
+            };
+          }
+        })
       );
       setPromoItems(fetchedItems);
       setSelectedPromoForView({ id: promotionId, name: promotionName });
@@ -322,6 +362,9 @@ export const DebugTab = ({
         <>
           <div className="input-box">
             <Button onClick={handlePopulateClick}>Populate Inventory</Button>
+            <Button onClick={handleCompact} disabled={isCompacting}>
+              {isCompacting ? "Compacting..." : "Compact Database"}
+            </Button>
             <Button variant="danger" onClick={handleDeleteAll}>
               Delete All Files
             </Button>

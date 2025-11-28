@@ -125,7 +125,18 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
 
     try {
       const fetchedItems = await Promise.all(
-        foundOrder.itemIDs.map((id) => itemService.getById(id))
+        foundOrder.itemIDs.map(async (id) => {
+          try {
+            return await itemService.getById(id);
+          } catch {
+            return {
+              id,
+              name: "[Deleted Item]",
+              priceInCents: 0,
+              isDeleted: true,
+            };
+          }
+        })
       );
       setItems(fetchedItems);
       setIsItemModalOpen(true);
@@ -147,7 +158,18 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       }
 
       const fetchedItems = await Promise.all(
-        promotion.itemIDs.map((id) => itemService.getById(id))
+        promotion.itemIDs.map(async (id) => {
+          try {
+            return await itemService.getById(id);
+          } catch {
+            return {
+              id,
+              name: "[Deleted Item]",
+              priceInCents: 0,
+              isDeleted: true,
+            };
+          }
+        })
       );
       setPromoItems(fetchedItems);
       setSelectedPromoForView({ id: promotionId, name: promotionName });

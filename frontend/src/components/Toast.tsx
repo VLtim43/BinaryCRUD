@@ -25,17 +25,17 @@ export const ToastContainer = ({ position = "bottom-right" }: ToastContainerProp
       const id = ++toastId;
       setToasts((prev) => [...prev, { id, message, type, fading: false }]);
 
-      // Start fade out after 1 second
+      // Start fade out after 3 seconds
       setTimeout(() => {
         setToasts((prev) =>
           prev.map((t) => (t.id === id ? { ...t, fading: true } : t))
         );
-      }, 1000);
+      }, 3000);
 
-      // Remove after fade animation (1s + 0.3s)
+      // Remove after fade animation (3s + 0.3s)
       setTimeout(() => {
         setToasts((prev) => prev.filter((t) => t.id !== id));
-      }, 1300);
+      }, 3300);
     };
 
     // Listen for toast events from Go
