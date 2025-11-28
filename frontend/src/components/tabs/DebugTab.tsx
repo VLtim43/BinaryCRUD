@@ -32,7 +32,6 @@ import { toast } from "../../utils/toast";
 type DebugSubTab = "tools" | "print" | "compress";
 
 interface DebugTabProps {
-  onMessage: (msg: string) => void;
   onRefreshLogs: () => void;
   subTab: DebugSubTab;
   onSubTabChange: (subTab: DebugSubTab) => void;
@@ -42,7 +41,6 @@ type IndexType = "items" | "orders" | "promotions";
 type PrintDataType = "items" | "orders" | "promotions";
 
 export const DebugTab = ({
-  onMessage,
   onRefreshLogs,
   subTab,
   onSubTabChange,

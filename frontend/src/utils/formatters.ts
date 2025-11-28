@@ -47,6 +47,17 @@ export const PROMO_CARD_STYLE = {
   borderColor: "rgba(100, 200, 100, 0.2)",
 };
 
+export const PROMO_CARD_STYLE_HIGHLIGHTED = {
+  ...PROMO_CARD_STYLE,
+  backgroundColor: "rgba(100, 200, 100, 0.1)",
+};
+
+export const COMPACT_SELECT_STYLE = {
+  height: "35px",
+  margin: 0,
+  flex: 1,
+};
+
 export const formatError = (err: unknown): string => {
   return err instanceof Error ? err.message : String(err);
 };

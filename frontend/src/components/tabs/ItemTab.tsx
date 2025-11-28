@@ -17,11 +17,10 @@ import {
 import { toast } from "../../utils/toast";
 
 interface ItemTabProps {
-  onMessage: (msg: string) => void;
   onRefreshLogs: () => void;
 }
 
-export const ItemTab = ({ onMessage, onRefreshLogs }: ItemTabProps) => {
+export const ItemTab = ({ onRefreshLogs }: ItemTabProps) => {
   const [subTab, setSubTab] = useState<"create" | "read" | "delete">("create");
   const [itemName, setItemName] = useState("");
   const [itemPrice, setItemPrice] = useState("");

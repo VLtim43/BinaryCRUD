@@ -3,7 +3,6 @@ import { GetOrder, DeleteOrder, GetAllOrders } from "../../wailsjs/go/main/App";
 export interface Order {
   id: number;
   customer: string;
-  customerName?: string;
   totalPrice: number;
   itemCount: number;
   itemIDs: number[];
@@ -30,7 +29,7 @@ export const orderService = {
     const result = await GetAllOrders();
     return result.map((item: any) => ({
       id: item.id,
-      customer: item.customerName,
+      customer: item.customer,
       totalPrice: item.totalPrice,
       itemCount: item.itemCount,
       itemIDs: item.itemIDs,

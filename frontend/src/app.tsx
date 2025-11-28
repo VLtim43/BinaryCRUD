@@ -105,10 +105,10 @@ export const App = () => {
           {message}
         </div>
 
-        {activeTab === "item" && <ItemTab onMessage={setMessage} onRefreshLogs={refreshLogs} />}
+        {activeTab === "item" && <ItemTab onRefreshLogs={refreshLogs} />}
         {activeTab === "order" && <OrderTab onMessage={setMessage} onRefreshLogs={refreshLogs} />}
         {activeTab === "promotion" && <PromotionTab onMessage={setMessage} onRefreshLogs={refreshLogs} />}
-        {activeTab === "debug" && <DebugTab onMessage={setMessage} onRefreshLogs={refreshLogs} subTab={debugSubTab} onSubTabChange={setDebugSubTab} />}
+        {activeTab === "debug" && <DebugTab onRefreshLogs={refreshLogs} subTab={debugSubTab} onSubTabChange={setDebugSubTab} />}
       </div>
 
       <LogsPanel

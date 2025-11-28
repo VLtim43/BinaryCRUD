@@ -118,6 +118,9 @@ func (dao *ItemDAO) Write(name string, priceInCents uint64) (uint64, error) {
 // Read retrieves an item by ID using the B+ tree index with automatic fallback to sequential scan
 // Returns (id, name, priceInCents, error)
 func (dao *ItemDAO) Read(id uint64) (uint64, string, uint64, error) {
+	dao.mu.Lock()
+	defer dao.mu.Unlock()
+
 	// Open file for reading (don't create if it doesn't exist)
 	file, err := os.OpenFile(dao.filePath, os.O_RDONLY, 0644)
 	if err != nil {

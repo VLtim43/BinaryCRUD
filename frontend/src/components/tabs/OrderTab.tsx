@@ -22,6 +22,8 @@ import {
   createSelectHandler,
   formatError,
   PROMO_CARD_STYLE,
+  PROMO_CARD_STYLE_HIGHLIGHTED,
+  COMPACT_SELECT_STYLE,
   CRUD_TABS,
 } from "../../utils/formatters";
 import { toast } from "../../utils/toast";
@@ -352,7 +354,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
             <div className="cart-footer">
               <div
                 className="input-box"
-                style={{ height: "35px", margin: 0, flex: 1 }}
+                style={COMPACT_SELECT_STYLE}
               >
                 <Input
                   id="customer-name"
@@ -422,8 +424,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
                         key={promo.id}
                         className="details-row"
                         style={{
-                          ...PROMO_CARD_STYLE,
-                          backgroundColor: "rgba(100, 200, 100, 0.1)",
+                          ...PROMO_CARD_STYLE_HIGHLIGHTED,
                           cursor: "pointer",
                         }}
                         onClick={() =>

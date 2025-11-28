@@ -17,6 +17,7 @@ import {
   createInputHandler,
   createSelectHandler,
   formatError,
+  COMPACT_SELECT_STYLE,
   CRUD_TABS,
 } from "../../utils/formatters";
 import { toast } from "../../utils/toast";
@@ -200,7 +201,7 @@ export const PromotionTab = ({
             <div className="cart-footer">
               <div
                 className="input-box"
-                style={{ height: "35px", margin: 0, flex: 1 }}
+                style={COMPACT_SELECT_STYLE}
               >
                 <Input
                   id="promotion-name"

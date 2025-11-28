@@ -343,9 +343,8 @@ func (a *App) populateOrders() (*populationResult, []embeddedPromotion, error) {
 	var embedded []embeddedPromotion
 
 	for i, order := range orders {
-		priceResult, _ := a.calculateTotalPrice(order.ItemIDs, false, fmt.Sprintf("order '%s'", order.Owner))
-
-		if len(priceResult.ValidItems) == 0 {
+		priceResult, err := a.calculateTotalPrice(order.ItemIDs, false, fmt.Sprintf("order '%s'", order.Owner))
+		if err != nil || priceResult == nil || len(priceResult.ValidItems) == 0 {
 			a.logger.Warn(fmt.Sprintf("Order %d (%s) has no valid items, skipping", i+1, order.Owner))
 			result.fail++
 			continue
@@ -500,12 +499,12 @@ func (a *App) GetAllOrders() ([]map[string]any, error) {
 	result := make([]map[string]any, len(orders))
 	for i, order := range orders {
 		result[i] = map[string]any{
-			"id":           order.ID,
-			"customerName": order.OwnerOrName,
-			"totalPrice":   order.TotalPrice,
-			"itemCount":    order.ItemCount,
-			"itemIDs":      order.ItemIDs,
-			"isDeleted":    order.IsDeleted,
+			"id":         order.ID,
+			"customer":   order.OwnerOrName,
+			"totalPrice": order.TotalPrice,
+			"itemCount":  order.ItemCount,
+			"itemIDs":    order.ItemIDs,
+			"isDeleted":  order.IsDeleted,
 		}
 	}
 
@@ -720,17 +719,17 @@ func (a *App) GetPromotionOrders(promotionID uint64) ([]map[string]any, error) {
 		if err != nil {
 			// If order is deleted, still show the relationship with basic info
 			result[i] = map[string]any{
-				"orderID":      op.OrderID,
-				"customerName": "Deleted Order",
+				"orderID":  op.OrderID,
+				"customer": "Deleted Order",
 			}
 			continue
 		}
 
 		result[i] = map[string]any{
-			"orderID":      op.OrderID,
-			"customerName": order.OwnerOrName,
-			"totalPrice":   order.TotalPrice,
-			"itemCount":    order.ItemCount,
+			"orderID":    op.OrderID,
+			"customer":   order.OwnerOrName,
+			"totalPrice": order.TotalPrice,
+			"itemCount":  order.ItemCount,
 		}
 	}
 
@@ -774,12 +773,12 @@ func (a *App) GetOrderWithPromotions(orderID uint64) (map[string]any, error) {
 	a.logger.Info(fmt.Sprintf("Retrieved order #%d with %d promotions", orderID, len(promotions)))
 
 	return map[string]any{
-		"id":           order.ID,
-		"customerName": order.OwnerOrName,
-		"totalPrice":   combinedTotal,
-		"promotions":   promotions,
-		"itemCount":    order.ItemCount,
-		"itemIDs":      order.ItemIDs,
+		"id":         order.ID,
+		"customer":   order.OwnerOrName,
+		"totalPrice": combinedTotal,
+		"promotions": promotions,
+		"itemCount":  order.ItemCount,
+		"itemIDs":    order.ItemIDs,
 	}, nil
 }
 
@@ -796,18 +795,11 @@ func (a *App) CompressFile(filename string, algorithm string) (map[string]any, e
 	outputFilename := utils.CompressedFilename(filename, algorithm)
 	outputPath := utils.CompressedPath(outputFilename)
 
-	switch algorithm {
-	case utils.AlgorithmHuffman:
-		hc := compression.NewHuffmanCompressor()
-		err = hc.CompressFile(inputPath, outputPath)
-	case utils.AlgorithmLZW:
-		lzw := compression.NewLZWCompressor()
-		err = lzw.CompressFile(inputPath, outputPath)
-	default:
-		return nil, fmt.Errorf("unknown algorithm: %s", algorithm)
-	}
-
+	compressor, err := compression.NewCompressor(algorithm)
 	if err != nil {
+		return nil, err
+	}
+	if err = compressor.CompressFile(inputPath, outputPath); err != nil {
 		return nil, fmt.Errorf("compression failed: %w", err)
 	}
 
@@ -883,20 +875,13 @@ func (a *App) CompressAllFiles(algorithm string) (map[string]any, error) {
 		combined = append(combined, data...)
 	}
 
-	var compressedData []byte
 	outputFilename := utils.CompressedFilename("all_files", algorithm)
 
-	switch algorithm {
-	case utils.AlgorithmHuffman:
-		hc := compression.NewHuffmanCompressor()
-		compressedData, err = hc.Compress(combined)
-	case utils.AlgorithmLZW:
-		lzw := compression.NewLZWCompressor()
-		compressedData, err = lzw.Compress(combined)
-	default:
-		return nil, fmt.Errorf("unknown algorithm: %s", algorithm)
+	compressor, err := compression.NewCompressor(algorithm)
+	if err != nil {
+		return nil, err
 	}
-
+	compressedData, err := compressor.Compress(combined)
 	if err != nil {
 		return nil, fmt.Errorf("compression failed: %w", err)
 	}
@@ -953,18 +938,12 @@ func (a *App) DecompressFile(filename string) (map[string]any, error) {
 
 	outputFilename := utils.DecompressedFilename(filename)
 	outputPath := utils.BinPath(outputFilename)
-	var err error
 
-	switch algorithm {
-	case utils.AlgorithmHuffman:
-		hc := compression.NewHuffmanCompressor()
-		err = hc.DecompressFile(inputPath, outputPath)
-	case utils.AlgorithmLZW:
-		lzw := compression.NewLZWCompressor()
-		err = lzw.DecompressFile(inputPath, outputPath)
-	}
-
+	decompressor, err := compression.NewCompressor(algorithm)
 	if err != nil {
+		return nil, err
+	}
+	if err = decompressor.DecompressFile(inputPath, outputPath); err != nil {
 		return nil, fmt.Errorf("decompression failed: %w", err)
 	}
 
@@ -1005,19 +984,12 @@ func (a *App) decompressAllFiles(inputPath string, filename string) (map[string]
 	compressedSize := int64(len(compressedData))
 
 	algorithm := utils.DetectCompressionAlgorithm(filename)
-	var data []byte
 
-	switch algorithm {
-	case utils.AlgorithmHuffman:
-		hc := compression.NewHuffmanCompressor()
-		data, err = hc.Decompress(compressedData)
-	case utils.AlgorithmLZW:
-		lzw := compression.NewLZWCompressor()
-		data, err = lzw.Decompress(compressedData)
-	default:
+	decompressor, err := compression.NewCompressor(algorithm)
+	if err != nil {
 		return nil, fmt.Errorf("unknown compression format: %s", filename)
 	}
-
+	data, err := decompressor.Decompress(compressedData)
 	if err != nil {
 		return nil, fmt.Errorf("decompression failed: %w", err)
 	}
