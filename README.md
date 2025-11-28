@@ -1,5 +1,10 @@
 # BinaryCRUD
 
+![Go](https://img.shields.io/badge/Go-00ADD8?style=for-the-badge&logo=go&logoColor=white)
+![Preact](https://img.shields.io/badge/Preact-673AB8?style=for-the-badge&logo=preact&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![Wails](https://img.shields.io/badge/Wails-DF0000?style=for-the-badge&logo=wails&logoColor=white)
+
 A restaurant manager application built with Wails (Go + Preact) featuring custom binary file storage with B+ tree indexing.
 
 ## Features
