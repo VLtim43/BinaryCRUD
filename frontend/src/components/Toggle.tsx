@@ -5,11 +5,13 @@ interface ToggleProps {
   onChange: (checked: boolean) => void;
   label?: string;
   disabled?: boolean;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }
 
-export const Toggle = ({ checked, onChange, label, disabled }: ToggleProps) => {
+export const Toggle = ({ checked, onChange, label, disabled, onMouseEnter, onMouseLeave }: ToggleProps) => {
   return (
-    <label className="toggle-container">
+    <label className="toggle-container" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
       <input
         type="checkbox"
         checked={checked}

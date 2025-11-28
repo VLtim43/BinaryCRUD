@@ -33,6 +33,7 @@ type DebugSubTab = "tools" | "print" | "compress";
 
 interface DebugTabProps {
   onRefreshLogs: () => void;
+  onMessage: (msg: string) => void;
   subTab: DebugSubTab;
   onSubTabChange: (subTab: DebugSubTab) => void;
 }
@@ -40,8 +41,11 @@ interface DebugTabProps {
 type IndexType = "items" | "orders" | "promotions";
 type PrintDataType = "items" | "orders" | "promotions";
 
+const DEFAULT_MESSAGE = "Debug Tools and Utilities";
+
 export const DebugTab = ({
   onRefreshLogs,
+  onMessage,
   subTab,
   onSubTabChange,
 }: DebugTabProps) => {
@@ -64,7 +68,9 @@ export const DebugTab = ({
   const [selectedPromoForView, setSelectedPromoForView] = useState<{
     id: number;
     name: string;
+    totalPrice: number;
   } | null>(null);
+  const [orderItemsPrice, setOrderItemsPrice] = useState<number>(0);
 
   // Compression state
   const [selectedFile, setSelectedFile] = useState<string>("");
@@ -308,6 +314,9 @@ export const DebugTab = ({
         })
       );
       setItems(fetchedItems);
+      // Calculate order items price (total minus promotions)
+      const promoTotal = order.promotions?.reduce((sum, p) => sum + p.totalPrice, 0) || 0;
+      setOrderItemsPrice(order.totalPrice - promoTotal);
       setIsItemModalOpen(true);
       onRefreshLogs();
     } catch (err) {
@@ -317,7 +326,8 @@ export const DebugTab = ({
 
   const handleShowPromotionItems = async (
     promotionId: number,
-    promotionName: string
+    promotionName: string,
+    totalPrice: number
   ) => {
     try {
       const promotion = await promotionService.getById(promotionId);
@@ -342,7 +352,7 @@ export const DebugTab = ({
         })
       );
       setPromoItems(fetchedItems);
-      setSelectedPromoForView({ id: promotionId, name: promotionName });
+      setSelectedPromoForView({ id: promotionId, name: promotionName, totalPrice });
       setIsPromoModalOpen(true);
       onRefreshLogs();
     } catch (err) {
@@ -359,22 +369,38 @@ export const DebugTab = ({
       />
 
       {subTab === "tools" && (
-        <>
-          <div className="input-box">
-            <Button onClick={handlePopulateClick}>Populate Inventory</Button>
-            <Button onClick={handleCompact} disabled={isCompacting}>
-              {isCompacting ? "Compacting..." : "Compact Database"}
-            </Button>
-            <Button variant="danger" onClick={handleDeleteAll}>
-              Delete All Files
-            </Button>
-            <Toggle
-              checked={encryptionEnabled}
-              onChange={handleEncryptionToggle}
-              label="Encryption"
-            />
-          </div>
-        </>
+        <div className="input-box">
+          <Button
+            onClick={handlePopulateClick}
+            onMouseEnter={() => onMessage("Load sample items, promotions, and orders from seed files")}
+            onMouseLeave={() => onMessage(DEFAULT_MESSAGE)}
+          >
+            Populate Inventory
+          </Button>
+          <Button
+            onClick={handleCompact}
+            disabled={isCompacting}
+            onMouseEnter={() => onMessage("Permanently remove deleted records and clean orphan references")}
+            onMouseLeave={() => onMessage(DEFAULT_MESSAGE)}
+          >
+            {isCompacting ? "Compacting..." : "Compact Database"}
+          </Button>
+          <Button
+            variant="danger"
+            onClick={handleDeleteAll}
+            onMouseEnter={() => onMessage("Delete all .bin, .idx, and compressed files")}
+            onMouseLeave={() => onMessage(DEFAULT_MESSAGE)}
+          >
+            Delete All Files
+          </Button>
+          <Toggle
+            checked={encryptionEnabled}
+            onChange={handleEncryptionToggle}
+            label="Encryption"
+            onMouseEnter={() => onMessage("Toggle RSA encryption for data stored in binary files")}
+            onMouseLeave={() => onMessage(DEFAULT_MESSAGE)}
+          />
+        </div>
       )}
 
       {subTab === "print" && (
@@ -525,7 +551,7 @@ export const DebugTab = ({
                     render: (value, row) => (
                       <span
                         onClick={() =>
-                          handleShowPromotionItems(row.id, row.name)
+                          handleShowPromotionItems(row.id, row.name, row.totalPrice)
                         }
                         style={{ cursor: "pointer" }}
                       >
@@ -541,7 +567,7 @@ export const DebugTab = ({
                     render: (value, row) => (
                       <span
                         onClick={() =>
-                          handleShowPromotionItems(row.id, row.name)
+                          handleShowPromotionItems(row.id, row.name, row.totalPrice)
                         }
                         style={{ cursor: "pointer" }}
                       >
@@ -557,7 +583,7 @@ export const DebugTab = ({
                     render: (value, row) => (
                       <span
                         onClick={() =>
-                          handleShowPromotionItems(row.id, row.name)
+                          handleShowPromotionItems(row.id, row.name, row.totalPrice)
                         }
                         style={{ cursor: "pointer" }}
                       >
@@ -573,7 +599,7 @@ export const DebugTab = ({
                     render: (value, row) => (
                       <span
                         onClick={() =>
-                          handleShowPromotionItems(row.id, row.name)
+                          handleShowPromotionItems(row.id, row.name, row.totalPrice)
                         }
                         style={{ cursor: "pointer" }}
                       >
@@ -791,7 +817,7 @@ export const DebugTab = ({
         onClose={() => setIsItemModalOpen(false)}
         title={
           selectedOrderForView
-            ? `Order #${selectedOrderForView.id} Items`
+            ? `Order #${selectedOrderForView.id} Items - $${formatPrice(orderItemsPrice)}`
             : "Order Items"
         }
       >
@@ -807,7 +833,7 @@ export const DebugTab = ({
                     style={{ ...PROMO_CARD_STYLE, cursor: "pointer" }}
                     onClick={() => {
                       setIsItemModalOpen(false);
-                      handleShowPromotionItems(promo.id, promo.name);
+                      handleShowPromotionItems(promo.id, promo.name, promo.totalPrice);
                     }}
                   >
                     <div className="cart-item-info">
@@ -829,7 +855,7 @@ export const DebugTab = ({
         onClose={() => setIsPromoModalOpen(false)}
         title={
           selectedPromoForView
-            ? `Promotion: ${selectedPromoForView.name}`
+            ? `${selectedPromoForView.name} - $${formatPrice(selectedPromoForView.totalPrice)}`
             : "Promotion Items"
         }
       >

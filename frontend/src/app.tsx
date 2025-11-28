@@ -66,7 +66,7 @@ export const App = () => {
       case "promotion":
         return "Manage promotions";
       case "debug":
-        return "Debug tools and utilities";
+        return "Debug Tools and Utilities";
     }
   };
 
@@ -108,7 +108,7 @@ export const App = () => {
         {activeTab === "item" && <ItemTab onRefreshLogs={refreshLogs} />}
         {activeTab === "order" && <OrderTab onMessage={setMessage} onRefreshLogs={refreshLogs} />}
         {activeTab === "promotion" && <PromotionTab onMessage={setMessage} onRefreshLogs={refreshLogs} />}
-        {activeTab === "debug" && <DebugTab onRefreshLogs={refreshLogs} subTab={debugSubTab} onSubTabChange={setDebugSubTab} />}
+        {activeTab === "debug" && <DebugTab onRefreshLogs={refreshLogs} onMessage={setMessage} subTab={debugSubTab} onSubTabChange={setDebugSubTab} />}
       </div>
 
       <LogsPanel

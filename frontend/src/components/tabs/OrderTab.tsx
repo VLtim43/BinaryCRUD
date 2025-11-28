@@ -48,7 +48,9 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
   const [selectedPromoForView, setSelectedPromoForView] = useState<{
     id: number;
     name: string;
+    totalPrice: number;
   } | null>(null);
+  const [orderItemsPrice, setOrderItemsPrice] = useState<number>(0);
   const [allPromotions, setAllPromotions] = useState<Promotion[]>([]);
   const [selectedPromotionId, setSelectedPromotionId] = useState("");
   const [selectedPromotions, setSelectedPromotions] = useState<Promotion[]>([]);
@@ -139,6 +141,9 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
         })
       );
       setItems(fetchedItems);
+      // Calculate order items price (total minus promotions)
+      const promoTotal = foundOrder.promotions?.reduce((sum, p) => sum + p.totalPrice, 0) || 0;
+      setOrderItemsPrice(foundOrder.totalPrice - promoTotal);
       setIsItemModalOpen(true);
       onRefreshLogs();
     } catch (err) {
@@ -148,7 +153,8 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
 
   const handleShowPromotionItems = async (
     promotionId: number,
-    promotionName: string
+    promotionName: string,
+    totalPrice: number
   ) => {
     try {
       const promotion = await promotionService.getById(promotionId);
@@ -172,7 +178,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
         })
       );
       setPromoItems(fetchedItems);
-      setSelectedPromoForView({ id: promotionId, name: promotionName });
+      setSelectedPromoForView({ id: promotionId, name: promotionName, totalPrice });
       setIsPromoModalOpen(true);
       onRefreshLogs();
     } catch (err) {
@@ -450,7 +456,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
                           cursor: "pointer",
                         }}
                         onClick={() =>
-                          handleShowPromotionItems(promo.id, promo.name)
+                          handleShowPromotionItems(promo.id, promo.name, promo.totalPrice)
                         }
                       >
                         <span className="details-label">
@@ -482,7 +488,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
       <Modal
         isOpen={isItemModalOpen}
         onClose={() => setIsItemModalOpen(false)}
-        title="Order Items"
+        title={`Order Items - $${formatPrice(orderItemsPrice)}`}
       >
         <ItemList items={items} />
       </Modal>
@@ -492,7 +498,7 @@ export const OrderTab = ({ onMessage, onRefreshLogs }: OrderTabProps) => {
         onClose={() => setIsPromoModalOpen(false)}
         title={
           selectedPromoForView
-            ? `Promotion: ${selectedPromoForView.name}`
+            ? `${selectedPromoForView.name} - $${formatPrice(selectedPromoForView.totalPrice)}`
             : "Promotion Items"
         }
       >

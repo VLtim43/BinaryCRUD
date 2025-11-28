@@ -1,12 +1,12 @@
 [
   {
     "owner": "John Doe",
-    "itemIDs": [0, 3, 6],
+    "itemIDs": [1, 4, 7],
     "promotionIDs": [0]
   },
   {
     "owner": "Jane Smith",
-    "itemIDs": [9, 10, 6, 6],
+    "itemIDs": [11, 12],
     "promotionIDs": [3]
   },
   {
@@ -15,7 +15,7 @@
   },
   {
     "owner": "Alice Williams",
-    "itemIDs": [26, 27, 24, 8],
+    "itemIDs": [28, 29],
     "promotionIDs": [4]
   },
   {
@@ -28,12 +28,12 @@
   },
   {
     "owner": "Frank Castle",
-    "itemIDs": [32, 33, 3, 3, 6, 6],
+    "itemIDs": [15, 16],
     "promotionIDs": [5]
   },
   {
     "owner": "Grace Lee",
-    "itemIDs": [14, 15, 38],
+    "itemIDs": [20, 21],
     "promotionIDs": [6]
   },
   {

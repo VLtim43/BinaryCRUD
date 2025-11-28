@@ -46,6 +46,33 @@ func (a *App) startup(ctx context.Context) {
 	a.logger.Info("Application started")
 }
 
+// shutdown is called when the app is closing
+// If CleanupOnExit flag is set to "true", it cleans up all data files
+func (a *App) shutdown(ctx context.Context) {
+	if CleanupOnExit == "true" {
+		a.logger.Info("Application shutting down, cleaning up files...")
+		a.cleanupOnExit()
+		a.logger.Info("Cleanup complete, goodbye!")
+	} else {
+		a.logger.Info("Application shutting down, goodbye!")
+	}
+}
+
+// cleanupOnExit deletes all data files silently (no toasts since UI is closing)
+func (a *App) cleanupOnExit() {
+	results, err := utils.CleanupDataFiles(a.logger.Info)
+	if err != nil {
+		a.logger.Warn(fmt.Sprintf("Error during cleanup: %v", err))
+	}
+
+	totalDeleted := 0
+	for _, result := range results {
+		totalDeleted += result.Count
+	}
+
+	a.logger.Info(fmt.Sprintf("Shutdown cleanup: deleted %d file(s)", totalDeleted))
+}
+
 // PriceCalculationResult holds the result of a price calculation
 type PriceCalculationResult struct {
 	ValidItems []uint64

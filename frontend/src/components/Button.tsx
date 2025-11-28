@@ -8,6 +8,8 @@ interface ButtonProps {
   className?: string;
   style?: any;
   title?: string;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
   children: any;
 }
 
@@ -19,6 +21,8 @@ export const Button = ({
   className = "",
   style,
   title,
+  onMouseEnter,
+  onMouseLeave,
   children,
 }: ButtonProps) => {
   const variantClass = variant === "danger" ? "btn-danger" : variant === "primary" ? "btn-primary" : "";
@@ -26,7 +30,15 @@ export const Button = ({
   const classes = `btn ${variantClass} ${sizeClass} ${className}`.trim();
 
   return (
-    <button className={classes} onClick={onClick} disabled={disabled} style={style} title={title}>
+    <button
+      className={classes}
+      onClick={onClick}
+      disabled={disabled}
+      style={style}
+      title={title}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
       {children}
     </button>
   );

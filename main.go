@@ -11,6 +11,10 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// CleanupOnExit controls whether files are deleted on app shutdown
+// Set via: go build -ldflags "-X main.CleanupOnExit=true"
+var CleanupOnExit string = "false"
+
 func main() {
 	// Create an instance of the app structure
 	app := NewApp()
@@ -25,6 +29,7 @@ func main() {
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		OnStartup:        app.startup,
+		OnShutdown:       app.shutdown,
 		Bind: []interface{}{
 			app,
 		},
