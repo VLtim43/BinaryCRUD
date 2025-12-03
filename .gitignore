@@ -13,3 +13,4 @@ logs/
 /build
 .claude
 /claude
+*.pem

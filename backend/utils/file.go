@@ -45,14 +45,16 @@ func RemoveCompressedFile(filename string, log LogFunc) error {
 
 // CreateFile creates a new file and returns it open for reading and writing.
 // Also creates parent directories if they don't exist.
+// Uses restrictive permissions (0600) for data files.
 func CreateFile(filePath string) (*os.File, error) {
-	// Ensure parent directory exists
+	// Ensure parent directory exists with restrictive permissions
 	dir := filepath.Dir(filePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
-	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0644)
+	// Use 0600 permissions (read/write by owner only)
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
 	if err != nil {
 		if os.IsExist(err) {
 			return nil, fmt.Errorf("file already exists: %s", filePath)

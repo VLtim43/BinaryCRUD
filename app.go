@@ -98,7 +98,12 @@ func (a *App) calculateTotalPrice(itemIDs []uint64, strict bool, entityName stri
 			result.Errors = append(result.Errors, err)
 			continue
 		}
-		result.TotalPrice += priceInCents
+		// Use safe addition to prevent overflow
+		newTotal, err := utils.SafeAddUint64(result.TotalPrice, priceInCents)
+		if err != nil {
+			return nil, fmt.Errorf("price overflow calculating total for %s: %w", entityName, err)
+		}
+		result.TotalPrice = newTotal
 		result.ValidItems = append(result.ValidItems, itemID)
 	}
 
@@ -107,6 +112,16 @@ func (a *App) calculateTotalPrice(itemIDs []uint64, strict bool, entityName stri
 
 // AddItem writes an item to the binary file with a price in cents and returns the assigned ID
 func (a *App) AddItem(text string, priceInCents uint64) (uint64, error) {
+	// Validate item name
+	if err := utils.ValidateName(text); err != nil {
+		return 0, fmt.Errorf("invalid item name: %w", err)
+	}
+
+	// Validate price
+	if err := utils.ValidatePrice(priceInCents); err != nil {
+		return 0, fmt.Errorf("invalid price: %w", err)
+	}
+
 	assignedID, err := a.itemDAO.Write(text, priceInCents)
 	if err != nil {
 		return 0, err
@@ -564,11 +579,11 @@ func (a *App) GetAllPromotions() ([]map[string]any, error) {
 
 // validateCollectionInput validates name and itemIDs for order/promotion creation
 func (a *App) validateCollectionInput(name string, itemIDs []uint64, entityType string) error {
-	if name == "" {
-		return fmt.Errorf("%s name cannot be empty", entityType)
+	if err := utils.ValidateName(name); err != nil {
+		return fmt.Errorf("%s name: %w", entityType, err)
 	}
-	if len(itemIDs) == 0 {
-		return fmt.Errorf("%s must contain at least one item", entityType)
+	if err := utils.ValidateItemIDs(itemIDs); err != nil {
+		return fmt.Errorf("%s: %w", entityType, err)
 	}
 	return nil
 }
@@ -789,11 +804,15 @@ func (a *App) GetOrderWithPromotions(orderID uint64) (map[string]any, error) {
 		return nil, err
 	}
 
-	// Calculate combined total price (items + promotions)
+	// Calculate combined total price (items + promotions) with overflow checking
 	combinedTotal := order.TotalPrice
 	for _, promo := range promotions {
 		if totalPrice, ok := promo["totalPrice"].(uint64); ok {
-			combinedTotal += totalPrice
+			newTotal, err := utils.SafeAddUint64(combinedTotal, totalPrice)
+			if err != nil {
+				return nil, fmt.Errorf("price overflow calculating combined total: %w", err)
+			}
+			combinedTotal = newTotal
 		}
 	}
 
@@ -915,11 +934,11 @@ func (a *App) CompressAllFiles(algorithm string) (map[string]any, error) {
 
 	outputPath := utils.CompressedPath(outputFilename)
 
-	if err := os.MkdirAll(utils.CompressedDir, 0755); err != nil {
+	if err := os.MkdirAll(utils.CompressedDir, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create output directory: %w", err)
 	}
 
-	if err := os.WriteFile(outputPath, compressedData, 0644); err != nil {
+	if err := os.WriteFile(outputPath, compressedData, 0600); err != nil {
 		return nil, fmt.Errorf("failed to write compressed file: %w", err)
 	}
 
@@ -1021,6 +1040,11 @@ func (a *App) decompressAllFiles(inputPath string, filename string) (map[string]
 		return nil, fmt.Errorf("decompression failed: %w", err)
 	}
 
+	// Validate decompressed size to prevent decompression bomb attacks
+	if err := utils.ValidateDecompressedSize(len(data)); err != nil {
+		return nil, fmt.Errorf("decompression security check failed: %w", err)
+	}
+
 	// Parse the combined format
 	// Format: [fileCount(4)][file1NameLen(2)][file1Name][file1Size(4)][file1Data]...
 	if len(data) < 4 {
@@ -1031,7 +1055,12 @@ func (a *App) decompressAllFiles(inputPath string, filename string) (map[string]
 	fileCount := binary.BigEndian.Uint32(data[offset : offset+4])
 	offset += 4
 
-	if err := os.MkdirAll(utils.BinDir, 0755); err != nil {
+	// Validate file count to prevent resource exhaustion
+	if err := utils.ValidateArchiveFileCount(fileCount); err != nil {
+		return nil, fmt.Errorf("invalid archive: %w", err)
+	}
+
+	if err := os.MkdirAll(utils.BinDir, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create bin directory: %w", err)
 	}
 
@@ -1045,6 +1074,11 @@ func (a *App) decompressAllFiles(inputPath string, filename string) (map[string]
 		nameLen := binary.BigEndian.Uint16(data[offset : offset+2])
 		offset += 2
 
+		// Validate filename length
+		if nameLen == 0 || nameLen > uint16(utils.MaxNameLength) {
+			return nil, fmt.Errorf("invalid archive format: invalid filename length %d at file %d", nameLen, i)
+		}
+
 		if offset+int(nameLen) > len(data) {
 			return nil, fmt.Errorf("invalid archive format: truncated at file %d name", i)
 		}
@@ -1057,13 +1091,18 @@ func (a *App) decompressAllFiles(inputPath string, filename string) (map[string]
 		fileSize := binary.BigEndian.Uint32(data[offset : offset+4])
 		offset += 4
 
+		// Validate individual file size
+		if fileSize > uint32(utils.MaxRecordSize) {
+			return nil, fmt.Errorf("invalid archive format: file %d size %d exceeds maximum", i, fileSize)
+		}
+
 		if offset+int(fileSize) > len(data) {
 			return nil, fmt.Errorf("invalid archive format: truncated at file %d data", i)
 		}
 		fileData := data[offset : offset+int(fileSize)]
 		offset += int(fileSize)
 
-		if err := os.WriteFile(utils.BinPath(restoredFilename), fileData, 0644); err != nil {
+		if err := os.WriteFile(utils.BinPath(restoredFilename), fileData, 0600); err != nil {
 			return nil, fmt.Errorf("failed to write %s: %w", restoredFilename, err)
 		}
 

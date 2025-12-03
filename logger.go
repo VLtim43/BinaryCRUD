@@ -113,11 +113,11 @@ type Logger struct {
 
 // NewLogger creates a new logger with in-memory and file handlers
 func NewLogger(maxSize int) *Logger {
-	// Create logs directory if it doesn't exist
-	os.MkdirAll("logs", 0755)
+	// Create logs directory with restrictive permissions
+	os.MkdirAll("logs", 0700)
 
-	// Create file handler for persistent logs
-	logFile, err := os.OpenFile("logs/app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	// Create file handler for persistent logs with restrictive permissions
+	logFile, err := os.OpenFile("logs/app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		// Fallback to stderr if file creation fails
 		logFile = os.Stderr

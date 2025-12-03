@@ -10,7 +10,16 @@ import (
 // The offset should point to the start of the record (at the length prefix)
 // Returns the entry data (without length prefix) or nil if read fails
 func ReadEntryAtOffset(file *os.File, offset int64) ([]byte, error) {
-	_, err := file.Seek(offset, 0)
+	// Validate offset is within file bounds
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get file info: %w", err)
+	}
+	if err := ValidateOffset(offset, fileInfo.Size()); err != nil {
+		return nil, err
+	}
+
+	_, err = file.Seek(offset, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to seek to offset: %w", err)
 	}
@@ -25,6 +34,11 @@ func ReadEntryAtOffset(file *os.File, offset int64) ([]byte, error) {
 	recordLength, _, err := ReadFixedNumber(RecordLengthSize, lengthBytes, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse record length: %w", err)
+	}
+
+	// Validate record length
+	if err := ValidateRecordLength(recordLength); err != nil {
+		return nil, err
 	}
 
 	// Read the record data
@@ -77,6 +91,11 @@ func FindByIDSequential(file *os.File, targetID uint64) ([]byte, error) {
 		recordLength, lengthEnd, err := ReadFixedNumber(RecordLengthSize, fileData, offset)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read record length: %w", err)
+		}
+
+		// Validate record length
+		if err := ValidateRecordLength(recordLength); err != nil {
+			return nil, fmt.Errorf("invalid record at offset %d: %w", offset, err)
 		}
 
 		// Check if we have enough bytes for the complete record

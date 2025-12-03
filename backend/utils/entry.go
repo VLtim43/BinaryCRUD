@@ -51,6 +51,11 @@ func SplitFileIntoEntries(filePath string) ([]EntryInfo, error) {
 			return nil, fmt.Errorf("failed to read record length at offset %d: %w", offset, err)
 		}
 
+		// Validate record length
+		if err := ValidateRecordLength(recordLength); err != nil {
+			return nil, fmt.Errorf("invalid record at offset %d: %w", offset, err)
+		}
+
 		// Check if we have enough bytes for the complete record
 		if newOffset+int(recordLength) > len(fileData) {
 			return nil, fmt.Errorf("incomplete record at offset %d: expected %d bytes, only %d available",
