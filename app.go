@@ -819,12 +819,12 @@ func (a *App) GetOrderWithPromotions(orderID uint64) (map[string]any, error) {
 	a.logger.Info(fmt.Sprintf("Retrieved order #%d with %d promotions", orderID, len(promotions)))
 
 	return map[string]any{
-		"id":         order.ID,
-		"customer":   order.OwnerOrName,
-		"totalPrice": combinedTotal,
-		"promotions": promotions,
-		"itemCount":  order.ItemCount,
-		"itemIDs":    order.ItemIDs,
+		"id":           order.ID,
+		"customerName": order.OwnerOrName,
+		"totalPrice":   combinedTotal,
+		"promotions":   promotions,
+		"itemCount":    order.ItemCount,
+		"itemIDs":      order.ItemIDs,
 	}, nil
 }
 

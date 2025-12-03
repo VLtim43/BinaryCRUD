@@ -14,3 +14,7 @@ logs/
 .claude
 /claude
 *.pem
+**/playwright-report/
+**/test-results/
+*.md5
+package-lock.json
