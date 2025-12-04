@@ -185,47 +185,12 @@ BinaryCRUD/
 
 ### Relationships
 
-```
-                    ┌──────────────────┐
-                    │ OrderPromotions  │
-                    ├──────────────────┤
-              ┌────>│ orderID (FK)     │<────┐
-              │     │ promotionID (FK) │     │
-              │     │ tombstone        │     │
-              │     └──────────────────┘     │
-              │            N:N               │
-              │                              │
-┌─────────────┴───┐                  ┌───────┴───────┐
-│     Orders      │                  │  Promotions   │
-├─────────────────┤                  ├───────────────┤
-│ id (PK)         │                  │ id (PK)       │
-│ owner           │                  │ name          │
-│ totalPrice      │                  │ totalPrice    │
-│ itemIDs[] (FK)  │                  │ itemIDs[] (FK)│
-└────────┬────────┘                  └───────┬───────┘
-         │                                   │
-         │ M:N                         M:N   │
-         │    (embedded as ID array)         │
-         │                                   │
-         └─────────────┬─────────────────────┘
-                       │
-                       ▼
-               ┌─────────────┐
-               │    Items    │
-               ├─────────────┤
-               │ id (PK)     │
-               │ name        │
-               │ price       │
-               └─────────────┘
+| Relationship        | Type | How                                   |
+| ------------------- | ---- | ------------------------------------- |
+| Orders ↔ Items      | M:N  | `itemIDs[]` embedded in Orders        |
+| Promotions ↔ Items  | M:N  | `itemIDs[]` embedded in Promotions    |
+| Orders ↔ Promotions | N:N  | `order_promotions.bin` junction table |
 
-Legend:
-  PK = Primary Key
-  FK = Foreign Key
-  N:N = Many-to-Many (via junction table)
-  M:N = Many-to-Many (embedded array)
-```
-
-**Relationship Summary:**
-- **Orders ↔ Promotions**: N:N via `order_promotions.bin` (one order can have multiple promotions, one promotion can apply to multiple orders)
-- **Orders ↔ Items**: M:N embedded (order contains `itemIDs[]`, same item can be in multiple orders)
-- **Promotions ↔ Items**: M:N embedded (promotion bundles items via `itemIDs[]`, same item can be in multiple promotions)
+**Many-to-Many Details:**
+- **Items ↔ Orders/Promotions**: A single item can appear in multiple orders and multiple promotions. Likewise, each order or promotion can contain multiple items.
+- **Orders ↔ Promotions**: An order can include multiple promotions, and a promotion can be applied to multiple orders.
