@@ -221,9 +221,18 @@ func (dao *ItemDAO) GetAll() ([]Item, error) {
 	return items, nil
 }
 
-// SearchByName finds items whose name contains the given pattern using KMP algorithm.
+// SearchAlgorithm represents the pattern matching algorithm to use
+type SearchAlgorithm string
+
+const (
+	AlgorithmKMP        SearchAlgorithm = "kmp"
+	AlgorithmBoyerMoore SearchAlgorithm = "bm"
+)
+
+// SearchByName finds items whose name contains the given pattern.
 // Returns only non-deleted items. Case-insensitive search.
-func (dao *ItemDAO) SearchByName(pattern string) ([]Item, error) {
+// algorithm: "kmp" for Knuth-Morris-Pratt, "bm" for Boyer-Moore
+func (dao *ItemDAO) SearchByName(pattern string, algorithm SearchAlgorithm) ([]Item, error) {
 	items, err := dao.GetAll()
 	if err != nil {
 		return nil, err
@@ -235,7 +244,20 @@ func (dao *ItemDAO) SearchByName(pattern string) ([]Item, error) {
 
 	// Case-insensitive: lowercase the pattern
 	lowerPattern := strings.ToLower(pattern)
-	kmp := search.NewKMPString(lowerPattern)
+
+	// Create matcher based on algorithm choice
+	var matcher interface {
+		ContainsString(text string) bool
+	}
+
+	switch algorithm {
+	case AlgorithmBoyerMoore:
+		matcher = search.NewBoyerMooreString(lowerPattern)
+	case AlgorithmKMP:
+		fallthrough
+	default:
+		matcher = search.NewKMPString(lowerPattern)
+	}
 
 	var results []Item
 	for _, item := range items {
@@ -243,7 +265,7 @@ func (dao *ItemDAO) SearchByName(pattern string) ([]Item, error) {
 			continue
 		}
 		// Case-insensitive: lowercase the name before matching
-		if kmp.ContainsString(strings.ToLower(item.Name)) {
+		if matcher.ContainsString(strings.ToLower(item.Name)) {
 			results = append(results, item)
 		}
 	}

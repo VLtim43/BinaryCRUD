@@ -2,6 +2,7 @@ import { h } from "preact";
 import { useState } from "preact/hooks";
 import { Button } from "../Button";
 import { Input } from "../Input";
+import { Select } from "../Select";
 import { SubTabs } from "../SubTabs";
 import { DeleteForm } from "../DeleteForm";
 import { itemService, Item } from "../../services/itemService";
@@ -29,6 +30,7 @@ export const ItemTab = ({ onRefreshLogs }: ItemTabProps) => {
   const [foundItem, setFoundItem] = useState<Item | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Item[]>([]);
+  const [searchAlgorithm, setSearchAlgorithm] = useState<"kmp" | "bm">("kmp");
 
   const handleCreate = async () => {
     if (!itemName || itemName.trim().length === 0) {
@@ -102,11 +104,14 @@ export const ItemTab = ({ onRefreshLogs }: ItemTabProps) => {
     }
 
     try {
-      const items = await itemService.searchByName(searchQuery);
+      const items = await itemService.searchByName(searchQuery, searchAlgorithm);
       setSearchResults(items);
       onRefreshLogs();
+      const algoName = searchAlgorithm === "kmp" ? "KMP" : "Boyer-Moore";
       if (items.length === 0) {
-        toast.warning("No items found");
+        toast.warning(`No items found (${algoName})`);
+      } else {
+        toast.success(`Found ${items.length} item(s) using ${algoName}`);
       }
     } catch (err) {
       setSearchResults([]);
@@ -191,6 +196,18 @@ export const ItemTab = ({ onRefreshLogs }: ItemTabProps) => {
       {subTab === "search" && (
         <>
           <div className="input-box">
+            <Select
+              value={searchAlgorithm}
+              onChange={(e: Event) => {
+                const target = e.target as HTMLSelectElement;
+                setSearchAlgorithm(target.value as "kmp" | "bm");
+              }}
+              options={[
+                { value: "kmp", label: "KMP (Knuth-Morris-Pratt)" },
+                { value: "bm", label: "Boyer-Moore" },
+              ]}
+              placeholder="Select Algorithm"
+            />
             <Input
               id="search-query"
               placeholder="Search by name..."

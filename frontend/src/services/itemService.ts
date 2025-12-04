@@ -30,8 +30,8 @@ export const itemService = {
     return result as Item[];
   },
 
-  searchByName: async (pattern: string): Promise<Item[]> => {
-    const result = await SearchItems(pattern);
+  searchByName: async (pattern: string, algorithm: "kmp" | "bm" = "kmp"): Promise<Item[]> => {
+    const result = await SearchItems(pattern, algorithm);
     return result as Item[];
   },
 };

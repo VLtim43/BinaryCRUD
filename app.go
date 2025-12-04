@@ -531,8 +531,9 @@ func (a *App) GetAllItems() ([]map[string]any, error) {
 	return result, nil
 }
 
-// SearchItems searches for items by name using KMP pattern matching
-func (a *App) SearchItems(pattern string) ([]map[string]any, error) {
+// SearchItems searches for items by name using pattern matching algorithm
+// algorithm: "kmp" for Knuth-Morris-Pratt, "bm" for Boyer-Moore
+func (a *App) SearchItems(pattern string, algorithm string) ([]map[string]any, error) {
 	// First check if there are any items at all
 	allItems, err := a.itemDAO.GetAll()
 	if err != nil {
@@ -542,7 +543,18 @@ func (a *App) SearchItems(pattern string) ([]map[string]any, error) {
 		return nil, fmt.Errorf("no items in database - populate inventory first")
 	}
 
-	items, err := a.itemDAO.SearchByName(pattern)
+	// Convert string to SearchAlgorithm type
+	var searchAlgo dao.SearchAlgorithm
+	switch algorithm {
+	case "bm":
+		searchAlgo = dao.AlgorithmBoyerMoore
+	case "kmp":
+		fallthrough
+	default:
+		searchAlgo = dao.AlgorithmKMP
+	}
+
+	items, err := a.itemDAO.SearchByName(pattern, searchAlgo)
 	if err != nil {
 		return nil, err
 	}
@@ -556,7 +568,11 @@ func (a *App) SearchItems(pattern string) ([]map[string]any, error) {
 		}
 	}
 
-	a.logger.Info(fmt.Sprintf("Search '%s' found %d items", pattern, len(items)))
+	algoName := "KMP"
+	if algorithm == "bm" {
+		algoName = "Boyer-Moore"
+	}
+	a.logger.Info(fmt.Sprintf("Search '%s' using %s found %d items", pattern, algoName, len(items)))
 	return result, nil
 }
 
