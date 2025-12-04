@@ -186,33 +186,46 @@ BinaryCRUD/
 ### Relationships
 
 ```
-┌─────────────┐       ┌──────────────────┐       ┌─────────────┐
-│   Orders    │       │ OrderPromotions  │       │ Promotions  │
-├─────────────┤       ├──────────────────┤       ├─────────────┤
-│ id (PK)     │──────<│ orderID (FK)     │>──────│ id (PK)     │
-│ owner       │   N:N │ promotionID (FK) │   N:N │ name        │
-│ totalPrice  │       │ tombstone        │       │ totalPrice  │
-│ itemIDs[]   │       └──────────────────┘       │ itemIDs[]   │
-└─────────────┘                                  └─────────────┘
-       │                                                │
-       │ contains                            contains   │
-       ▼                                                ▼
-┌─────────────┐                              ┌─────────────┐
-│   Items     │                              │   Items     │
-├─────────────┤                              ├─────────────┤
-│ id (PK)     │◄─────────────────────────────│ id (PK)     │
-│ name        │      (referenced by ID)      │ name        │
-│ price       │                              │ price       │
-└─────────────┘                              └─────────────┘
+                    ┌──────────────────┐
+                    │ OrderPromotions  │
+                    ├──────────────────┤
+              ┌────>│ orderID (FK)     │<────┐
+              │     │ promotionID (FK) │     │
+              │     │ tombstone        │     │
+              │     └──────────────────┘     │
+              │            N:N               │
+              │                              │
+┌─────────────┴───┐                  ┌───────┴───────┐
+│     Orders      │                  │  Promotions   │
+├─────────────────┤                  ├───────────────┤
+│ id (PK)         │                  │ id (PK)       │
+│ owner           │                  │ name          │
+│ totalPrice      │                  │ totalPrice    │
+│ itemIDs[] (FK)  │                  │ itemIDs[] (FK)│
+└────────┬────────┘                  └───────┬───────┘
+         │                                   │
+         │ M:N                         M:N   │
+         │    (embedded as ID array)         │
+         │                                   │
+         └─────────────┬─────────────────────┘
+                       │
+                       ▼
+               ┌─────────────┐
+               │    Items    │
+               ├─────────────┤
+               │ id (PK)     │
+               │ name        │
+               │ price       │
+               └─────────────┘
 
 Legend:
   PK = Primary Key
   FK = Foreign Key
-  N:N = Many-to-Many relationship
-  ──< = One-to-Many
+  N:N = Many-to-Many (via junction table)
+  M:N = Many-to-Many (embedded array)
 ```
 
 **Relationship Summary:**
-- **Orders ↔ Promotions**: N:N via `order_promotions.bin` (an order can have multiple promotions, a promotion can apply to multiple orders)
-- **Orders → Items**: 1:N embedded (order contains array of item IDs)
-- **Promotions → Items**: 1:N embedded (promotion bundles multiple items)
+- **Orders ↔ Promotions**: N:N via `order_promotions.bin` (one order can have multiple promotions, one promotion can apply to multiple orders)
+- **Orders ↔ Items**: M:N embedded (order contains `itemIDs[]`, same item can be in multiple orders)
+- **Promotions ↔ Items**: M:N embedded (promotion bundles items via `itemIDs[]`, same item can be in multiple promotions)
