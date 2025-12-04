@@ -17,6 +17,13 @@ A restaurant manager application built with Wails (Go + Preact) featuring custom
   - `promotions.bin` → `promotions.idx`
 - **N:N relationship** between Orders and Promotions via `order_promotions.bin`
 - **Logical deletion** using tombstone markers (no physical deletion)
+- **Compression algorithms:**
+  - Huffman coding
+  - LZW compression
+- **RSA encryption** (2048-bit RSA-OAEP with SHA-256) for sensitive fields
+- **Pattern matching search:**
+  - KMP (Knuth-Morris-Pratt)
+  - Boyer-Moore (Bad Character heuristic)
 - **Wails desktop app** with Go backend and Preact frontend
 
 ### Prerequisites
