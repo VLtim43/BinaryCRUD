@@ -531,6 +531,35 @@ func (a *App) GetAllItems() ([]map[string]any, error) {
 	return result, nil
 }
 
+// SearchItems searches for items by name using KMP pattern matching
+func (a *App) SearchItems(pattern string) ([]map[string]any, error) {
+	// First check if there are any items at all
+	allItems, err := a.itemDAO.GetAll()
+	if err != nil {
+		return nil, err
+	}
+	if len(allItems) == 0 {
+		return nil, fmt.Errorf("no items in database - populate inventory first")
+	}
+
+	items, err := a.itemDAO.SearchByName(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]map[string]any, len(items))
+	for i, item := range items {
+		result[i] = map[string]any{
+			"id":           item.ID,
+			"name":         item.Name,
+			"priceInCents": item.PriceInCents,
+		}
+	}
+
+	a.logger.Info(fmt.Sprintf("Search '%s' found %d items", pattern, len(items)))
+	return result, nil
+}
+
 // GetAllOrders retrieves all orders, including deleted ones
 func (a *App) GetAllOrders() ([]map[string]any, error) {
 	orders, err := a.orderDAO.GetAll()

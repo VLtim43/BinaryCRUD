@@ -1,4 +1,4 @@
-import { AddItem, GetItem, DeleteItem, GetAllItems } from "../../wailsjs/go/main/App";
+import { AddItem, GetItem, DeleteItem, GetAllItems, SearchItems } from "../../wailsjs/go/main/App";
 
 export interface Item {
   id: number;
@@ -27,6 +27,11 @@ export const itemService = {
 
   getAll: async (): Promise<Item[]> => {
     const result = await GetAllItems();
+    return result as Item[];
+  },
+
+  searchByName: async (pattern: string): Promise<Item[]> => {
+    const result = await SearchItems(pattern);
     return result as Item[];
   },
 };

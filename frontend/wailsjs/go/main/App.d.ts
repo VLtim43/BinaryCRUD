@@ -66,4 +66,6 @@ export function PopulateInventory():Promise<void>;
 
 export function RemovePromotionFromOrder(arg1:number,arg2:number):Promise<void>;
 
+export function SearchItems(arg1:string):Promise<Array<Record<string, any>>>;
+
 export function SetEncryptionEnabled(arg1:boolean):Promise<void>;

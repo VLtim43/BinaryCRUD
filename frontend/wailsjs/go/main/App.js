@@ -130,6 +130,10 @@ export function RemovePromotionFromOrder(arg1, arg2) {
   return window['go']['main']['App']['RemovePromotionFromOrder'](arg1, arg2);
 }
 
+export function SearchItems(arg1) {
+  return window['go']['main']['App']['SearchItems'](arg1);
+}
+
 export function SetEncryptionEnabled(arg1) {
   return window['go']['main']['App']['SetEncryptionEnabled'](arg1);
 }

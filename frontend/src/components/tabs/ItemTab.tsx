@@ -21,12 +21,14 @@ interface ItemTabProps {
 }
 
 export const ItemTab = ({ onRefreshLogs }: ItemTabProps) => {
-  const [subTab, setSubTab] = useState<"create" | "read" | "delete">("create");
+  const [subTab, setSubTab] = useState<"create" | "read" | "delete" | "search">("create");
   const [itemName, setItemName] = useState("");
   const [itemPrice, setItemPrice] = useState("");
   const [recordId, setRecordId] = useState("");
   const [deleteId, setDeleteId] = useState("");
   const [foundItem, setFoundItem] = useState<Item | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Item[]>([]);
 
   const handleCreate = async () => {
     if (!itemName || itemName.trim().length === 0) {
@@ -92,10 +94,30 @@ export const ItemTab = ({ onRefreshLogs }: ItemTabProps) => {
     }
   };
 
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      toast.warning("Please enter a search term");
+      setSearchResults([]);
+      return;
+    }
+
+    try {
+      const items = await itemService.searchByName(searchQuery);
+      setSearchResults(items);
+      onRefreshLogs();
+      if (items.length === 0) {
+        toast.warning("No items found");
+      }
+    } catch (err) {
+      setSearchResults([]);
+      toast.error(formatError(err));
+    }
+  };
+
   return (
     <>
       <SubTabs
-        tabs={[...CRUD_TABS]}
+        tabs={[...CRUD_TABS, { id: "search", label: "Search" }]}
         activeTab={subTab}
         onTabChange={(tab) => setSubTab(tab as typeof subTab)}
       />
@@ -164,6 +186,39 @@ export const ItemTab = ({ onRefreshLogs }: ItemTabProps) => {
           onDelete={handleDelete}
           entityName="Record"
         />
+      )}
+
+      {subTab === "search" && (
+        <>
+          <div className="input-box">
+            <Input
+              id="search-query"
+              placeholder="Search by name..."
+              value={searchQuery}
+              onChange={(e: Event) => {
+                const target = e.target as HTMLInputElement;
+                setSearchQuery(target.value);
+              }}
+            />
+            <Button onClick={handleSearch}>Search</Button>
+          </div>
+
+          {searchResults.length > 0 && (
+            <div className="details-card">
+              <h3>Search Results ({searchResults.length})</h3>
+              <div className="details-content">
+                {searchResults.map((item) => (
+                  <div key={item.id} className="details-row">
+                    <span className="details-label">#{item.id}</span>
+                    <span className="details-value">
+                      {item.name} - ${formatPrice(item.priceInCents)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </>
   );

@@ -2,9 +2,11 @@ package dao
 
 import (
 	"BinaryCRUD/backend/index"
+	"BinaryCRUD/backend/search"
 	"BinaryCRUD/backend/utils"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 )
 
@@ -217,4 +219,34 @@ func (dao *ItemDAO) GetAll() ([]Item, error) {
 	}
 
 	return items, nil
+}
+
+// SearchByName finds items whose name contains the given pattern using KMP algorithm.
+// Returns only non-deleted items. Case-insensitive search.
+func (dao *ItemDAO) SearchByName(pattern string) ([]Item, error) {
+	items, err := dao.GetAll()
+	if err != nil {
+		return nil, err
+	}
+
+	if pattern == "" {
+		return []Item{}, nil
+	}
+
+	// Case-insensitive: lowercase the pattern
+	lowerPattern := strings.ToLower(pattern)
+	kmp := search.NewKMPString(lowerPattern)
+
+	var results []Item
+	for _, item := range items {
+		if item.IsDeleted {
+			continue
+		}
+		// Case-insensitive: lowercase the name before matching
+		if kmp.ContainsString(strings.ToLower(item.Name)) {
+			results = append(results, item)
+		}
+	}
+
+	return results, nil
 }
