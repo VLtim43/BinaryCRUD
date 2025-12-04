@@ -20,13 +20,19 @@ interface SeedPromotion {
   itemIDs: number[];
 }
 
-// Seed data loader - tests run from frontend/, seed is at ../data/seed/
+// Seed data loader with caching - tests run from frontend/, seed is at ../data/seed/
 const SEED_DIR = path.resolve(process.cwd(), '../data/seed');
 
+// Cache seed data to avoid repeated disk reads
+const seedCache: Record<string, unknown[]> = {};
+
 function loadSeedFile<T>(filename: string): T[] {
-  const filePath = path.join(SEED_DIR, filename);
-  const content = fs.readFileSync(filePath, 'utf-8');
-  return JSON.parse(content);
+  if (!seedCache[filename]) {
+    const filePath = path.join(SEED_DIR, filename);
+    const content = fs.readFileSync(filePath, 'utf-8');
+    seedCache[filename] = JSON.parse(content);
+  }
+  return seedCache[filename] as T[];
 }
 
 export function getSeedItems(): SeedItem[] {
@@ -57,25 +63,6 @@ export function getSeededPromotion(index: number): { id: number; name: string } 
   return { id: index, name: promotions[index].name };
 }
 
-// Random selection helpers
-export function getRandomSeededItem(): { id: number; name: string; priceInCents: number } {
-  const items = getSeedItems();
-  const index = Math.floor(Math.random() * items.length);
-  return { id: index, ...items[index] };
-}
-
-export function getRandomSeededOrder(): { id: number; customer: string } {
-  const orders = getSeedOrders();
-  const index = Math.floor(Math.random() * orders.length);
-  return { id: index, customer: orders[index].owner };
-}
-
-export function getRandomSeededPromotion(): { id: number; name: string } {
-  const promotions = getSeedPromotions();
-  const index = Math.floor(Math.random() * promotions.length);
-  return { id: index, name: promotions[index].name };
-}
-
 // Tab navigation helpers
 export async function goToTab(page: Page, tabName: 'Item' | 'Order' | 'Promotion' | 'Debug') {
   await page.click(`button.tab:has-text("${tabName}")`);
@@ -89,10 +76,7 @@ export async function goToSubTab(page: Page, subTabName: 'Create' | 'Read' | 'De
 async function fillInput(page: Page, selector: string, value: string) {
   const input = page.locator(selector);
   await input.click();
-  await input.fill('');
-  await input.type(value);
-  // Wait for React state to update
-  await page.waitForTimeout(100);
+  await input.fill(value);
 }
 
 // Item CRUD helpers
@@ -133,7 +117,28 @@ export async function createItem(page: Page, name: string, price: string) {
   await fillInput(page, '#name', name);
   await fillInput(page, '#price', price);
   await page.click('button:has-text("Add Item")');
+  // Toast: "Item saved: {name} (${price})"
   await expect(page.locator(`.toast:has-text("Item saved")`)).toBeVisible({ timeout: 5000 });
+}
+
+// Order creation is more complex - requires adding items to cart first
+// This is a simplified version that assumes items are already in cart
+export async function createOrder(page: Page, customerName: string) {
+  await goToTab(page, 'Order');
+  await goToSubTab(page, 'Create');
+  await fillInput(page, '#customer-name', customerName);
+  await page.click('button:has-text("Create Order")');
+  // Toast: "Order #{id} created for {customerName}"
+  await expect(page.locator(`.toast:has-text("Order #")`)).toBeVisible({ timeout: 5000 });
+}
+
+export async function createPromotion(page: Page, promotionName: string) {
+  await goToTab(page, 'Promotion');
+  await goToSubTab(page, 'Create');
+  await fillInput(page, '#promotion-name', promotionName);
+  await page.click('button:has-text("Create Promotion")');
+  // Toast: "Promotion #{id} created: {promotionName}"
+  await expect(page.locator(`.toast:has-text("Promotion #")`)).toBeVisible({ timeout: 5000 });
 }
 
 // Order CRUD helpers
@@ -222,4 +227,93 @@ export async function testDeleteThenReadFails(
 
   await deleteFunc(page, id);
   await verifyNotFoundFunc(page, id);
+}
+
+// Debug subtab navigation (Debug has different subtabs: Tools, Print, Compress)
+export async function goToDebugSubTab(page: Page, subTabName: 'Tools' | 'Print' | 'Compress') {
+  await goToTab(page, 'Debug');
+  await page.click(`.sub_tabs button:has-text("${subTabName}")`);
+}
+
+// Compression helpers
+export async function goToCompressTab(page: Page) {
+  await goToDebugSubTab(page, 'Compress');
+  await page.waitForTimeout(500);
+}
+
+export async function selectFileToCompress(page: Page, filename: string | '__all__') {
+  await goToCompressTab(page);
+  // First select dropdown is for file selection
+  const fileSelect = page.locator('select').first();
+  await fileSelect.selectOption(filename);
+}
+
+export async function selectCompressionAlgorithm(page: Page, algorithm: 'huffman' | 'lzw') {
+  // Second select dropdown is for algorithm
+  const algorithmSelect = page.locator('select').nth(1);
+  await algorithmSelect.selectOption(algorithm);
+}
+
+export async function compressFile(page: Page, filename: string | '__all__', algorithm: 'huffman' | 'lzw') {
+  await selectFileToCompress(page, filename);
+  await selectCompressionAlgorithm(page, algorithm);
+  // Wait for button to be enabled - use CSS :not() to exclude tab buttons
+  const compressBtn = page.locator('button:has-text("Compress"):not(.tab)');
+  await expect(compressBtn).toBeEnabled({ timeout: 5000 });
+  await compressBtn.click();
+  // Wait for compression to complete - toast says "Compressed: X saved" or "Compressed all files: X saved"
+  await expect(page.locator('.toast:has-text("Compressed")')).toBeVisible({ timeout: 10000 });
+}
+
+export async function getCompressedFilesCount(page: Page): Promise<number> {
+  await goToCompressTab(page);
+  // Check if "Compressed Files" section exists
+  const header = page.locator('h3:has-text("Compressed Files")');
+  if (await header.isVisible()) {
+    const text = await header.textContent();
+    const match = text?.match(/\((\d+)\)/);
+    return match ? parseInt(match[1], 10) : 0;
+  }
+  return 0;
+}
+
+export async function decompressFile(page: Page, filename: string) {
+  await goToCompressTab(page);
+  // Find the row with this filename and click Decompress
+  const row = page.locator(`tr:has-text("${filename}")`);
+  // First verify the row exists with a reasonable timeout
+  await expect(row).toBeVisible({ timeout: 5000 });
+  await row.locator('button:has-text("Decompress")').click();
+  // Wait for decompression toast
+  await expect(page.locator('.toast:has-text("Decompressed")')).toBeVisible({ timeout: 10000 });
+}
+
+export async function deleteCompressedFile(page: Page, filename: string) {
+  await goToCompressTab(page);
+  // Find the row with this filename and click Delete
+  const row = page.locator(`tr:has-text("${filename}")`);
+  // First verify the row exists with a reasonable timeout
+  await expect(row).toBeVisible({ timeout: 5000 });
+  await row.locator('button:has-text("Delete")').click();
+  // Wait for deletion toast
+  await expect(page.locator(`.toast:has-text("Deleted ${filename}")`)).toBeVisible({ timeout: 5000 });
+}
+
+export async function getBinFilesCount(page: Page): Promise<number> {
+  await goToCompressTab(page);
+  // Count options in the file select dropdown (minus "All Files" option)
+  const fileSelect = page.locator('select').first();
+  const optionCount = await fileSelect.locator('option').count();
+  // Subtract 1 for "All Files" option
+  return Math.max(0, optionCount - 1);
+}
+
+export async function verifyCompressedFileExists(page: Page, filename: string) {
+  await goToCompressTab(page);
+  await expect(page.locator(`tr:has-text("${filename}")`)).toBeVisible();
+}
+
+export async function verifyCompressedFileNotExists(page: Page, filename: string) {
+  await goToCompressTab(page);
+  await expect(page.locator(`tr:has-text("${filename}")`)).not.toBeVisible();
 }
