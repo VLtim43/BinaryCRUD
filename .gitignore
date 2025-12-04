@@ -9,7 +9,7 @@ claude
 *.bin
 *.idx
 *.txt
-logs/
+/logs
 /build
 .claude
 /claude

@@ -78,3 +78,134 @@ The application stores data in the `/data` directory:
 - Fixed header: `[entitiesCount(4)][tombstoneCount(4)][nextId(4)]` (12 bytes)
 - Length-prefixed records: `[recordLength(2)][recordData...]`
 - Tombstone-based logical deletion
+
+## Project Structure
+
+```
+BinaryCRUD/
+├── app.go                 <- Main API: exposes all backend functions to frontend
+├── main.go                <- Application entry point
+├── logger.go              <- Logging system
+├── toast.go               <- Toast notification system
+│
+├── backend/
+│   ├── dao/               <- Data Access Objects (CRUD operations)
+│   │   ├── item_dao.go        <- Items table operations + search
+│   │   ├── order_dao.go       <- Orders table operations
+│   │   ├── promotion_dao.go   <- Promotions table operations
+│   │   ├── order_promotion_dao.go  <- N:N relationship operations
+│   │   └── collection_dao.go  <- Shared logic for orders/promotions
+│   │
+│   ├── index/             <- Indexing structures
+│   │   ├── btree.go           <- B+ Tree implementation (order 4)
+│   │   ├── extensible_hash.go <- Extensible hashing (alternative index)
+│   │   └── persistence.go     <- Index serialization to disk
+│   │
+│   ├── search/            <- Pattern matching algorithms
+│   │   ├── kmp.go             <- KMP (Knuth-Morris-Pratt) algorithm
+│   │   └── boyer_moore.go     <- Boyer-Moore algorithm
+│   │
+│   ├── compression/       <- Compression algorithms
+│   │   ├── huffman.go         <- Huffman coding
+│   │   ├── lzw.go             <- LZW compression
+│   │   └── compressor.go      <- Compression interface
+│   │
+│   ├── crypto/            <- Encryption
+│   │   ├── rsa.go             <- RSA-OAEP encryption (production)
+│   │   └── simple_rsa.go      <- Educational RSA implementation
+│   │
+│   ├── utils/             <- Helper functions (read, write, parse, validate, etc.)
+│   └── test/              <- Unit tests for all backend components
+│
+├── frontend/
+│   └── src/
+│       ├── app.tsx            <- Main React component
+│       ├── components/
+│       │   ├── tabs/          <- Tab components (ItemTab, OrderTab, etc.)
+│       │   └── ...            <- Reusable UI components (Button, Input, etc.)
+│       ├── services/          <- API service calls to backend
+│       └── utils/             <- Frontend helpers (formatters, toast)
+│
+└── data/
+    ├── bin/               <- Binary data files (.bin)
+    ├── indexes/           <- B+ Tree index files (.idx)
+    ├── compressed/        <- Compressed files (.huffman, .lzw)
+    ├── keys/              <- RSA keys (private.pem, public.pem)
+    └── seed/              <- Initial data (items.json, orders.json, etc.)
+```
+
+## Database Schema
+
+### Tables
+
+**Items** (`items.bin`)
+| Field | Size | Description |
+|-------|------|-------------|
+| id | 2 bytes | Auto-increment primary key |
+| tombstone | 1 byte | 0x00 = active, 0x01 = deleted |
+| nameLength | 2 bytes | Length of name string |
+| name | variable | Item name (e.g., "Classic Burger") |
+| price | 4 bytes | Price in cents (e.g., 899 = $8.99) |
+
+**Orders** (`orders.bin`)
+| Field | Size | Description |
+|-------|------|-------------|
+| id | 2 bytes | Auto-increment primary key |
+| tombstone | 1 byte | Deletion marker |
+| ownerLength | 2 bytes | Length of customer name |
+| owner | variable | Customer name (RSA encrypted) |
+| totalPrice | 4 bytes | Total in cents |
+| itemCount | 2 bytes | Number of items |
+| itemIDs | 2 bytes each | Array of item IDs |
+
+**Promotions** (`promotions.bin`)
+| Field | Size | Description |
+|-------|------|-------------|
+| id | 2 bytes | Auto-increment primary key |
+| tombstone | 1 byte | Deletion marker |
+| nameLength | 2 bytes | Length of promotion name |
+| name | variable | Promotion name (RSA encrypted) |
+| totalPrice | 4 bytes | Bundle price in cents |
+| itemCount | 2 bytes | Number of items |
+| itemIDs | 2 bytes each | Array of item IDs |
+
+**OrderPromotions** (`order_promotions.bin`)
+| Field | Size | Description |
+|-------|------|-------------|
+| orderID | 2 bytes | Foreign key to Orders |
+| promotionID | 2 bytes | Foreign key to Promotions |
+| tombstone | 1 byte | Deletion marker |
+
+### Relationships
+
+```
+┌─────────────┐       ┌──────────────────┐       ┌─────────────┐
+│   Orders    │       │ OrderPromotions  │       │ Promotions  │
+├─────────────┤       ├──────────────────┤       ├─────────────┤
+│ id (PK)     │──────<│ orderID (FK)     │>──────│ id (PK)     │
+│ owner       │   N:N │ promotionID (FK) │   N:N │ name        │
+│ totalPrice  │       │ tombstone        │       │ totalPrice  │
+│ itemIDs[]   │       └──────────────────┘       │ itemIDs[]   │
+└─────────────┘                                  └─────────────┘
+       │                                                │
+       │ contains                            contains   │
+       ▼                                                ▼
+┌─────────────┐                              ┌─────────────┐
+│   Items     │                              │   Items     │
+├─────────────┤                              ├─────────────┤
+│ id (PK)     │◄─────────────────────────────│ id (PK)     │
+│ name        │      (referenced by ID)      │ name        │
+│ price       │                              │ price       │
+└─────────────┘                              └─────────────┘
+
+Legend:
+  PK = Primary Key
+  FK = Foreign Key
+  N:N = Many-to-Many relationship
+  ──< = One-to-Many
+```
+
+**Relationship Summary:**
+- **Orders ↔ Promotions**: N:N via `order_promotions.bin` (an order can have multiple promotions, a promotion can apply to multiple orders)
+- **Orders → Items**: 1:N embedded (order contains array of item IDs)
+- **Promotions → Items**: 1:N embedded (promotion bundles multiple items)
