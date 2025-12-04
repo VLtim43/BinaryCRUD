@@ -2,6 +2,7 @@ package test
 
 import (
 	"BinaryCRUD/backend/dao"
+	"BinaryCRUD/backend/utils"
 	"fmt"
 	"os"
 	"testing"
@@ -64,6 +65,16 @@ type TestApp struct {
 
 // AddItem writes an item to the binary file with a price in cents and returns the assigned ID
 func (a *TestApp) AddItem(text string, priceInCents uint64) (uint64, error) {
+	// Validate item name (same as real App)
+	if err := utils.ValidateName(text); err != nil {
+		return 0, fmt.Errorf("invalid item name: %w", err)
+	}
+
+	// Validate price (same as real App)
+	if err := utils.ValidatePrice(priceInCents); err != nil {
+		return 0, fmt.Errorf("invalid price: %w", err)
+	}
+
 	assignedID, err := a.itemDAO.Write(text, priceInCents)
 	if err != nil {
 		return 0, err
@@ -115,13 +126,22 @@ func (a *TestApp) GetAllItems() ([]map[string]any, error) {
 	return result, nil
 }
 
+// validateCollectionInput validates name and itemIDs for order/promotion creation (same as real App)
+func (a *TestApp) validateCollectionInput(name string, itemIDs []uint64, entityType string) error {
+	if err := utils.ValidateName(name); err != nil {
+		return fmt.Errorf("%s name: %w", entityType, err)
+	}
+	if err := utils.ValidateItemIDs(itemIDs); err != nil {
+		return fmt.Errorf("%s: %w", entityType, err)
+	}
+	return nil
+}
+
 // CreateOrder creates a new order with the given customer name and item IDs
 func (a *TestApp) CreateOrder(customerName string, itemIDs []uint64) (uint64, error) {
-	if customerName == "" {
-		return 0, fmt.Errorf("customer name cannot be empty")
-	}
-	if len(itemIDs) == 0 {
-		return 0, fmt.Errorf("order must contain at least one item")
+	// Validate using same logic as real App
+	if err := a.validateCollectionInput(customerName, itemIDs, "customer"); err != nil {
+		return 0, err
 	}
 	totalPrice, err := a.calculateTotalPrice(itemIDs)
 	if err != nil {
@@ -185,11 +205,9 @@ func (a *TestApp) GetAllOrders() ([]map[string]any, error) {
 
 // CreatePromotion creates a new promotion with the given name and item IDs
 func (a *TestApp) CreatePromotion(promotionName string, itemIDs []uint64) (uint64, error) {
-	if promotionName == "" {
-		return 0, fmt.Errorf("promotion name cannot be empty")
-	}
-	if len(itemIDs) == 0 {
-		return 0, fmt.Errorf("promotion must contain at least one item")
+	// Validate using same logic as real App
+	if err := a.validateCollectionInput(promotionName, itemIDs, "promotion"); err != nil {
+		return 0, err
 	}
 	totalPrice, err := a.calculateTotalPrice(itemIDs)
 	if err != nil {
@@ -1196,5 +1214,123 @@ func TestPromotionWithDeletedOrder(t *testing.T) {
 
 	if orders[0]["customerName"] != "Deleted Order" {
 		t.Errorf("Expected 'Deleted Order', got '%v'", orders[0]["customerName"])
+	}
+}
+
+// ==================== Validation Integration Tests ====================
+// These tests verify that TestApp applies the same validations as the real App
+
+func TestAddItemWithEmptyName(t *testing.T) {
+	app, cleanup := createTestApp()
+	defer cleanup()
+
+	_, err := app.AddItem("", 100)
+	if err == nil {
+		t.Error("Expected error for empty item name")
+	}
+}
+
+func TestAddItemWithNameTooLong(t *testing.T) {
+	app, cleanup := createTestApp()
+	defer cleanup()
+
+	// Create a name that exceeds MaxNameLength (255)
+	longName := ""
+	for i := 0; i < 256; i++ {
+		longName += "a"
+	}
+
+	_, err := app.AddItem(longName, 100)
+	if err == nil {
+		t.Error("Expected error for item name exceeding max length")
+	}
+}
+
+func TestAddItemWithPriceTooHigh(t *testing.T) {
+	app, cleanup := createTestApp()
+	defer cleanup()
+
+	// MaxPrice is MaxUint32 (4294967295)
+	_, err := app.AddItem("Valid Item", uint64(1)<<33) // Exceeds MaxUint32
+	if err == nil {
+		t.Error("Expected error for price exceeding max")
+	}
+}
+
+func TestCreateOrderWithEmptyName(t *testing.T) {
+	app, cleanup := createTestApp()
+	defer cleanup()
+
+	_, _ = app.AddItem("Item", 100)
+
+	_, err := app.CreateOrder("", []uint64{0})
+	if err == nil {
+		t.Error("Expected error for empty customer name")
+	}
+}
+
+func TestCreateOrderWithNameTooLong(t *testing.T) {
+	app, cleanup := createTestApp()
+	defer cleanup()
+
+	_, _ = app.AddItem("Item", 100)
+
+	// Create a name that exceeds MaxNameLength (255)
+	longName := ""
+	for i := 0; i < 256; i++ {
+		longName += "a"
+	}
+
+	_, err := app.CreateOrder(longName, []uint64{0})
+	if err == nil {
+		t.Error("Expected error for customer name exceeding max length")
+	}
+}
+
+func TestCreateOrderWithTooManyItems(t *testing.T) {
+	app, cleanup := createTestApp()
+	defer cleanup()
+
+	_, _ = app.AddItem("Item", 100)
+
+	// Create more items than MaxItemsPerCollection (1000)
+	itemIDs := make([]uint64, 1001)
+	for i := range itemIDs {
+		itemIDs[i] = 0
+	}
+
+	_, err := app.CreateOrder("John", itemIDs)
+	if err == nil {
+		t.Error("Expected error for too many items")
+	}
+}
+
+func TestCreatePromotionWithEmptyName(t *testing.T) {
+	app, cleanup := createTestApp()
+	defer cleanup()
+
+	_, _ = app.AddItem("Item", 100)
+
+	_, err := app.CreatePromotion("", []uint64{0})
+	if err == nil {
+		t.Error("Expected error for empty promotion name")
+	}
+}
+
+func TestCreatePromotionWithTooManyItems(t *testing.T) {
+	app, cleanup := createTestApp()
+	defer cleanup()
+
+	_, _ = app.AddItem("Item", 100)
+
+	// Create more items than MaxItemsPerCollection (1000)
+	itemIDs := make([]uint64, 1001)
+	for i := range itemIDs {
+		itemIDs[i] = 0
+	}
+
+	_, err := app.CreatePromotion("Promo", itemIDs)
+	if err == nil {
+		t.Error("Expected error for too many items")
 	}
 }
