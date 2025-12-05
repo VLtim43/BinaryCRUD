@@ -1,11 +1,10 @@
 package compression
 
 import (
-	"BinaryCRUD/backend/utils"
 	"fmt"
 )
 
-// Compressor defines the interface for compression algorithms
+// Compressor is the interface that all compression algorithms implement
 type Compressor interface {
 	Compress(data []byte) ([]byte, error)
 	Decompress(data []byte) ([]byte, error)
@@ -13,14 +12,20 @@ type Compressor interface {
 	DecompressFile(inputPath, outputPath string) error
 }
 
-// NewCompressor returns a Compressor implementation based on the algorithm name
+// Algorithm constants
+const (
+	AlgorithmHuffman = "huffman"
+	AlgorithmLZW     = "lzw"
+)
+
+// NewCompressor creates a compressor for the given algorithm
 func NewCompressor(algorithm string) (Compressor, error) {
 	switch algorithm {
-	case utils.AlgorithmHuffman:
+	case AlgorithmHuffman:
 		return NewHuffmanCompressor(), nil
-	case utils.AlgorithmLZW:
+	case AlgorithmLZW:
 		return NewLZWCompressor(), nil
 	default:
-		return nil, fmt.Errorf("unknown algorithm: %s", algorithm)
+		return nil, fmt.Errorf("unknown compression algorithm: %s", algorithm)
 	}
 }

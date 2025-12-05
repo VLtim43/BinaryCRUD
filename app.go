@@ -665,11 +665,11 @@ func (a *App) GetOrder(id uint64) (map[string]any, error) {
 	a.logger.Info(fmt.Sprintf("Retrieved order #%d for %s", id, order.OwnerOrName))
 
 	return map[string]any{
-		"id":         order.ID,
-		"customer":   order.OwnerOrName,
-		"totalPrice": order.TotalPrice,
-		"itemCount":  order.ItemCount,
-		"itemIDs":    order.ItemIDs,
+		"id":           order.ID,
+		"customerName": order.OwnerOrName,
+		"totalPrice":   order.TotalPrice,
+		"itemCount":    order.ItemCount,
+		"itemIDs":      order.ItemIDs,
 	}, nil
 }
 
@@ -890,6 +890,11 @@ func (a *App) CompressFile(filename string, algorithm string) (map[string]any, e
 	if err != nil {
 		return nil, err
 	}
+	err = compressor.CompressFile(inputPath, outputPath)
+
+	if err != nil {
+		return nil, err
+	}
 	if err = compressor.CompressFile(inputPath, outputPath); err != nil {
 		return nil, fmt.Errorf("compression failed: %w", err)
 	}
@@ -973,6 +978,7 @@ func (a *App) CompressAllFiles(algorithm string) (map[string]any, error) {
 		return nil, err
 	}
 	compressedData, err := compressor.Compress(combined)
+
 	if err != nil {
 		return nil, fmt.Errorf("compression failed: %w", err)
 	}
@@ -1029,6 +1035,13 @@ func (a *App) DecompressFile(filename string) (map[string]any, error) {
 
 	outputFilename := utils.DecompressedFilename(filename)
 	outputPath := utils.BinPath(outputFilename)
+	var err error
+
+	compressor, err := compression.NewCompressor(algorithm)
+	if err != nil {
+		return nil, err
+	}
+	err = compressor.DecompressFile(inputPath, outputPath)
 
 	decompressor, err := compression.NewCompressor(algorithm)
 	if err != nil {
@@ -1075,12 +1088,20 @@ func (a *App) decompressAllFiles(inputPath string, filename string) (map[string]
 	compressedSize := int64(len(compressedData))
 
 	algorithm := utils.DetectCompressionAlgorithm(filename)
+<<<<<<< HEAD
 
 	decompressor, err := compression.NewCompressor(algorithm)
 	if err != nil {
 		return nil, fmt.Errorf("unknown compression format: %s", filename)
 	}
 	data, err := decompressor.Decompress(compressedData)
+=======
+	compressor, err := compression.NewCompressor(algorithm)
+	if err != nil {
+		return nil, fmt.Errorf("unknown compression format: %s", filename)
+	}
+	data, err := compressor.Decompress(compressedData)
+>>>>>>> 0723b86 (fix: line height)
 	if err != nil {
 		return nil, fmt.Errorf("decompression failed: %w", err)
 	}

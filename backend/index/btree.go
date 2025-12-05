@@ -26,13 +26,13 @@ func NewBTree(order int) *BTree {
 		order = 4
 	}
 	return &BTree{
-		root:  newLeaf(order),
+		root:  newLeaf(),
 		order: order,
 	}
 }
 
 // newLeaf creates a new leaf node
-func newLeaf(_ int) *BNode {
+func newLeaf() *BNode {
 	return &BNode{
 		isLeaf:  true,
 		keys:    make([]uint64, 0),
@@ -42,7 +42,7 @@ func newLeaf(_ int) *BNode {
 }
 
 // newInternal creates a new internal node
-func newInternal(_ int) *BNode {
+func newInternal() *BNode {
 	return &BNode{
 		isLeaf:   false,
 		keys:     make([]uint64, 0),
@@ -54,7 +54,7 @@ func newInternal(_ int) *BNode {
 func (t *BTree) Insert(id uint64, offset int64) error {
 	// Split root if full
 	if len(t.root.keys) >= t.order-1 {
-		newRoot := newInternal(t.order)
+		newRoot := newInternal()
 		newRoot.children = append(newRoot.children, t.root)
 		t.splitChild(newRoot, 0)
 		t.root = newRoot
@@ -120,7 +120,7 @@ func (t *BTree) splitChild(parent *BNode, idx int) {
 	var promoteKey uint64
 
 	if child.isLeaf {
-		right = newLeaf(t.order)
+		right = newLeaf()
 		right.keys = append(right.keys, child.keys[mid:]...)
 		right.offsets = append(right.offsets, child.offsets[mid:]...)
 		right.next = child.next
@@ -129,7 +129,7 @@ func (t *BTree) splitChild(parent *BNode, idx int) {
 		child.offsets = child.offsets[:mid]
 		promoteKey = right.keys[0]
 	} else {
-		right = newInternal(t.order)
+		right = newInternal()
 		promoteKey = child.keys[mid]
 
 		// Check bounds before slicing
