@@ -5,9 +5,6 @@ import (
 	"math/big"
 )
 
-// SimpleRSA is an educational implementation of RSA encryption.
-// This demonstrates the mathematical principles behind RSA.
-// WARNING: This is for ACADEMIC PURPOSES ONLY - not secure for production use!
 type SimpleRSA struct {
 	// Public key components
 	N *big.Int // modulus (n = p * q)
@@ -22,9 +19,6 @@ type SimpleRSA struct {
 	Phi *big.Int // φ(n) = (p-1)(q-1)
 }
 
-// NewSimpleRSA creates a new SimpleRSA instance with the given prime numbers.
-// For educational purposes, we use small primes to demonstrate the math.
-//
 // RSA Key Generation Steps:
 // 1. Choose two distinct prime numbers p and q
 // 2. Compute n = p * q (this is the modulus)
@@ -76,7 +70,6 @@ func NewSimpleRSA(p, q int64) (*SimpleRSA, error) {
 	}
 
 	// Step 5: d = e^(-1) mod φ(n)
-	// This uses the extended Euclidean algorithm
 	rsa.D = new(big.Int).ModInverse(rsa.E, rsa.Phi)
 	if rsa.D == nil {
 		return nil, errors.New("cannot compute modular inverse for d")
@@ -139,21 +132,18 @@ func (r *SimpleRSA) DecryptString(ciphertext []*big.Int) string {
 	return string(r.Decrypt(ciphertext))
 }
 
-// GetKeyInfo returns a human-readable description of the key parameters.
-// This is useful for educational purposes to understand the RSA components.
 func (r *SimpleRSA) GetKeyInfo() map[string]string {
 	return map[string]string{
-		"p (first prime)":            r.P.String(),
-		"q (second prime)":           r.Q.String(),
-		"n (modulus = p*q)":          r.N.String(),
+		"p (first prime)":             r.P.String(),
+		"q (second prime)":            r.Q.String(),
+		"n (modulus = p*q)":           r.N.String(),
 		"φ(n) (totient = (p-1)(q-1))": r.Phi.String(),
-		"e (public exponent)":        r.E.String(),
-		"d (private exponent)":       r.D.String(),
+		"e (public exponent)":         r.E.String(),
+		"d (private exponent)":        r.D.String(),
 	}
 }
 
 // isPrime checks if a number is prime using trial division.
-// For educational purposes - not optimized for large numbers.
 func isPrime(n int64) bool {
 	if n < 2 {
 		return false
@@ -201,7 +191,6 @@ func ModularExponentiation(base, exp, mod *big.Int) *big.Int {
 
 // ExtendedGCD demonstrates the extended Euclidean algorithm.
 // Returns gcd, x, y such that: ax + by = gcd(a, b)
-// This is used to find the modular multiplicative inverse.
 func ExtendedGCD(a, b *big.Int) (gcd, x, y *big.Int) {
 	if b.Cmp(big.NewInt(0)) == 0 {
 		return new(big.Int).Set(a), big.NewInt(1), big.NewInt(0)

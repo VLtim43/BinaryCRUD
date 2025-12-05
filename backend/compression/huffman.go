@@ -41,14 +41,12 @@ func (h *nodeHeap) Pop() any {
 	return x
 }
 
-// HuffmanCompressor handles Huffman compression and decompression
 type HuffmanCompressor struct {
-	root     *HuffmanNode
-	codeMap  map[byte]string // byte -> bit string
-	freq     [256]int
+	root    *HuffmanNode
+	codeMap map[byte]string
+	freq    [256]int
 }
 
-// NewHuffmanCompressor creates a new Huffman compressor
 func NewHuffmanCompressor() *HuffmanCompressor {
 	return &HuffmanCompressor{
 		codeMap: make(map[byte]string),
