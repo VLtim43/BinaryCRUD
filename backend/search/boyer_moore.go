@@ -1,7 +1,6 @@
 package search
 
 // BoyerMoore implements the Boyer-Moore string matching algorithm.
-// Uses the Bad Character heuristic (required) and optionally Good Suffix.
 // Time complexity: O(n/m) best case, O(n*m) worst case
 type BoyerMoore struct {
 	pattern      []byte
@@ -18,7 +17,6 @@ func NewBoyerMoore(pattern []byte) *BoyerMoore {
 	return bm
 }
 
-// NewBoyerMooreString creates a new BoyerMoore instance from a string pattern.
 func NewBoyerMooreString(pattern string) *BoyerMoore {
 	return NewBoyerMoore([]byte(pattern))
 }
@@ -70,8 +68,6 @@ func (bm *BoyerMoore) Search(text []byte) []int {
 			// Shift by 1 to find overlapping matches
 			i++
 		} else {
-			// Mismatch: use bad character heuristic
-			// Shift based on the mismatched character in text
 			badCharShift := bm.badCharTable[text[i+j]]
 
 			// Calculate shift: align the bad character or shift by 1
@@ -91,7 +87,6 @@ func (bm *BoyerMoore) SearchString(text string) []int {
 	return bm.Search([]byte(text))
 }
 
-// Contains returns true if the pattern exists in the text.
 func (bm *BoyerMoore) Contains(text []byte) bool {
 	n := len(text)
 	m := len(bm.pattern)
@@ -128,8 +123,6 @@ func (bm *BoyerMoore) Contains(text []byte) bool {
 func (bm *BoyerMoore) ContainsString(text string) bool {
 	return bm.Contains([]byte(text))
 }
-
-// --- Convenience functions (no struct needed) ---
 
 // BMSearch finds all occurrences of pattern in text using Boyer-Moore.
 func BMSearch(text, pattern []byte) []int {

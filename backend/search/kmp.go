@@ -135,8 +135,6 @@ func (k *KMP) ContainsString(text string) bool {
 	return k.Contains([]byte(text))
 }
 
-// --- Convenience functions (no struct needed) ---
-
 // Search finds all occurrences of pattern in text.
 func Search(text, pattern []byte) []int {
 	kmp := NewKMP(pattern)
