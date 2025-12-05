@@ -22,150 +22,57 @@
 
 **a. Estrutura:**
 
-```go
-type KMP struct {
-    pattern []byte
-    lps     []int  // Longest Proper Prefix which is also Suffix
-}
-```
+A estrutura `KMP` contém o padrão como array de bytes e a tabela LPS (Longest Proper Prefix which is also Suffix) como array de inteiros.
 
 **b. Pré-processamento - Construção da tabela LPS:**
 
-```go
-func computeLPS(pattern []byte) []int {
-    lps := make([]int, len(pattern))
-    length := 0
-    i := 1
-
-    for i < len(pattern) {
-        if pattern[i] == pattern[length] {
-            length++
-            lps[i] = length
-            i++
-        } else {
-            if length != 0 {
-                length = lps[length-1]  // Usa valor anterior
-            } else {
-                lps[i] = 0
-                i++
-            }
-        }
-    }
-    return lps
-}
-```
-
-A tabela LPS armazena, para cada posição `i`, o comprimento do maior prefixo próprio que também é sufixo do padrão `pattern[0..i]`.
+A tabela LPS armazena, para cada posição `i`, o comprimento do maior prefixo próprio que também é sufixo do padrão `pattern[0..i]`. O algoritmo percorre o padrão uma vez, comparando caracteres e usando valores já calculados para evitar recomputação.
 
 **Exemplo:** Para o padrão "AAACAAAA":
-```
-Padrão: A  A  A  C  A  A  A  A
-LPS:    0  1  2  0  1  2  3  3
-```
+
+| Posição | A | A | A | C | A | A | A | A |
+|---------|---|---|---|---|---|---|---|---|
+| LPS     | 0 | 1 | 2 | 0 | 1 | 2 | 3 | 3 |
 
 **c. Busca:**
 
-```go
-func (k *KMP) Search(text []byte) []int {
-    i := 0  // índice no texto
-    j := 0  // índice no padrão
+O algoritmo mantém dois índices: `i` para o texto e `j` para o padrão. Quando há match, ambos avançam. Quando há mismatch:
 
-    for i < len(text) {
-        if pattern[j] == text[i] {
-            i++
-            j++
-        }
+- Se `j > 0`: usa a tabela LPS para pular (`j = lps[j-1]`), sem retroceder no texto
+- Se `j == 0`: avança `i` no texto
 
-        if j == len(pattern) {
-            // Match encontrado na posição i-j
-            matches = append(matches, i-j)
-            j = lps[j-1]  // Continua buscando sobreposições
-        } else if i < len(text) && pattern[j] != text[i] {
-            if j != 0 {
-                j = lps[j-1]  // Pula usando LPS (não volta no texto!)
-            } else {
-                i++
-            }
-        }
-    }
-}
-```
+Ao encontrar match completo (`j == len(pattern)`), registra a posição e usa LPS para continuar buscando sobreposições.
 
 **Complexidade:** O(n + m), onde n = tamanho do texto, m = tamanho do padrão.
 
 ---
 
-### 3. Explique o funcionamento do Boyer–Moore implementado
+### 3. Explique o funcionamento do Boyer-Moore implementado
 
 **Arquivo:** `backend/search/boyer_moore.go`
 
 **a. Estrutura:**
 
-```go
-type BoyerMoore struct {
-    pattern      []byte
-    badCharTable [256]int  // Tabela de deslocamento Bad Character
-}
-```
+A estrutura `BoyerMoore` contém o padrão como array de bytes e a tabela Bad Character como array de 256 inteiros (um para cada valor de byte possível).
 
 **b. Pré-processamento - Tabela Bad Character:**
 
-```go
-func (bm *BoyerMoore) computeBadCharTable() {
-    m := len(bm.pattern)
+Para cada caractere do alfabeto, armazena a distância da sua última ocorrência no padrão até o final. Caracteres ausentes no padrão recebem o tamanho total do padrão como valor.
 
-    // Inicializa com deslocamento máximo
-    for i := 0; i < 256; i++ {
-        bm.badCharTable[i] = m
-    }
+**Exemplo:** Para o padrão "EXEMPLO" (tamanho 7):
 
-    // Para caracteres no padrão: distância até o final
-    for i := 0; i < m-1; i++ {
-        bm.badCharTable[bm.pattern[i]] = m - 1 - i
-    }
-}
-```
-
-**Exemplo:** Para o padrão "EXEMPLO":
-```
-E: 7-1-0 = 6  (posição 0)
-X: 7-1-1 = 5  (posição 1)
-M: 7-1-3 = 3  (posição 3)
-P: 7-1-4 = 2  (posição 4)
-L: 7-1-5 = 1  (posição 5)
-O: última posição, não entra
-Outros: 7 (tamanho do padrão)
-```
+| Caractere | E | X | M | P | L | Outros |
+|-----------|---|---|---|---|---|--------|
+| Shift     | 6 | 5 | 3 | 2 | 1 | 7      |
 
 **c. Busca (da direita para esquerda):**
 
-```go
-func (bm *BoyerMoore) Search(text []byte) []int {
-    i := 0  // posição no texto onde o padrão começa
+Diferente do KMP, Boyer-Moore compara o padrão da direita para esquerda. Quando há mismatch:
 
-    for i <= len(text)-len(pattern) {
-        j := len(pattern) - 1  // Começa do FINAL do padrão
-
-        // Compara da direita para esquerda
-        for j >= 0 && pattern[j] == text[i+j] {
-            j--
-        }
-
-        if j < 0 {
-            // Match encontrado!
-            matches = append(matches, i)
-            i++
-        } else {
-            // Mismatch: usa heurística Bad Character
-            shift := badCharTable[text[i+j]] - (m - 1 - j)
-            if shift < 1 {
-                shift = 1
-            }
-            i += shift
-        }
-    }
-}
-```
+1. Consulta a tabela Bad Character para o caractere do texto que causou o mismatch
+2. Calcula o deslocamento: `shift = badChar[c] - (m - 1 - j)`
+3. Se shift ≤ 0, força shift = 1 para garantir progresso
+4. Desloca o padrão pelo valor calculado
 
 **Complexidade:** O(n/m) melhor caso, O(n*m) pior caso.
 
@@ -178,88 +85,38 @@ func (bm *BoyerMoore) Search(text []byte) []int {
 **a. Camada de Busca (`backend/search/`):**
 
 Criados dois arquivos independentes:
+
 - `kmp.go` - Implementação KMP
 - `boyer_moore.go` - Implementação Boyer-Moore
 
-Ambos expõem interface similar:
-```go
-type Matcher interface {
-    ContainsString(text string) bool
-}
-```
+Ambos expõem interface similar com métodos `Search()` (retorna todas as posições) e `ContainsString()` (retorna boolean).
 
 **b. Camada DAO (`backend/dao/item_dao.go`):**
 
-```go
-type SearchAlgorithm string
+O método `SearchByName` recebe o padrão e o algoritmo desejado ("kmp" ou "bm"). Internamente:
 
-const (
-    AlgorithmKMP        SearchAlgorithm = "kmp"
-    AlgorithmBoyerMoore SearchAlgorithm = "bm"
-)
-
-func (dao *ItemDAO) SearchByName(pattern string, algorithm SearchAlgorithm) ([]Item, error) {
-    items, _ := dao.GetAll()
-    lowerPattern := strings.ToLower(pattern)
-
-    // Seleciona algoritmo
-    var matcher interface{ ContainsString(string) bool }
-    switch algorithm {
-    case AlgorithmBoyerMoore:
-        matcher = search.NewBoyerMooreString(lowerPattern)
-    default:
-        matcher = search.NewKMPString(lowerPattern)
-    }
-
-    // Busca case-insensitive
-    for _, item := range items {
-        if matcher.ContainsString(strings.ToLower(item.Name)) {
-            results = append(results, item)
-        }
-    }
-    return results, nil
-}
-```
+1. Obtém todos os itens do banco
+2. Converte o padrão para lowercase
+3. Instancia o matcher apropriado (KMP ou Boyer-Moore)
+4. Para cada item, verifica se o nome (em lowercase) contém o padrão
+5. Retorna os itens que casaram
 
 **c. Camada API (`app.go`):**
 
-```go
-func (a *App) SearchItems(pattern string, algorithm string) ([]map[string]any, error) {
-    // Converte string para enum
-    var searchAlgo dao.SearchAlgorithm
-    switch algorithm {
-    case "bm":
-        searchAlgo = dao.AlgorithmBoyerMoore
-    default:
-        searchAlgo = dao.AlgorithmKMP
-    }
-
-    items, _ := a.itemDAO.SearchByName(pattern, searchAlgo)
-    // ... retorna resultados
-}
-```
+A função `SearchItems` recebe o padrão e nome do algoritmo como strings, converte para o tipo interno e chama o DAO.
 
 **d. Frontend (`frontend/src/components/tabs/ItemTab.tsx`):**
 
-```tsx
-<Select
-    value={searchAlgorithm}
-    options={[
-        { value: "kmp", label: "KMP (Knuth-Morris-Pratt)" },
-        { value: "bm", label: "Boyer-Moore" },
-    ]}
-/>
-<Input placeholder="Search by name..." value={searchQuery} />
-<Button onClick={handleSearch}>Search</Button>
-```
+Interface com:
+
+- Select para escolher algoritmo (KMP ou Boyer-Moore)
+- Input para digitar o padrão de busca
+- Botão para executar a busca
+- Exibição dos resultados
 
 **Fluxo completo:**
-```
-Frontend → SearchItems(pattern, "kmp"|"bm")
-         → ItemDAO.SearchByName(pattern, algorithm)
-         → KMP.ContainsString() ou BoyerMoore.ContainsString()
-         → Retorna itens encontrados
-```
+
+Frontend → SearchItems(pattern, "kmp"|"bm") → ItemDAO.SearchByName() → KMP ou BoyerMoore → Retorna itens encontrados
 
 ---
 
@@ -283,13 +140,13 @@ Frontend → SearchItems(pattern, "kmp"|"bm")
 
 1. **Case-insensitive:** Converter tanto o padrão quanto cada nome para lowercase antes de comparar, mantendo os dados originais intactos.
 
-2. **Interface comum:** Criar interface `ContainsString(string) bool` permitiu usar ambos algoritmos de forma intercambiável no DAO.
+2. **Interface comum:** Criar método `ContainsString(string) bool` em ambos permitiu usá-los de forma intercambiável no DAO.
 
 ---
 
 ## Estrutura de Arquivos Adicionados
 
-```
+```text
 BinaryCRUD/
 ├── backend/
 │   ├── search/

@@ -11,11 +11,9 @@
 **b. Tamanho do arquivo comprimido:** 954 bytes
 
 **c. Cálculo da taxa:**
-```
-Taxa = (tamanho_comprimido / tamanho_original) × 100
+
 Taxa = (954 / 1011) × 100 = 94.36%
 Economia = 100% - 94.36% = 5.64%
-```
 
 **d. Interpretação do resultado:**
 
@@ -32,11 +30,9 @@ O algoritmo Huffman obteve uma economia de 5.64% do tamanho original. A compress
 **b. Tamanho do arquivo comprimido:** 1202 bytes
 
 **c. Cálculo da taxa:**
-```
-Taxa = (tamanho_comprimido / tamanho_original) × 100
+
 Taxa = (1202 / 1011) × 100 = 118.89%
 Economia = 100% - 118.89% = -18.89% (expansão)
-```
 
 **d. Interpretação do resultado:**
 
@@ -58,7 +54,7 @@ O LZW apresentou expansão de 18.89% ao invés de compressão. Isso ocorre porqu
 
 1. **Caso especial KwKwK:** Quando o código ainda não existe no dicionário durante descompressão. Solução: detectar quando `code == nextCode` e construir a entrada como `current + current[0]`.
 
-2. **Aliasing de slices:** Modificações em entradas do dicionário afetavam outras. Solução: fazer cópias explícitas com `copy()` ao adicionar ao dicionário.
+2. **Aliasing de slices:** Modificações em entradas do dicionário afetavam outras. Solução: fazer cópias explícitas ao adicionar ao dicionário.
 
 3. **Overflow do dicionário:** Dicionário pode crescer indefinidamente. Solução: limitar a 65535 entradas (máximo de uint16).
 
@@ -68,52 +64,26 @@ O LZW apresentou expansão de 18.89% ao invés de compressão. Isso ocorre porqu
 
 **Huffman - Árvore Binária:**
 
-```go
-type HuffmanNode struct {
-    Byte   byte
-    Freq   int
-    Left   *HuffmanNode
-    Right  *HuffmanNode
-    IsLeaf bool
-}
-```
-
-Estrutura de árvore binária com ponteiros é ideal para Huffman pois:
+Estrutura `HuffmanNode` com ponteiros para filhos esquerdo e direito, byte armazenado, frequência e flag indicando se é folha. Estrutura de árvore binária com ponteiros é ideal para Huffman pois:
 - Permite travessia natural pelos códigos (0=esquerda, 1=direita)
 - Facilita serialização recursiva
 - Construção bottom-up com heap de prioridade
 
 **Huffman - Min-Heap (Priority Queue):**
 
-```go
-type nodeHeap []*HuffmanNode
-```
-
-Heap de prioridade para construir a árvore, garantindo que os dois nós de menor frequência sejam sempre combinados primeiro - requisito fundamental do algoritmo.
+Slice de ponteiros para `HuffmanNode` implementando a interface `heap.Interface`. Heap de prioridade para construir a árvore, garantindo que os dois nós de menor frequência sejam sempre combinados primeiro - requisito fundamental do algoritmo.
 
 **Huffman - Mapa de Códigos:**
 
-```go
-codeMap map[byte]string
-```
-
-HashMap byte→string para lookup O(1) durante compressão. A string representa a sequência de bits como "0110".
+HashMap `byte → string` para lookup O(1) durante compressão. A string representa a sequência de bits como "0110".
 
 **LZW - Dicionário de Compressão:**
 
-```go
-dictionary map[string]uint16
-```
-
-HashMap string→código para verificação rápida se sequência existe no dicionário. Chave é a sequência de bytes, valor é o código atribuído.
+HashMap `string → uint16` para verificação rápida se sequência existe no dicionário. Chave é a sequência de bytes, valor é o código atribuído.
 
 **LZW - Dicionário de Descompressão:**
 
-```go
-dictionary map[uint16][]byte
-```
-
-HashMap inverso código→bytes para reconstruir as sequências originais durante descompressão.
+HashMap inverso `uint16 → []byte` para reconstruir as sequências originais durante descompressão.
 
 ---
 
@@ -133,123 +103,70 @@ HashMap inverso código→bytes para reconstruir as sequências originais durant
 
 ### 6. Descreva como o RSA foi implementado no projeto.
 
+**Nota:** Esta é uma implementação educacional do RSA para fins didáticos, demonstrando os conceitos matemáticos do algoritmo.
+
 **a. Estrutura das chaves pública e privada:**
 
-```go
-type RSACrypto struct {
-    privateKey *rsa.PrivateKey  // Contém também a chave pública
-    publicKey  *rsa.PublicKey
-}
-```
+A estrutura `SimpleRSA` contém:
+- `n`: módulo (produto de dois primos p × q)
+- `e`: expoente público (padrão 65537, com fallback para valores menores)
+- `d`: expoente privado (inverso modular de e mod φ(n))
+- `phi`: φ(n) = (p-1)(q-1) - totiente de Euler
 
-A chave privada RSA do Go (`rsa.PrivateKey`) contém os componentes:
-- `N`: módulo (produto de dois primos)
-- `E`: expoente público (geralmente 65537)
-- `D`: expoente privado
-- `Primes`: os fatores primos p e q
-- `Precomputed`: valores pré-calculados para otimização
+**b. Geração das chaves:**
 
-**b. Como e onde foram armazenadas:**
-
-As chaves são armazenadas em `data/keys/` no formato PEM:
-
-- `private.pem` - Chave privada (permissão 0600)
-- `public.pem` - Chave pública (permissão 0644)
-
-Formato PEM com headers `-----BEGIN RSA PRIVATE KEY-----` e `-----BEGIN RSA PUBLIC KEY-----`.
+As chaves são geradas em tempo de execução com primos configuráveis (padrão: p=61, q=53):
+1. Calcula n = p × q (módulo)
+2. Calcula φ(n) = (p-1)(q-1)
+3. Escolhe e tal que gcd(e, φ(n)) = 1
+4. Calcula d usando o algoritmo de Euclides estendido
 
 **c. Como foram carregadas pelo sistema:**
 
-```go
-func GetInstance() (*RSACrypto, error) {
-    once.Do(func() {
-        instance = &RSACrypto{}
-        initErr = instance.loadOrGenerateKeys()
-    })
-    return instance, nil
-}
-```
+Padrão Singleton com `sync.Once` garante que apenas uma instância seja criada. A instância é inicializada na primeira chamada a `GetInstance()` e reutilizada em todas as operações subsequentes.
 
-Padrão Singleton com `sync.Once`:
-1. Na primeira chamada, verifica se `private.pem` existe
-2. Se existe: carrega com `x509.ParsePKCS1PrivateKey()`
-3. Se não existe: gera novo par com `rsa.GenerateKey()` e salva
+**d. Tamanho das chaves e justificativa:**
 
-**d. Tamanho das chaves escolhidas e justificativa:**
+**Tamanho:** Primos pequenos (p=61, q=53, resultando em n=3233)
 
-**Tamanho:** 2048 bits
-
-**Justificativa:**
-- Considerado seguro até ~2030 segundo NIST
-- Permite criptografar até ~190 bytes por operação (suficiente para nomes)
-- Balanceia segurança vs performance
-- 1024 bits é considerado fraco; 4096 bits seria excessivo para este caso de uso
+**Justificativa educacional:**
+- Permite demonstrar claramente a matemática do RSA
+- Valores pequenos facilitam debug e verificação manual
+- Foco no entendimento do algoritmo, não em segurança de produção
 
 **e. Em qual momento a criptografia do(s) campo(s) ocorre (no CRUD):**
 
-**Create (Write):** `collection_dao.go:55-63`
-
-```go
-func (dao *CollectionDAO) Write(ownerOrName string, ...) (uint64, error) {
-    // Encrypt ANTES de gravar
-    rsaCrypto, _ := crypto.GetInstance()
-    encryptedName, _ := rsaCrypto.EncryptString(ownerOrName)
-
-    // encryptedName vai para o arquivo .bin
-    nameBytes := encryptedName
-    // ... AppendEntry grava os bytes criptografados
-}
-```
+**Create (Write):** No `collection_dao.go`, antes de gravar no arquivo binário:
+1. Recebe o nome em plaintext
+2. Chama `rsaCrypto.EncryptToBytes(ownerOrName)`
+3. Grava os bytes criptografados no arquivo `.bin`
 
 A criptografia ocorre na camada DAO, antes de qualquer escrita no arquivo binário.
 
 **f. Em qual momento ocorre a descriptografia:**
 
-**Read:** `collection_dao.go:190-198`
+**Read:** No `collection_dao.go`, após ler do arquivo binário:
+1. Lê os bytes criptografados do arquivo
+2. Chama `rsaCrypto.DecryptFromBytes(encryptedBytes)`
+3. Retorna o nome descriptografado para a aplicação
 
-```go
-func (dao *CollectionDAO) readUnlocked(id uint64) (*Collection, error) {
-    // Lê bytes criptografados do arquivo
-    collection, _ := utils.ParseCollectionEntry(entryData)
-
-    // Decrypt DEPOIS de ler
-    rsaCrypto, _ := crypto.GetInstance()
-    decryptedName, _ := rsaCrypto.DecryptString([]byte(collection.OwnerOrName))
-
-    return &Collection{
-        OwnerOrName: decryptedName,  // Retorna plaintext
-        // ...
-    }
-}
-```
-
-**GetAll:** `collection_dao.go:257-262` - Descriptografa cada registro no loop.
+**GetAll:** Descriptografa cada registro individualmente no loop de leitura.
 
 **g. Conversões realizadas:**
 
-```
-CRIPTOGRAFIA (Write):
-string "John Doe"
-    ↓ []byte(plaintext)
-[]byte{74, 111, 104, 110, 32, 68, 111, 101}
-    ↓ rsa.EncryptOAEP(sha256, publicKey, bytes)
-[]byte{encrypted...} // 256 bytes (tamanho fixo RSA-2048)
-    ↓ grava no .bin
-[arquivo binário com 256 bytes criptografados]
+**Criptografia (Write):**
+1. String plaintext → array de bytes
+2. Para cada byte: c = m^e mod n (exponenciação modular)
+3. Serializa os big.Int resultantes com prefixo de tamanho
+4. Grava no arquivo binário
 
-DESCRIPTOGRAFIA (Read):
-[arquivo binário]
-    ↓ lê bytes
-[]byte{encrypted...} // 256 bytes
-    ↓ rsa.DecryptOAEP(sha256, privateKey, bytes)
-[]byte{74, 111, 104, 110, 32, 68, 111, 101}
-    ↓ string(plaintext)
-"John Doe"
-```
+**Descriptografia (Read):**
+1. Lê bytes do arquivo binário
+2. Desserializa para array de big.Int
+3. Para cada valor: m = c^d mod n (exponenciação modular)
+4. Converte bytes de volta para string
 
-O RSA-OAEP com SHA-256 adiciona padding aleatório, então:
-- Input de qualquer tamanho (até ~190 bytes) → Output fixo de 256 bytes
-- Mesmo plaintext gera ciphertexts diferentes (devido ao padding aleatório)
+A exponenciação modular usa o algoritmo square-and-multiply para eficiência.
 
 ---
 
@@ -262,7 +179,7 @@ BinaryCRUD/
 │   │   ├── huffman.go      # Compressão Huffman
 │   │   └── lzw.go          # Compressão LZW
 │   ├── crypto/
-│   │   └── rsa.go          # Criptografia RSA
+│   │   └── simple_rsa.go   # Criptografia RSA (educacional)
 │   ├── dao/
 │   │   ├── collection_dao.go  # DAO com encrypt/decrypt
 │   │   └── ...
@@ -271,7 +188,6 @@ BinaryCRUD/
 │   ├── bin/                # Arquivos .bin (dados criptografados)
 │   ├── compressed/         # Arquivos comprimidos
 │   ├── indexes/            # Índices B+ Tree
-│   ├── keys/               # Chaves RSA (private.pem, public.pem)
 │   └── seed/               # Dados iniciais JSON
 └── ...
 ```
