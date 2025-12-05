@@ -1088,20 +1088,12 @@ func (a *App) decompressAllFiles(inputPath string, filename string) (map[string]
 	compressedSize := int64(len(compressedData))
 
 	algorithm := utils.DetectCompressionAlgorithm(filename)
-<<<<<<< HEAD
 
-	decompressor, err := compression.NewCompressor(algorithm)
-	if err != nil {
-		return nil, fmt.Errorf("unknown compression format: %s", filename)
-	}
-	data, err := decompressor.Decompress(compressedData)
-=======
 	compressor, err := compression.NewCompressor(algorithm)
 	if err != nil {
 		return nil, fmt.Errorf("unknown compression format: %s", filename)
 	}
 	data, err := compressor.Decompress(compressedData)
->>>>>>> 0723b86 (fix: line height)
 	if err != nil {
 		return nil, fmt.Errorf("decompression failed: %w", err)
 	}
