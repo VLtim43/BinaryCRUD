@@ -20,7 +20,7 @@ A restaurant manager application built with Wails (Go + Preact) featuring custom
 - **Compression algorithms:**
   - Huffman coding
   - LZW compression
-- **RSA encryption** (2048-bit RSA-OAEP with SHA-256) for sensitive fields
+- **RSA encryption** (educational implementation) for sensitive fields
 - **Pattern matching search:**
   - KMP (Knuth-Morris-Pratt)
   - Boyer-Moore (Bad Character heuristic)
@@ -118,7 +118,6 @@ BinaryCRUD/
 │   │   └── compressor.go      <- Compression interface
 │   │
 │   ├── crypto/            <- Encryption
-│   │   ├── rsa.go             <- RSA-OAEP encryption (production)
 │   │   └── simple_rsa.go      <- Educational RSA implementation
 │   │
 │   ├── utils/             <- Helper functions (read, write, parse, validate, etc.)
@@ -137,7 +136,7 @@ BinaryCRUD/
     ├── bin/               <- Binary data files (.bin)
     ├── indexes/           <- B+ Tree index files (.idx)
     ├── compressed/        <- Compressed files (.huffman, .lzw)
-    ├── keys/              <- RSA keys (private.pem, public.pem)
+    ├── keys/              <- RSA keys (if generated)
     └── seed/              <- Initial data (items.json, orders.json, etc.)
 ```
 
