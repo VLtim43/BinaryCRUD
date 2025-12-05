@@ -40,16 +40,7 @@ func ReadFixedString(size int, data []byte, offset int) (string, int, error) {
 		return "", offset, fmt.Errorf("not enough data: need %d bytes at offset %d, have %d total", size, offset, len(data))
 	}
 
-	// Extract the bytes
+	// Extract the bytes and convert to string (preserving all bytes for binary data)
 	bytes := data[offset : offset+size]
-
-	// Convert to string, trimming leading zeros
-	str := string(bytes)
-	// Trim left zeros
-	i := 0
-	for i < len(str) && str[i] == 0 {
-		i++
-	}
-
-	return str[i:], offset + size, nil
+	return string(bytes), offset + size, nil
 }

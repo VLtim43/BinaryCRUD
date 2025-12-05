@@ -25,8 +25,8 @@ type CollectionDAO struct {
 	filePath  string
 	indexPath string
 	mu        sync.Mutex
-	tree      *index.BTree      // B+ tree index for fast lookups
-	crypto    *crypto.RSACrypto // Cached crypto instance
+	tree      *index.BTree     // B+ tree index for fast lookups
+	crypto    *crypto.SimpleRSA // Cached crypto instance
 }
 
 // ensureFileExists creates the file with empty header if it doesn't exist
@@ -35,7 +35,7 @@ func (dao *CollectionDAO) ensureFileExists() error {
 }
 
 // getCrypto returns the cached crypto instance, initializing it on first use
-func (dao *CollectionDAO) getCrypto() (*crypto.RSACrypto, error) {
+func (dao *CollectionDAO) getCrypto() (*crypto.SimpleRSA, error) {
 	if dao.crypto != nil {
 		return dao.crypto, nil
 	}
@@ -72,7 +72,7 @@ func (dao *CollectionDAO) Write(ownerOrName string, totalPrice uint64, itemIDs [
 		return 0, err
 	}
 
-	encryptedName, err := rsaCrypto.EncryptString(ownerOrName)
+	encryptedName, err := rsaCrypto.EncryptToBytes(ownerOrName)
 	if err != nil {
 		return 0, fmt.Errorf("failed to encrypt name: %w", err)
 	}
@@ -208,7 +208,7 @@ func (dao *CollectionDAO) readUnlocked(id uint64) (*Collection, error) {
 		return nil, err
 	}
 
-	decryptedName, err := rsaCrypto.DecryptString([]byte(collection.OwnerOrName))
+	decryptedName, err := rsaCrypto.DecryptFromBytes([]byte(collection.OwnerOrName))
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt name: %w", err)
 	}
@@ -257,7 +257,7 @@ func (dao *CollectionDAO) GetAll() ([]*Collection, error) {
 		collection, err := utils.ParseCollectionEntry(entry.Data)
 		if err == nil {
 			// Decrypt the ownerOrName field
-			decryptedName, err := rsaCrypto.DecryptString([]byte(collection.OwnerOrName))
+			decryptedName, err := rsaCrypto.DecryptFromBytes([]byte(collection.OwnerOrName))
 			if err != nil {
 				// If decryption fails, use the raw value (might be old unencrypted data)
 				decryptedName = collection.OwnerOrName

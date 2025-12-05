@@ -174,6 +174,35 @@ func TestExtendedGCD(t *testing.T) {
 	t.Logf("Verification: %v*%v + %v*%v = %v", a, x, b, y, sum)
 }
 
+func TestEncryptToBytes(t *testing.T) {
+	rsa, err := crypto.GetInstance()
+	if err != nil {
+		t.Fatalf("Failed to get instance: %v", err)
+	}
+
+	testCases := []string{
+		"Hello",
+		"John Doe",
+		"Test Customer",
+	}
+
+	for _, original := range testCases {
+		encrypted, err := rsa.EncryptToBytes(original)
+		if err != nil {
+			t.Fatalf("Failed to encrypt '%s': %v", original, err)
+		}
+
+		decrypted, err := rsa.DecryptFromBytes(encrypted)
+		if err != nil {
+			t.Fatalf("Failed to decrypt '%s': %v", original, err)
+		}
+
+		if decrypted != original {
+			t.Errorf("Expected '%s', got '%s'", original, decrypted)
+		}
+	}
+}
+
 func TestDifferentPrimePairs(t *testing.T) {
 	// Test with various prime pairs
 	primePairs := [][2]int64{

@@ -1,8 +1,17 @@
 package crypto
 
 import (
+	"encoding/binary"
 	"errors"
 	"math/big"
+	"sync"
+)
+
+var (
+	instance *SimpleRSA
+	once     sync.Once
+	enabled  = true
+	mu       sync.RWMutex
 )
 
 type SimpleRSA struct {
@@ -13,7 +22,6 @@ type SimpleRSA struct {
 	// Private key component
 	D *big.Int // private exponent (d = e^-1 mod φ(n))
 
-	// For educational visibility (normally kept secret)
 	P   *big.Int // first prime
 	Q   *big.Int // second prime
 	Phi *big.Int // φ(n) = (p-1)(q-1)
@@ -205,4 +213,100 @@ func ExtendedGCD(a, b *big.Int) (gcd, x, y *big.Int) {
 	y = new(big.Int).Sub(x1, new(big.Int).Mul(quotient, y1))
 
 	return gcd, x, y
+}
+
+// GetInstance returns the singleton SimpleRSA instance
+func GetInstance() (*SimpleRSA, error) {
+	var initErr error
+	once.Do(func() {
+		instance, initErr = NewSimpleRSADefault()
+	})
+	if initErr != nil {
+		return nil, initErr
+	}
+	return instance, nil
+}
+
+// IsEnabled returns whether encryption is currently enabled
+func IsEnabled() bool {
+	mu.RLock()
+	defer mu.RUnlock()
+	return enabled
+}
+
+// SetEnabled enables or disables encryption
+func SetEnabled(enable bool) {
+	mu.Lock()
+	defer mu.Unlock()
+	enabled = enable
+}
+
+// Reset clears the singleton instance
+func Reset() {
+	mu.Lock()
+	defer mu.Unlock()
+	instance = nil
+	once = sync.Once{}
+}
+
+// EncryptToBytes encrypts a string and serializes the result to bytes.
+func (r *SimpleRSA) EncryptToBytes(plaintext string) ([]byte, error) {
+	if !IsEnabled() {
+		return []byte(plaintext), nil
+	}
+	encrypted := r.EncryptString(plaintext)
+	return serializeBigInts(encrypted), nil
+}
+
+// DecryptFromBytes deserializes bytes and decrypts back to a string.
+func (r *SimpleRSA) DecryptFromBytes(ciphertext []byte) (string, error) {
+	if !IsEnabled() {
+		return string(ciphertext), nil
+	}
+	bigInts, err := deserializeBigInts(ciphertext)
+	if err != nil {
+		return "", err
+	}
+	return r.DecryptString(bigInts), nil
+}
+
+// serializeBigInts converts a slice of big.Int to bytes
+func serializeBigInts(values []*big.Int) []byte {
+	result := make([]byte, 4)
+	binary.BigEndian.PutUint32(result, uint32(len(values)))
+
+	for _, v := range values {
+		bytes := v.Bytes()
+		lenBytes := make([]byte, 4)
+		binary.BigEndian.PutUint32(lenBytes, uint32(len(bytes)))
+		result = append(result, lenBytes...)
+		result = append(result, bytes...)
+	}
+	return result
+}
+
+// deserializeBigInts converts bytes back to a slice of big.Int
+func deserializeBigInts(data []byte) ([]*big.Int, error) {
+	if len(data) < 4 {
+		return nil, errors.New("data too short")
+	}
+
+	count := binary.BigEndian.Uint32(data[:4])
+	offset := 4
+
+	result := make([]*big.Int, count)
+	for i := uint32(0); i < count; i++ {
+		if offset+4 > len(data) {
+			return nil, errors.New("data too short")
+		}
+		length := binary.BigEndian.Uint32(data[offset : offset+4])
+		offset += 4
+
+		if offset+int(length) > len(data) {
+			return nil, errors.New("data too short")
+		}
+		result[i] = new(big.Int).SetBytes(data[offset : offset+int(length)])
+		offset += int(length)
+	}
+	return result, nil
 }

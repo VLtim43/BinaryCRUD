@@ -1,6 +1,7 @@
 package test
 
 import (
+	"BinaryCRUD/backend/crypto"
 	"BinaryCRUD/backend/dao"
 	"BinaryCRUD/backend/utils"
 	"fmt"
@@ -41,6 +42,8 @@ func createTestApp() (*TestApp, func()) {
 		os.Remove(fmt.Sprintf("data/indexes/test_app_orders_%s.idx", uniqueID))
 		os.Remove(fmt.Sprintf("data/indexes/test_app_promos_%s.idx", uniqueID))
 		os.Remove(fmt.Sprintf("data/indexes/test_app_op_%s.idx", uniqueID))
+		// Reset crypto singleton
+		crypto.Reset()
 	}
 
 	app := &TestApp{
