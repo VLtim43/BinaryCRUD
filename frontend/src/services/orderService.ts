@@ -15,6 +15,7 @@ export const orderService = {
     const result = await GetOrder(id);
     return {
       id: result.id,
+      customer: result.customer,
       customerName: result.customerName,
       totalPrice: result.totalPrice,
       itemCount: result.itemCount,
