@@ -1,12 +1,10 @@
 import { h } from "preact";
 import { useState, useEffect } from "preact/hooks";
 import { Button } from "../Button";
-import { Select } from "../Select";
 import { Modal } from "../Modal";
 import { ItemList } from "../ItemList";
 import { DataTable } from "../DataTable";
 import { SubTabs } from "../SubTabs";
-import { Toggle } from "../Toggle";
 import { systemService } from "../../services/systemService";
 import { itemService, Item } from "../../services/itemService";
 import { orderService, Order } from "../../services/orderService";
@@ -16,11 +14,6 @@ import {
   OrderWithPromotions,
 } from "../../services/orderPromotionService";
 import {
-  compressionService,
-  CompressedFile,
-  BinFile,
-} from "../../services/compressionService";
-import {
   formatPrice,
   formatError,
   createSelectHandler,
@@ -29,7 +22,7 @@ import {
 } from "../../utils/formatters";
 import { toast } from "../../utils/toast";
 
-type DebugSubTab = "tools" | "print" | "compress";
+type DebugSubTab = "tools" | "print";
 
 interface DebugTabProps {
   onRefreshLogs: () => void;
@@ -72,124 +65,8 @@ export const DebugTab = ({
   } | null>(null);
   const [orderItemsPrice, setOrderItemsPrice] = useState<number>(0);
 
-  // Compression state
-  const [selectedFile, setSelectedFile] = useState<string>("");
-  const [selectedAlgorithm, setSelectedAlgorithm] = useState<string>("huffman");
-  const [compressedFiles, setCompressedFiles] = useState<CompressedFile[]>([]);
-  const [binFiles, setBinFiles] = useState<BinFile[]>([]);
-  const [isCompressing, setIsCompressing] = useState(false);
-  const [isDecompressing, setIsDecompressing] = useState<string | null>(null);
-
-  // Encryption state
-  const [encryptionEnabled, setEncryptionEnabled] = useState(true);
-
   // Compact state
   const [isCompacting, setIsCompacting] = useState(false);
-
-  useEffect(() => {
-    if (subTab === "compress") {
-      loadCompressedFiles();
-      loadBinFiles();
-    }
-  }, [subTab]);
-
-  useEffect(() => {
-    if (subTab === "tools") {
-      loadEncryptionStatus();
-    }
-  }, [subTab]);
-
-  const loadEncryptionStatus = async () => {
-    try {
-      const enabled = await systemService.getEncryptionEnabled();
-      setEncryptionEnabled(enabled);
-    } catch (err) {
-      console.error("Failed to load encryption status", err);
-    }
-  };
-
-  const handleEncryptionToggle = async (enabled: boolean) => {
-    try {
-      await systemService.setEncryptionEnabled(enabled);
-      setEncryptionEnabled(enabled);
-      toast.success(`RSA encryption ${enabled ? "enabled" : "disabled"}`);
-      onRefreshLogs();
-    } catch (err) {
-      toast.error("Failed to change encryption setting");
-    }
-  };
-
-  const loadCompressedFiles = async () => {
-    try {
-      const files = await compressionService.getCompressedFiles();
-      setCompressedFiles(files);
-    } catch (err) {
-      toast.error("Failed to load compressed files");
-    }
-  };
-
-  const loadBinFiles = async () => {
-    try {
-      const files = await compressionService.getBinFiles();
-      setBinFiles(files);
-      if (files.length === 0) {
-        setSelectedFile("");
-      } else if (selectedFile && selectedFile !== "__all__" && !files.some((f) => f.name === selectedFile)) {
-        // Current selection no longer exists, reset to "All Files"
-        setSelectedFile("__all__");
-      } else if (!selectedFile) {
-        // No selection, default to "All Files"
-        setSelectedFile("__all__");
-      }
-    } catch (err) {
-      toast.error("Failed to load bin files");
-    }
-  };
-
-  const handleCompress = async () => {
-    setIsCompressing(true);
-    try {
-      if (selectedFile === "__all__") {
-        const result = await compressionService.compressAll(selectedAlgorithm);
-        toast.success(`Compressed all files: ${result.spaceSaved} saved`);
-      } else {
-        const result = await compressionService.compress(selectedFile, selectedAlgorithm);
-        toast.success(`Compressed: ${result.spaceSaved} saved`);
-      }
-      await loadCompressedFiles();
-      await loadBinFiles();
-      onRefreshLogs();
-    } catch (err) {
-      toast.error("Compression failed");
-    } finally {
-      setIsCompressing(false);
-    }
-  };
-
-  const handleDecompress = async (filename: string) => {
-    setIsDecompressing(filename);
-    try {
-      const result = await compressionService.decompress(filename);
-      toast.success(`Decompressed: ${result.outputFile}`);
-      await loadCompressedFiles();
-      await loadBinFiles();
-      onRefreshLogs();
-    } catch (err) {
-      toast.error("Decompression failed");
-    } finally {
-      setIsDecompressing(null);
-    }
-  };
-
-  const handleDeleteCompressed = async (filename: string) => {
-    try {
-      await compressionService.deleteCompressedFile(filename);
-      toast.success(`Deleted ${filename}`);
-      await loadCompressedFiles();
-    } catch (err) {
-      toast.error("Failed to delete file");
-    }
-  };
 
   const handlePopulateClick = async () => {
     try {
@@ -388,18 +265,11 @@ export const DebugTab = ({
           <Button
             variant="danger"
             onClick={handleDeleteAll}
-            onMouseEnter={() => onMessage("Delete all .bin, .idx, and compressed files")}
+            onMouseEnter={() => onMessage("Delete all .bin and .idx files")}
             onMouseLeave={() => onMessage(DEFAULT_MESSAGE)}
           >
             Delete All Files
           </Button>
-          <Toggle
-            checked={encryptionEnabled}
-            onChange={handleEncryptionToggle}
-            label="Encryption"
-            onMouseEnter={() => onMessage("Toggle RSA encryption for data stored in binary files")}
-            onMouseLeave={() => onMessage(DEFAULT_MESSAGE)}
-          />
         </div>
       )}
 
@@ -687,125 +557,6 @@ export const DebugTab = ({
                 ]}
                 data={indexData.promotions.entries}
                 maxHeight="220px"
-              />
-            </div>
-          )}
-        </>
-      )}
-
-      {subTab === "compress" && (
-        <>
-          <div className="cart-container">
-            {binFiles.length === 0 ? (
-              <p style={{ color: "#333" }}>No .bin files found in data/bin/. Populate inventory first.</p>
-            ) : (
-              <div className="cart-header" style={{ marginBottom: 0, paddingBottom: 0, borderBottom: "none" }}>
-                <Select
-                  value={selectedFile}
-                  onChange={createSelectHandler(setSelectedFile)}
-                  options={[
-                    { value: "__all__", label: "All Files" },
-                    ...binFiles.map((f) => ({
-                      value: f.name,
-                      label: f.name,
-                    })),
-                  ]}
-                  placeholder="Select file..."
-                  className="cart-select"
-                />
-                <Select
-                  value={selectedAlgorithm}
-                  onChange={createSelectHandler(setSelectedAlgorithm)}
-                  options={[
-                    { value: "huffman", label: "Huffman" },
-                    { value: "lzw", label: "LZW" },
-                  ]}
-                  className="cart-select"
-                />
-                <Button
-                  onClick={handleCompress}
-                  disabled={isCompressing || !selectedFile}
-                >
-                  {isCompressing ? "Compressing..." : "Compress"}
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {compressedFiles.length > 0 && (
-            <div className="details-card">
-              <h3>Compressed Files ({compressedFiles.length})</h3>
-              <DataTable
-                columns={[
-                  {
-                    key: "name",
-                    header: "File Name",
-                    align: "left",
-                    minWidth: "200px",
-                  },
-                  {
-                    key: "algorithm",
-                    header: "Algorithm",
-                    align: "center",
-                    minWidth: "100px",
-                    render: (value) => (
-                      <span className="algorithm-badge">
-                        {value.toUpperCase()}
-                      </span>
-                    ),
-                  },
-                  {
-                    key: "originalSize",
-                    header: "Original",
-                    align: "right",
-                    minWidth: "100px",
-                    render: (value) => `${value} bytes`,
-                  },
-                  {
-                    key: "compressedSize",
-                    header: "Compressed",
-                    align: "right",
-                    minWidth: "100px",
-                    render: (value) => `${value} bytes`,
-                  },
-                  {
-                    key: "ratio",
-                    header: "Ratio",
-                    align: "right",
-                    minWidth: "80px",
-                    render: (_, row) => {
-                      const ratio = (
-                        (1 - row.compressedSize / row.originalSize) *
-                        100
-                      ).toFixed(1);
-                      return <span className="ratio-badge">{ratio}%</span>;
-                    },
-                  },
-                  {
-                    key: "actions",
-                    header: "Actions",
-                    align: "center",
-                    minWidth: "150px",
-                    render: (_, row) => (
-                      <div className="compress-table-actions">
-                        <Button
-                          onClick={() => handleDecompress(row.name)}
-                          disabled={isDecompressing === row.name}
-                        >
-                          {isDecompressing === row.name ? "..." : "Decompress"}
-                        </Button>
-                        <Button
-                          variant="danger"
-                          onClick={() => handleDeleteCompressed(row.name)}
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    ),
-                  },
-                ]}
-                data={compressedFiles}
-                maxHeight="300px"
               />
             </div>
           )}

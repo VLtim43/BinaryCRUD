@@ -38,11 +38,6 @@ func RemoveIndexForBin(binFilename string, log LogFunc) error {
 	return RemoveFile(IndexPath(indexName), log)
 }
 
-// RemoveCompressedFile deletes a compressed file from data/compressed
-func RemoveCompressedFile(filename string, log LogFunc) error {
-	return RemoveFile(CompressedPath(filename), log)
-}
-
 // CreateFile creates a new file and returns it open for reading and writing.
 // Also creates parent directories if they don't exist.
 // Uses restrictive permissions (0600) for data files.

@@ -1,7 +1,6 @@
 package test
 
 import (
-	"BinaryCRUD/backend/crypto"
 	"BinaryCRUD/backend/dao"
 	"BinaryCRUD/backend/utils"
 	"fmt"
@@ -42,8 +41,6 @@ func createTestApp() (*TestApp, func()) {
 		os.Remove(fmt.Sprintf("data/indexes/test_app_orders_%s.idx", uniqueID))
 		os.Remove(fmt.Sprintf("data/indexes/test_app_promos_%s.idx", uniqueID))
 		os.Remove(fmt.Sprintf("data/indexes/test_app_op_%s.idx", uniqueID))
-		// Reset crypto singleton
-		crypto.Reset()
 	}
 
 	app := &TestApp{
@@ -417,9 +414,9 @@ func TestCalculateTotalPrice(t *testing.T) {
 	defer cleanup()
 
 	// Add test items
-	_, _ = app.itemDAO.Write("Burger", 899)      // ID 0
-	_, _ = app.itemDAO.Write("Fries", 349)       // ID 1
-	_, _ = app.itemDAO.Write("Soda", 199)        // ID 2
+	_, _ = app.itemDAO.Write("Burger", 899) // ID 0
+	_, _ = app.itemDAO.Write("Fries", 349)  // ID 1
+	_, _ = app.itemDAO.Write("Soda", 199)   // ID 2
 
 	// Calculate total price
 	total, err := app.calculateTotalPrice([]uint64{0, 1, 2})
@@ -467,8 +464,8 @@ func TestCalculateTotalPriceWithValidation(t *testing.T) {
 	defer cleanup()
 
 	// Add test items
-	_, _ = app.itemDAO.Write("Burger", 899)  // ID 0
-	_, _ = app.itemDAO.Write("Fries", 349)   // ID 1
+	_, _ = app.itemDAO.Write("Burger", 899) // ID 0
+	_, _ = app.itemDAO.Write("Fries", 349)  // ID 1
 
 	// Calculate with mix of valid and invalid items
 	validItems, total := app.calculateTotalPriceWithValidation(

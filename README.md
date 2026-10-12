@@ -17,13 +17,6 @@ A restaurant manager application built with Wails (Go + Preact) featuring custom
   - `promotions.bin` → `promotions.idx`
 - **N:N relationship** between Orders and Promotions via `order_promotions.bin`
 - **Logical deletion** using tombstone markers (no physical deletion)
-- **Compression algorithms:**
-  - Huffman coding
-  - LZW compression
-- **RSA encryption** (educational implementation) for sensitive fields
-- **Pattern matching search:**
-  - KMP (Knuth-Morris-Pratt)
-  - Boyer-Moore (Bad Character heuristic)
 - **Wails desktop app** with Go backend and Preact frontend
 
 ### Prerequisites
@@ -97,7 +90,7 @@ BinaryCRUD/
 │
 ├── backend/
 │   ├── dao/               <- Data Access Objects (CRUD operations)
-│   │   ├── item_dao.go        <- Items table operations + search
+│   │   ├── item_dao.go        <- Items table operations
 │   │   ├── order_dao.go       <- Orders table operations
 │   │   ├── promotion_dao.go   <- Promotions table operations
 │   │   ├── order_promotion_dao.go  <- N:N relationship operations
@@ -107,18 +100,6 @@ BinaryCRUD/
 │   │   ├── btree.go           <- B+ Tree implementation (order 4)
 │   │   ├── extensible_hash.go <- Extensible hashing (alternative index)
 │   │   └── persistence.go     <- Index serialization to disk
-│   │
-│   ├── search/            <- Pattern matching algorithms
-│   │   ├── kmp.go             <- KMP (Knuth-Morris-Pratt) algorithm
-│   │   └── boyer_moore.go     <- Boyer-Moore algorithm
-│   │
-│   ├── compression/       <- Compression algorithms
-│   │   ├── huffman.go         <- Huffman coding
-│   │   ├── lzw.go             <- LZW compression
-│   │   └── compressor.go      <- Compression interface
-│   │
-│   ├── crypto/            <- Encryption
-│   │   └── simple_rsa.go      <- Educational RSA implementation
 │   │
 │   ├── utils/             <- Helper functions (read, write, parse, validate, etc.)
 │   └── test/              <- Unit tests for all backend components
@@ -135,8 +116,6 @@ BinaryCRUD/
 └── data/
     ├── bin/               <- Binary data files (.bin)
     ├── indexes/           <- B+ Tree index files (.idx)
-    ├── compressed/        <- Compressed files (.huffman, .lzw)
-    ├── keys/              <- RSA keys (if generated)
     └── seed/              <- Initial data (items.json, orders.json, etc.)
 ```
 
@@ -159,7 +138,7 @@ BinaryCRUD/
 | id | 2 bytes | Auto-increment primary key |
 | tombstone | 1 byte | Deletion marker |
 | ownerLength | 2 bytes | Length of customer name |
-| owner | variable | Customer name (RSA encrypted) |
+| owner | variable | Customer name |
 | totalPrice | 4 bytes | Total in cents |
 | itemCount | 2 bytes | Number of items |
 | itemIDs | 2 bytes each | Array of item IDs |
@@ -170,7 +149,7 @@ BinaryCRUD/
 | id | 2 bytes | Auto-increment primary key |
 | tombstone | 1 byte | Deletion marker |
 | nameLength | 2 bytes | Length of promotion name |
-| name | variable | Promotion name (RSA encrypted) |
+| name | variable | Promotion name |
 | totalPrice | 4 bytes | Bundle price in cents |
 | itemCount | 2 bytes | Number of items |
 | itemIDs | 2 bytes each | Array of item IDs |

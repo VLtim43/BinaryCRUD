@@ -10,19 +10,11 @@ export function ClearLogs():Promise<void>;
 
 export function Compact():Promise<main.CompactResult>;
 
-export function CompressAllFiles(arg1:string):Promise<Record<string, any>>;
-
-export function CompressFile(arg1:string,arg2:string):Promise<Record<string, any>>;
-
 export function CreateOrder(arg1:string,arg2:Array<number>):Promise<number>;
 
 export function CreatePromotion(arg1:string,arg2:Array<number>):Promise<number>;
 
-export function DecompressFile(arg1:string):Promise<Record<string, any>>;
-
 export function DeleteAllFiles():Promise<void>;
-
-export function DeleteCompressedFile(arg1:string):Promise<void>;
 
 export function DeleteItem(arg1:number):Promise<void>;
 
@@ -35,12 +27,6 @@ export function GetAllItems():Promise<Array<Record<string, any>>>;
 export function GetAllOrders():Promise<Array<Record<string, any>>>;
 
 export function GetAllPromotions():Promise<Array<Record<string, any>>>;
-
-export function GetBinFiles():Promise<Array<Record<string, any>>>;
-
-export function GetCompressedFiles():Promise<Array<Record<string, any>>>;
-
-export function GetEncryptionEnabled():Promise<boolean>;
 
 export function GetIndexContents():Promise<Record<string, any>>;
 
@@ -66,6 +52,4 @@ export function PopulateInventory():Promise<void>;
 
 export function RemovePromotionFromOrder(arg1:number,arg2:number):Promise<void>;
 
-export function SearchItems(arg1:string,arg2:string):Promise<Array<Record<string, any>>>;
-
-export function SetEncryptionEnabled(arg1:boolean):Promise<void>;
+export function SearchItems(arg1:string):Promise<Array<Record<string, any>>>;

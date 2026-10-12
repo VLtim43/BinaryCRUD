@@ -2,7 +2,6 @@ package dao
 
 import (
 	"BinaryCRUD/backend/index"
-	"BinaryCRUD/backend/search"
 	"BinaryCRUD/backend/utils"
 	"fmt"
 	"os"
@@ -14,8 +13,8 @@ import (
 type ItemDAO struct {
 	filePath  string
 	indexPath string
-	mu        sync.Mutex    // Protects concurrent writes to the binary file
-	tree      *index.BTree  // B+ tree index for fast lookups
+	mu        sync.Mutex   // Protects concurrent writes to the binary file
+	tree      *index.BTree // B+ tree index for fast lookups
 }
 
 // NewItemDAO creates a new ItemDAO instance
@@ -221,18 +220,9 @@ func (dao *ItemDAO) GetAll() ([]Item, error) {
 	return items, nil
 }
 
-// SearchAlgorithm represents the pattern matching algorithm to use
-type SearchAlgorithm string
-
-const (
-	AlgorithmKMP        SearchAlgorithm = "kmp"
-	AlgorithmBoyerMoore SearchAlgorithm = "bm"
-)
-
 // SearchByName finds items whose name contains the given pattern.
 // Returns only non-deleted items. Case-insensitive search.
-// algorithm: "kmp" for Knuth-Morris-Pratt, "bm" for Boyer-Moore
-func (dao *ItemDAO) SearchByName(pattern string, algorithm SearchAlgorithm) ([]Item, error) {
+func (dao *ItemDAO) SearchByName(pattern string) ([]Item, error) {
 	items, err := dao.GetAll()
 	if err != nil {
 		return nil, err
@@ -245,27 +235,12 @@ func (dao *ItemDAO) SearchByName(pattern string, algorithm SearchAlgorithm) ([]I
 	// Case-insensitive: lowercase the pattern
 	lowerPattern := strings.ToLower(pattern)
 
-	// Create matcher based on algorithm choice
-	var matcher interface {
-		ContainsString(text string) bool
-	}
-
-	switch algorithm {
-	case AlgorithmBoyerMoore:
-		matcher = search.NewBoyerMooreString(lowerPattern)
-	case AlgorithmKMP:
-		fallthrough
-	default:
-		matcher = search.NewKMPString(lowerPattern)
-	}
-
 	var results []Item
 	for _, item := range items {
 		if item.IsDeleted {
 			continue
 		}
-		// Case-insensitive: lowercase the name before matching
-		if matcher.ContainsString(strings.ToLower(item.Name)) {
+		if strings.Contains(strings.ToLower(item.Name), lowerPattern) {
 			results = append(results, item)
 		}
 	}

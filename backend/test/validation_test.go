@@ -227,59 +227,6 @@ func TestValidateRecordLengthTooLarge(t *testing.T) {
 	}
 }
 
-// ==================== Archive File Count Validation Tests ====================
-
-func TestValidateArchiveFileCountValid(t *testing.T) {
-	err := utils.ValidateArchiveFileCount(10)
-	if err != nil {
-		t.Errorf("Expected no error for valid file count, got %v", err)
-	}
-}
-
-func TestValidateArchiveFileCountZero(t *testing.T) {
-	err := utils.ValidateArchiveFileCount(0)
-	if err == nil {
-		t.Error("Expected error for zero file count")
-	}
-}
-
-func TestValidateArchiveFileCountMax(t *testing.T) {
-	err := utils.ValidateArchiveFileCount(utils.MaxFileCount)
-	if err != nil {
-		t.Errorf("Expected no error for max file count, got %v", err)
-	}
-}
-
-func TestValidateArchiveFileCountTooMany(t *testing.T) {
-	err := utils.ValidateArchiveFileCount(utils.MaxFileCount + 1)
-	if err == nil {
-		t.Error("Expected error for exceeding max file count")
-	}
-}
-
-// ==================== Decompressed Size Validation Tests ====================
-
-func TestValidateDecompressedSizeValid(t *testing.T) {
-	err := utils.ValidateDecompressedSize(1024)
-	if err != nil {
-		t.Errorf("Expected no error for valid decompressed size, got %v", err)
-	}
-}
-
-func TestValidateDecompressedSizeMax(t *testing.T) {
-	err := utils.ValidateDecompressedSize(utils.MaxDecompressedSize)
-	if err != nil {
-		t.Errorf("Expected no error for max decompressed size, got %v", err)
-	}
-}
-
-func TestValidateDecompressedSizeTooLarge(t *testing.T) {
-	err := utils.ValidateDecompressedSize(utils.MaxDecompressedSize + 1)
-	if err == nil {
-		t.Error("Expected error for exceeding max decompressed size")
-	}
-}
-
 // ==================== Offset Validation Tests ====================
 
 func TestValidateOffsetValid(t *testing.T) {
@@ -336,7 +283,4 @@ func TestValidationConstantsAreSensible(t *testing.T) {
 		t.Error("MaxRecordSize is too small")
 	}
 
-	if utils.MaxDecompressedSize < utils.MaxRecordSize {
-		t.Error("MaxDecompressedSize should be >= MaxRecordSize")
-	}
 }

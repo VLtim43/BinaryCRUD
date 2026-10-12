@@ -18,14 +18,6 @@ export function Compact() {
   return window['go']['main']['App']['Compact']();
 }
 
-export function CompressAllFiles(arg1) {
-  return window['go']['main']['App']['CompressAllFiles'](arg1);
-}
-
-export function CompressFile(arg1, arg2) {
-  return window['go']['main']['App']['CompressFile'](arg1, arg2);
-}
-
 export function CreateOrder(arg1, arg2) {
   return window['go']['main']['App']['CreateOrder'](arg1, arg2);
 }
@@ -34,16 +26,8 @@ export function CreatePromotion(arg1, arg2) {
   return window['go']['main']['App']['CreatePromotion'](arg1, arg2);
 }
 
-export function DecompressFile(arg1) {
-  return window['go']['main']['App']['DecompressFile'](arg1);
-}
-
 export function DeleteAllFiles() {
   return window['go']['main']['App']['DeleteAllFiles']();
-}
-
-export function DeleteCompressedFile(arg1) {
-  return window['go']['main']['App']['DeleteCompressedFile'](arg1);
 }
 
 export function DeleteItem(arg1) {
@@ -68,18 +52,6 @@ export function GetAllOrders() {
 
 export function GetAllPromotions() {
   return window['go']['main']['App']['GetAllPromotions']();
-}
-
-export function GetBinFiles() {
-  return window['go']['main']['App']['GetBinFiles']();
-}
-
-export function GetCompressedFiles() {
-  return window['go']['main']['App']['GetCompressedFiles']();
-}
-
-export function GetEncryptionEnabled() {
-  return window['go']['main']['App']['GetEncryptionEnabled']();
 }
 
 export function GetIndexContents() {
@@ -130,10 +102,6 @@ export function RemovePromotionFromOrder(arg1, arg2) {
   return window['go']['main']['App']['RemovePromotionFromOrder'](arg1, arg2);
 }
 
-export function SearchItems(arg1, arg2) {
-  return window['go']['main']['App']['SearchItems'](arg1, arg2);
-}
-
-export function SetEncryptionEnabled(arg1) {
-  return window['go']['main']['App']['SetEncryptionEnabled'](arg1);
+export function SearchItems(arg1) {
+  return window['go']['main']['App']['SearchItems'](arg1);
 }

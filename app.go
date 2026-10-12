@@ -1,17 +1,13 @@
 package main
 
 import (
-	"BinaryCRUD/backend/compression"
-	"BinaryCRUD/backend/crypto"
 	"BinaryCRUD/backend/dao"
 	"BinaryCRUD/backend/utils"
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 )
 
 // App struct
@@ -159,7 +155,7 @@ func (a *App) DeleteItem(id uint64) error {
 	return nil
 }
 
-// DeleteAllFiles deletes all generated data (bin, indexes, compressed, keys) but keeps seed folder
+// DeleteAllFiles deletes all generated data and keeps seed folder
 func (a *App) DeleteAllFiles() error {
 	results, err := utils.CleanupDataFiles(a.logger.Info)
 	if err != nil {
@@ -167,10 +163,8 @@ func (a *App) DeleteAllFiles() error {
 	}
 
 	folderNames := map[string]string{
-		utils.BinDir:        "bin files",
-		utils.IndexDir:      "indexes",
-		utils.CompressedDir: "compressed files",
-		utils.KeysDir:       "encryption keys",
+		utils.BinDir:   "bin files",
+		utils.IndexDir: "indexes",
 	}
 
 	totalDeleted := 0
@@ -189,17 +183,14 @@ func (a *App) DeleteAllFiles() error {
 		a.toast.Info("No files to delete")
 	}
 
-	a.logger.Info(fmt.Sprintf("Deleted %d file(s) from bin, indexes, compressed, and keys folders", totalDeleted))
-
-	// Reset RSA crypto singleton so new keys are generated on next use
-	crypto.Reset()
+	a.logger.Info(fmt.Sprintf("Deleted %d file(s) from bin and indexes folders", totalDeleted))
 
 	// Reload all DAOs to clear in-memory indexes
 	a.itemDAO = dao.NewItemDAO(utils.BinPath("items.bin"))
 	a.orderDAO = dao.NewOrderDAO(utils.BinPath("orders.bin"))
 	a.promotionDAO = dao.NewPromotionDAO(utils.BinPath("promotions.bin"))
 	a.orderPromotionDAO = dao.NewOrderPromotionDAO(utils.BinPath("order_promotions.bin"))
-	a.logger.Info("Cleared all in-memory indexes and RSA keys")
+	a.logger.Info("Cleared all in-memory indexes")
 
 	return nil
 }
@@ -531,9 +522,8 @@ func (a *App) GetAllItems() ([]map[string]any, error) {
 	return result, nil
 }
 
-// SearchItems searches for items by name using pattern matching algorithm
-// algorithm: "kmp" for Knuth-Morris-Pratt, "bm" for Boyer-Moore
-func (a *App) SearchItems(pattern string, algorithm string) ([]map[string]any, error) {
+// SearchItems searches for items by name.
+func (a *App) SearchItems(pattern string) ([]map[string]any, error) {
 	// First check if there are any items at all
 	allItems, err := a.itemDAO.GetAll()
 	if err != nil {
@@ -543,18 +533,7 @@ func (a *App) SearchItems(pattern string, algorithm string) ([]map[string]any, e
 		return nil, fmt.Errorf("no items in database - populate inventory first")
 	}
 
-	// Convert string to SearchAlgorithm type
-	var searchAlgo dao.SearchAlgorithm
-	switch algorithm {
-	case "bm":
-		searchAlgo = dao.AlgorithmBoyerMoore
-	case "kmp":
-		fallthrough
-	default:
-		searchAlgo = dao.AlgorithmKMP
-	}
-
-	items, err := a.itemDAO.SearchByName(pattern, searchAlgo)
+	items, err := a.itemDAO.SearchByName(pattern)
 	if err != nil {
 		return nil, err
 	}
@@ -568,11 +547,7 @@ func (a *App) SearchItems(pattern string, algorithm string) ([]map[string]any, e
 		}
 	}
 
-	algoName := "KMP"
-	if algorithm == "bm" {
-		algoName = "Boyer-Moore"
-	}
-	a.logger.Info(fmt.Sprintf("Search '%s' using %s found %d items", pattern, algoName, len(items)))
+	a.logger.Info(fmt.Sprintf("Search '%s' found %d items", pattern, len(items)))
 	return result, nil
 }
 
@@ -871,452 +846,6 @@ func (a *App) GetOrderWithPromotions(orderID uint64) (map[string]any, error) {
 		"itemCount":    order.ItemCount,
 		"itemIDs":      order.ItemIDs,
 	}, nil
-}
-
-// CompressFile compresses a binary file using the specified algorithm
-func (a *App) CompressFile(filename string, algorithm string) (map[string]any, error) {
-	inputPath := utils.BinPath(filename)
-
-	fileInfo, err := os.Stat(inputPath)
-	if err != nil {
-		return nil, fmt.Errorf("file not found: %s", filename)
-	}
-	originalSize := fileInfo.Size()
-
-	outputFilename := utils.CompressedFilename(filename, algorithm)
-	outputPath := utils.CompressedPath(outputFilename)
-
-	compressor, err := compression.NewCompressor(algorithm)
-	if err != nil {
-		return nil, err
-	}
-	err = compressor.CompressFile(inputPath, outputPath)
-
-	if err != nil {
-		return nil, err
-	}
-	if err = compressor.CompressFile(inputPath, outputPath); err != nil {
-		return nil, fmt.Errorf("compression failed: %w", err)
-	}
-
-	compressedInfo, err := os.Stat(outputPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to stat compressed file: %w", err)
-	}
-	compressedSize := compressedInfo.Size()
-
-	utils.RemoveBinFile(filename, a.logger.Info)
-	utils.RemoveIndexForBin(filename, a.logger.Info)
-
-	ratio := float64(compressedSize) / float64(originalSize) * 100
-	spaceSaved := float64(originalSize-compressedSize) / float64(originalSize) * 100
-
-	a.logger.Info(fmt.Sprintf("Compressed %s -> %s (%.2f%% of original, saved %.2f%%)",
-		filename, outputFilename, ratio, spaceSaved))
-
-	return map[string]any{
-		"outputFile":     outputFilename,
-		"originalSize":   originalSize,
-		"compressedSize": compressedSize,
-		"ratio":          fmt.Sprintf("%.2f%%", ratio),
-		"spaceSaved":     fmt.Sprintf("%.2f%%", spaceSaved),
-	}, nil
-}
-
-// CompressAllFiles compresses all .bin files into a single archive
-func (a *App) CompressAllFiles(algorithm string) (map[string]any, error) {
-	entries, err := os.ReadDir(utils.BinDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read bin directory: %w", err)
-	}
-
-	var binFiles []string
-	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".bin") {
-			binFiles = append(binFiles, entry.Name())
-		}
-	}
-
-	if len(binFiles) == 0 {
-		return nil, fmt.Errorf("no .bin files found to compress")
-	}
-
-	// Build combined data with file markers
-	// Format: [fileCount(4)][file1NameLen(2)][file1Name][file1Size(4)][file1Data]...
-	var combined []byte
-
-	fileCountBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(fileCountBytes, uint32(len(binFiles)))
-	combined = append(combined, fileCountBytes...)
-
-	var totalOriginalSize int64
-
-	for _, filename := range binFiles {
-		data, err := os.ReadFile(utils.BinPath(filename))
-		if err != nil {
-			return nil, fmt.Errorf("failed to read %s: %w", filename, err)
-		}
-
-		totalOriginalSize += int64(len(data))
-
-		nameBytes := []byte(filename)
-		nameLenBytes := make([]byte, 2)
-		binary.BigEndian.PutUint16(nameLenBytes, uint16(len(nameBytes)))
-		combined = append(combined, nameLenBytes...)
-		combined = append(combined, nameBytes...)
-
-		sizeBytes := make([]byte, 4)
-		binary.BigEndian.PutUint32(sizeBytes, uint32(len(data)))
-		combined = append(combined, sizeBytes...)
-		combined = append(combined, data...)
-	}
-
-	outputFilename := utils.CompressedFilename("all_files", algorithm)
-
-	compressor, err := compression.NewCompressor(algorithm)
-	if err != nil {
-		return nil, err
-	}
-	compressedData, err := compressor.Compress(combined)
-
-	if err != nil {
-		return nil, fmt.Errorf("compression failed: %w", err)
-	}
-
-	outputPath := utils.CompressedPath(outputFilename)
-
-	if err := os.MkdirAll(utils.CompressedDir, 0700); err != nil {
-		return nil, fmt.Errorf("failed to create output directory: %w", err)
-	}
-
-	if err := os.WriteFile(outputPath, compressedData, 0600); err != nil {
-		return nil, fmt.Errorf("failed to write compressed file: %w", err)
-	}
-
-	compressedSize := int64(len(compressedData))
-
-	for _, filename := range binFiles {
-		utils.RemoveBinFile(filename, a.logger.Info)
-		utils.RemoveIndexForBin(filename, a.logger.Info)
-	}
-
-	ratio := float64(compressedSize) / float64(totalOriginalSize) * 100
-	spaceSaved := float64(totalOriginalSize-compressedSize) / float64(totalOriginalSize) * 100
-
-	a.logger.Info(fmt.Sprintf("Compressed %d files -> %s (%.2f%% of original, saved %.2f%%)",
-		len(binFiles), outputFilename, ratio, spaceSaved))
-
-	return map[string]any{
-		"outputFile":     outputFilename,
-		"originalSize":   totalOriginalSize,
-		"compressedSize": compressedSize,
-		"ratio":          fmt.Sprintf("%.2f%%", ratio),
-		"spaceSaved":     fmt.Sprintf("%.2f%%", spaceSaved),
-	}, nil
-}
-
-// DecompressFile decompresses a compressed file
-func (a *App) DecompressFile(filename string) (map[string]any, error) {
-	inputPath := utils.CompressedPath(filename)
-
-	if _, err := os.Stat(inputPath); err != nil {
-		return nil, fmt.Errorf("compressed file not found: %s", filename)
-	}
-
-	// Check if this is an all_files archive
-	if strings.HasPrefix(filename, "all_files.") {
-		return a.decompressAllFiles(inputPath, filename)
-	}
-
-	algorithm := utils.DetectCompressionAlgorithm(filename)
-	if algorithm == utils.AlgorithmUnknown {
-		return nil, fmt.Errorf("unknown compression format: %s", filename)
-	}
-
-	outputFilename := utils.DecompressedFilename(filename)
-	outputPath := utils.BinPath(outputFilename)
-	var err error
-
-	compressor, err := compression.NewCompressor(algorithm)
-	if err != nil {
-		return nil, err
-	}
-	err = compressor.DecompressFile(inputPath, outputPath)
-
-	decompressor, err := compression.NewCompressor(algorithm)
-	if err != nil {
-		return nil, err
-	}
-	if err = decompressor.DecompressFile(inputPath, outputPath); err != nil {
-		return nil, fmt.Errorf("decompression failed: %w", err)
-	}
-
-	compressedInfo, err := os.Stat(inputPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to stat compressed file: %w", err)
-	}
-	compressedSize := compressedInfo.Size()
-
-	decompressedInfo, err := os.Stat(outputPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to stat decompressed file: %w", err)
-	}
-	originalSize := decompressedInfo.Size()
-
-	utils.RemoveCompressedFile(filename, a.logger.Info)
-
-	ratio := float64(compressedSize) / float64(originalSize) * 100
-	spaceSaved := float64(originalSize-compressedSize) / float64(originalSize) * 100
-
-	a.logger.Info(fmt.Sprintf("Decompressed %s -> %s (%d bytes)", filename, outputFilename, originalSize))
-
-	return map[string]any{
-		"outputFile":     outputFilename,
-		"originalSize":   originalSize,
-		"compressedSize": compressedSize,
-		"ratio":          fmt.Sprintf("%.2f%%", ratio),
-		"spaceSaved":     fmt.Sprintf("%.2f%%", spaceSaved),
-	}, nil
-}
-
-// decompressAllFiles handles decompression of the all_files archive
-func (a *App) decompressAllFiles(inputPath string, filename string) (map[string]any, error) {
-	compressedData, err := os.ReadFile(inputPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read compressed file: %w", err)
-	}
-	compressedSize := int64(len(compressedData))
-
-	algorithm := utils.DetectCompressionAlgorithm(filename)
-
-	compressor, err := compression.NewCompressor(algorithm)
-	if err != nil {
-		return nil, fmt.Errorf("unknown compression format: %s", filename)
-	}
-	data, err := compressor.Decompress(compressedData)
-	if err != nil {
-		return nil, fmt.Errorf("decompression failed: %w", err)
-	}
-
-	// Validate decompressed size to prevent decompression bomb attacks
-	if err := utils.ValidateDecompressedSize(len(data)); err != nil {
-		return nil, fmt.Errorf("decompression security check failed: %w", err)
-	}
-
-	// Parse the combined format
-	// Format: [fileCount(4)][file1NameLen(2)][file1Name][file1Size(4)][file1Data]...
-	if len(data) < 4 {
-		return nil, fmt.Errorf("invalid archive format: too short")
-	}
-
-	offset := 0
-	fileCount := binary.BigEndian.Uint32(data[offset : offset+4])
-	offset += 4
-
-	// Validate file count to prevent resource exhaustion
-	if err := utils.ValidateArchiveFileCount(fileCount); err != nil {
-		return nil, fmt.Errorf("invalid archive: %w", err)
-	}
-
-	if err := os.MkdirAll(utils.BinDir, 0700); err != nil {
-		return nil, fmt.Errorf("failed to create bin directory: %w", err)
-	}
-
-	var totalOriginalSize int64
-	var filesRestored int
-
-	for i := uint32(0); i < fileCount; i++ {
-		if offset+2 > len(data) {
-			return nil, fmt.Errorf("invalid archive format: truncated at file %d name length", i)
-		}
-		nameLen := binary.BigEndian.Uint16(data[offset : offset+2])
-		offset += 2
-
-		// Validate filename length
-		if nameLen == 0 || nameLen > uint16(utils.MaxNameLength) {
-			return nil, fmt.Errorf("invalid archive format: invalid filename length %d at file %d", nameLen, i)
-		}
-
-		if offset+int(nameLen) > len(data) {
-			return nil, fmt.Errorf("invalid archive format: truncated at file %d name", i)
-		}
-		restoredFilename := string(data[offset : offset+int(nameLen)])
-		offset += int(nameLen)
-
-		if offset+4 > len(data) {
-			return nil, fmt.Errorf("invalid archive format: truncated at file %d size", i)
-		}
-		fileSize := binary.BigEndian.Uint32(data[offset : offset+4])
-		offset += 4
-
-		// Validate individual file size
-		if fileSize > uint32(utils.MaxRecordSize) {
-			return nil, fmt.Errorf("invalid archive format: file %d size %d exceeds maximum", i, fileSize)
-		}
-
-		if offset+int(fileSize) > len(data) {
-			return nil, fmt.Errorf("invalid archive format: truncated at file %d data", i)
-		}
-		fileData := data[offset : offset+int(fileSize)]
-		offset += int(fileSize)
-
-		if err := os.WriteFile(utils.BinPath(restoredFilename), fileData, 0600); err != nil {
-			return nil, fmt.Errorf("failed to write %s: %w", restoredFilename, err)
-		}
-
-		totalOriginalSize += int64(fileSize)
-		filesRestored++
-		a.logger.Info(fmt.Sprintf("Restored %s (%d bytes)", restoredFilename, fileSize))
-	}
-
-	utils.RemoveCompressedFile(filename, a.logger.Info)
-
-	ratio := float64(compressedSize) / float64(totalOriginalSize) * 100
-	spaceSaved := float64(totalOriginalSize-compressedSize) / float64(totalOriginalSize) * 100
-
-	a.logger.Info(fmt.Sprintf("Decompressed all_files archive: %d files restored (%d bytes total)", filesRestored, totalOriginalSize))
-
-	return map[string]any{
-		"outputFile":     fmt.Sprintf("%d files restored", filesRestored),
-		"originalSize":   totalOriginalSize,
-		"compressedSize": compressedSize,
-		"ratio":          fmt.Sprintf("%.2f%%", ratio),
-		"spaceSaved":     fmt.Sprintf("%.2f%%", spaceSaved),
-	}, nil
-}
-
-// listFilesInDir is a helper to list files in a directory with optional filtering and mapping
-func (a *App) listFilesInDir(dir string, filter func(string) bool, mapper func(string, int64) map[string]any) ([]map[string]any, error) {
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		return []map[string]any{}, nil
-	}
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read directory %s: %w", dir, err)
-	}
-
-	files := make([]map[string]any, 0)
-	for _, entry := range entries {
-		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
-			continue
-		}
-		if filter != nil && !filter(entry.Name()) {
-			continue
-		}
-
-		info, err := entry.Info()
-		if err != nil {
-			continue
-		}
-
-		files = append(files, mapper(entry.Name(), info.Size()))
-	}
-
-	return files, nil
-}
-
-// GetCompressedFiles returns a list of compressed files with metadata
-func (a *App) GetCompressedFiles() ([]map[string]any, error) {
-	if _, err := os.Stat(utils.CompressedDir); os.IsNotExist(err) {
-		return []map[string]any{}, nil
-	}
-
-	entries, err := os.ReadDir(utils.CompressedDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read compressed directory: %w", err)
-	}
-
-	files := make([]map[string]any, 0)
-	for _, entry := range entries {
-		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
-			continue
-		}
-
-		info, err := entry.Info()
-		if err != nil {
-			continue
-		}
-
-		compressedSize := info.Size()
-		name := entry.Name()
-		algorithm := utils.DetectCompressionAlgorithm(name)
-
-		// Read original size from file header (format: 4 magic + uint32 originalSize)
-		var originalSize int64 = 0
-		if algorithm != utils.AlgorithmUnknown {
-			file, err := os.Open(utils.CompressedPath(name))
-			if err == nil {
-				header := make([]byte, 8) // 4 magic + 4 size
-				if n, err := file.Read(header); err == nil && n == 8 {
-					originalSize = int64(binary.LittleEndian.Uint32(header[4:8]))
-				}
-				file.Close()
-			}
-		}
-
-		var ratio, spaceSaved float64
-		if originalSize > 0 {
-			ratio = float64(compressedSize) / float64(originalSize) * 100
-			spaceSaved = float64(originalSize-compressedSize) / float64(originalSize) * 100
-		}
-
-		files = append(files, map[string]any{
-			"name":           name,
-			"originalSize":   originalSize,
-			"compressedSize": compressedSize,
-			"algorithm":      algorithm,
-			"ratio":          fmt.Sprintf("%.2f%%", ratio),
-			"spaceSaved":     fmt.Sprintf("%.2f%%", spaceSaved),
-		})
-	}
-
-	return files, nil
-}
-
-// DeleteCompressedFile deletes a compressed file
-func (a *App) DeleteCompressedFile(filename string) error {
-	filePath := utils.CompressedPath(filename)
-
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		return fmt.Errorf("file not found: %s", filename)
-	}
-
-	if err := os.Remove(filePath); err != nil {
-		return fmt.Errorf("failed to delete file: %w", err)
-	}
-
-	a.logger.Info(fmt.Sprintf("Deleted compressed file: %s", filename))
-	return nil
-}
-
-// GetBinFiles returns a list of .bin files in the data/bin directory
-func (a *App) GetBinFiles() ([]map[string]any, error) {
-	return a.listFilesInDir(
-		utils.BinDir,
-		func(name string) bool { return strings.HasSuffix(name, ".bin") },
-		func(name string, size int64) map[string]any {
-			return map[string]any{
-				"name": name,
-				"size": size,
-			}
-		},
-	)
-}
-
-// GetEncryptionEnabled returns whether RSA encryption is enabled
-func (a *App) GetEncryptionEnabled() bool {
-	return crypto.IsEnabled()
-}
-
-// SetEncryptionEnabled enables or disables RSA encryption
-func (a *App) SetEncryptionEnabled(enabled bool) {
-	crypto.SetEnabled(enabled)
-	status := "disabled"
-	if enabled {
-		status = "enabled"
-	}
-	a.logger.Info(fmt.Sprintf("RSA encryption %s", status))
 }
 
 // CompactResult represents the result of a compaction operation for frontend

@@ -2,7 +2,6 @@ package utils
 
 import (
 	"path/filepath"
-	"strings"
 )
 
 // BDATMagic is the magic bytes for binary data files
@@ -36,17 +35,10 @@ const (
 	DefaultBTreeOrder = 4
 
 	// Data directory paths
-	DataDir       = "data"
-	BinDir        = "data/bin"
-	IndexDir      = "data/indexes"
-	CompressedDir = "data/compressed"
-	SeedDir       = "data/seed"
-	KeysDir       = "data/keys"
-
-	// Compression algorithms
-	AlgorithmHuffman = "huffman"
-	AlgorithmLZW     = "lzw"
-	AlgorithmUnknown = "unknown"
+	DataDir  = "data"
+	BinDir   = "data/bin"
+	IndexDir = "data/indexes"
+	SeedDir  = "data/seed"
 )
 
 // CalculateHeaderSize returns the total header size for a given filename
@@ -64,35 +56,7 @@ func IndexPath(filename string) string {
 	return filepath.Join(IndexDir, filename)
 }
 
-// CompressedPath returns the full path for a file in the compressed directory
-func CompressedPath(filename string) string {
-	return filepath.Join(CompressedDir, filename)
-}
-
 // SeedPath returns the full path for a file in the seed directory
 func SeedPath(filename string) string {
 	return filepath.Join(SeedDir, filename)
-}
-
-// DetectCompressionAlgorithm determines the compression algorithm from a filename
-func DetectCompressionAlgorithm(filename string) string {
-	if strings.Contains(filename, ".huffman.") {
-		return AlgorithmHuffman
-	}
-	if strings.Contains(filename, ".lzw.") {
-		return AlgorithmLZW
-	}
-	return AlgorithmUnknown
-}
-
-// CompressedFilename generates the compressed filename for a given algorithm
-func CompressedFilename(originalName, algorithm string) string {
-	return originalName + "." + algorithm + ".compressed"
-}
-
-// DecompressedFilename extracts the original filename from a compressed filename
-func DecompressedFilename(compressedName string) string {
-	name := strings.TrimSuffix(compressedName, ".huffman.compressed")
-	name = strings.TrimSuffix(name, ".lzw.compressed")
-	return name
 }

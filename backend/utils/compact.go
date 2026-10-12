@@ -8,13 +8,13 @@ import (
 
 // CompactResult holds the results of a compaction operation
 type CompactResult struct {
-	ItemsRemoved             int      // Number of tombstoned items physically removed
-	OrdersAffected           int      // Number of orders that had item references cleaned
-	PromotionsAffected       int      // Number of promotions that had item references cleaned
-	OrdersRemoved            int      // Number of tombstoned orders physically removed
-	PromotionsRemoved        int      // Number of tombstoned promotions physically removed
-	OrderPromotionsRemoved   int      // Number of tombstoned order-promotions physically removed
-	DeletedItemIDs           []uint64 // IDs of items that were removed
+	ItemsRemoved           int      // Number of tombstoned items physically removed
+	OrdersAffected         int      // Number of orders that had item references cleaned
+	PromotionsAffected     int      // Number of promotions that had item references cleaned
+	OrdersRemoved          int      // Number of tombstoned orders physically removed
+	PromotionsRemoved      int      // Number of tombstoned promotions physically removed
+	OrderPromotionsRemoved int      // Number of tombstoned order-promotions physically removed
+	DeletedItemIDs         []uint64 // IDs of items that were removed
 }
 
 // CompactAll performs compaction on all binary files:
@@ -380,7 +380,7 @@ func rewriteCollectionsFile(filePath string, collections []*Collection) error {
 // writeCollectionEntry writes a single collection entry
 // Format: [recordLength(2)][ID(2)][tombstone(1)][nameLength(2)][name...][totalPrice(4)][itemCount(4)][itemIDs...]
 func writeCollectionEntry(file *os.File, c *Collection) error {
-	// Name (already encrypted in OwnerOrName if encryption was used)
+	// Name
 	nameBytes := []byte(c.OwnerOrName)
 	nameSizeBytes, err := WriteFixedNumber(2, uint64(len(nameBytes)))
 	if err != nil {

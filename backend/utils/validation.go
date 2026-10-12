@@ -19,21 +19,15 @@ const (
 
 	// MaxPrice is the maximum price in cents (max uint32 = ~$42.9 million)
 	MaxPrice = math.MaxUint32
-
-	// MaxFileCount is the maximum number of files allowed in an archive
-	MaxFileCount = 10000
-
-	// MaxDecompressedSize is the maximum allowed decompressed size (100MB)
-	MaxDecompressedSize = 100 * 1024 * 1024
 )
 
 // Validation errors
 var (
-	ErrNameEmpty     = errors.New("name cannot be empty")
-	ErrNameTooLong   = fmt.Errorf("name exceeds maximum length of %d characters", MaxNameLength)
-	ErrNoItems       = errors.New("must contain at least one item")
-	ErrTooManyItems  = fmt.Errorf("exceeds maximum of %d items", MaxItemsPerCollection)
-	ErrPriceOverflow = errors.New("price calculation would overflow")
+	ErrNameEmpty      = errors.New("name cannot be empty")
+	ErrNameTooLong    = fmt.Errorf("name exceeds maximum length of %d characters", MaxNameLength)
+	ErrNoItems        = errors.New("must contain at least one item")
+	ErrTooManyItems   = fmt.Errorf("exceeds maximum of %d items", MaxItemsPerCollection)
+	ErrPriceOverflow  = errors.New("price calculation would overflow")
 	ErrRecordTooLarge = fmt.Errorf("record size exceeds maximum of %d bytes", MaxRecordSize)
 )
 
@@ -82,25 +76,6 @@ func ValidateRecordLength(length uint64) error {
 	}
 	if length > MaxRecordSize {
 		return ErrRecordTooLarge
-	}
-	return nil
-}
-
-// ValidateArchiveFileCount validates the file count in an archive
-func ValidateArchiveFileCount(count uint32) error {
-	if count == 0 {
-		return errors.New("archive contains no files")
-	}
-	if count > MaxFileCount {
-		return fmt.Errorf("archive file count %d exceeds maximum of %d", count, MaxFileCount)
-	}
-	return nil
-}
-
-// ValidateDecompressedSize validates that decompressed data size is within limits
-func ValidateDecompressedSize(size int) error {
-	if size > MaxDecompressedSize {
-		return fmt.Errorf("decompressed size %d exceeds maximum of %d bytes", size, MaxDecompressedSize)
 	}
 	return nil
 }

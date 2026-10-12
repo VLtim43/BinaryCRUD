@@ -11,14 +11,12 @@ type FolderCleanupResult struct {
 	Count  int
 }
 
-// CleanupDataFiles deletes all generated data files (bin, indexes, compressed, keys)
+// CleanupDataFiles deletes all generated data files (bin and indexes)
 // but preserves seed data. Returns per-folder results.
 func CleanupDataFiles(log LogFunc) ([]FolderCleanupResult, error) {
 	foldersToClean := []string{
 		BinDir,
 		IndexDir,
-		CompressedDir,
-		KeysDir,
 	}
 
 	results := make([]FolderCleanupResult, 0, len(foldersToClean))

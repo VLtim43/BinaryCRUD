@@ -4,8 +4,6 @@ import {
   GetIndexContents,
   GetOrderIndexContents,
   GetPromotionIndexContents,
-  GetEncryptionEnabled,
-  SetEncryptionEnabled,
   Compact
 } from "../../wailsjs/go/main/App";
 
@@ -37,14 +35,6 @@ export const systemService = {
 
   getPromotionIndexContents: async (): Promise<any> => {
     return GetPromotionIndexContents();
-  },
-
-  getEncryptionEnabled: async (): Promise<boolean> => {
-    return GetEncryptionEnabled();
-  },
-
-  setEncryptionEnabled: async (enabled: boolean): Promise<void> => {
-    return SetEncryptionEnabled(enabled);
   },
 
   compact: async (): Promise<CompactResult> => {

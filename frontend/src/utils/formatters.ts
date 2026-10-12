@@ -71,5 +71,4 @@ export const CRUD_TABS = [
 export const DEBUG_TABS = [
   { id: "tools", label: "Tools" },
   { id: "print", label: "Print" },
-  { id: "compress", label: "Compress" },
 ] as const;
